@@ -1,0 +1,33 @@
+{
+  "name": "piano-practice",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4317",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview --host 127.0.0.1 --port 4318",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dexie": "^4.4.7",
+    "fflate": "^0.8.3",
+    "opensheetmusicdisplay": "^2.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tone": "^15.1.22",
+    "webmidi": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "happy-dom": "^21.0.4",
+    "oxlint": "^1.90.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
