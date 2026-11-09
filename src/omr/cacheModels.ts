@@ -45,9 +45,8 @@ export async function prepareModels(
     }
     const response = await fetch(href)
     if (!response.ok || !response.body) {
-      throw new Error(
-        `Model file missing (${response.status}): ${file.file}. From the project directory run npm run fetch-models, then rebuild.`,
-      )
+      const where = href.replace(document.baseURI, '')
+      throw new Error(`缺少模型文件 ${file.file}（${where}，HTTP ${response.status}）。请确认网站上有这个文件后再试。`)
     }
     const reader = response.body.getReader()
     const chunks: Uint8Array[] = []

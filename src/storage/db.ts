@@ -8,6 +8,7 @@ export interface SettingsRecord {
   hands: HandSelection
   mode: PracticeMode
   latencyOffsetMs: number
+  lastLibraryId?: string
 }
 
 export interface RunRecord {
@@ -20,15 +21,26 @@ export interface RunRecord {
   mode: PracticeMode
 }
 
+export interface SavedScore {
+  id?: number
+  title: string
+  xml: string
+  createdAt: number
+}
+
 class PracticeDB extends Dexie {
   settings!: Table<SettingsRecord, string>
   runs!: Table<RunRecord, number>
+  savedScores!: Table<SavedScore, number>
 
   constructor() {
     super('note-by-note')
     this.version(1).stores({
       settings: 'id',
       runs: '++id, pieceId, createdAt',
+    })
+    this.version(2).stores({
+      savedScores: '++id, createdAt',
     })
   }
 }
@@ -56,6 +68,32 @@ export async function saveRun(run: Omit<RunRecord, 'id'>): Promise<void> {
     await db.runs.add(run)
   } catch {
     // Ignore storage failures.
+  }
+}
+
+export async function saveUserScore(title: string, xml: string): Promise<number | undefined> {
+  try {
+    return await db.savedScores.add({ title, xml, createdAt: Date.now() })
+  } catch {
+    return undefined
+  }
+}
+
+export async function listUserScores(): Promise<SavedScore[]> {
+  try {
+    const rows = await db.savedScores.toArray()
+    rows.sort((a, b) => b.createdAt - a.createdAt)
+    return rows
+  } catch {
+    return []
+  }
+}
+
+export async function getUserScore(id: number): Promise<SavedScore | undefined> {
+  try {
+    return await db.savedScores.get(id)
+  } catch {
+    return undefined
   }
 }
 

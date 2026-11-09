@@ -1,5 +1,6 @@
 export const TABS = [
   { id: 'practice', zh: '练习', en: 'Practice' },
+  { id: 'library', zh: '曲库', en: 'Library' },
   { id: 'sight', zh: '视奏', en: 'Sight-reading' },
   { id: 'omr', zh: '识谱', en: 'OMR' },
   { id: 'history', zh: '记录', en: 'History' },

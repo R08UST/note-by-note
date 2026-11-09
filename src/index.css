@@ -422,6 +422,44 @@ h1 {
 .omr-license { color: var(--muted); font-size: 0.82rem; }
 .omr-license a { color: var(--amber); }
 
+.library-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.library-filters .segmented { flex-wrap: wrap; }
+.field.search input { min-width: 220px; background: #14110e; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.recent { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.recent span { color: var(--muted); font-size: 0.82rem; }
+.recent button, .library-card {
+  text-align: left;
+  background: #14110e;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+}
+.recent button { padding: 6px 10px; }
+.library-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.library-card { width: 100%; padding: 12px; display: flex; flex-direction: column; gap: 4px; min-height: 128px; }
+.library-card strong { font-size: 1.02rem; }
+.library-card em { color: var(--muted); font-style: normal; font-size: 0.82rem; }
+.library-card span { color: var(--muted); font-size: 0.82rem; }
+.library-card.is-selected { border-color: var(--amber); }
+.attribution.is-required { color: var(--amber); }
+.about { margin-top: 8px; }
+.about h2 { font-size: 1.2rem; }
+.about a { color: var(--amber); }
+.about ul { margin: 0; padding-left: 1.1rem; color: var(--muted); }
+.about li { margin: 6px 0; }
+
+.page-thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+.page-thumbs img { width: 120px; background: white; border-radius: 8px; display: block; }
+.page-thumbs label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 0.78rem; }
+.page-times { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
 @media (max-width: 860px) {
   .topbar, .keyboard-caption, .feedback, .summary { display: flex; flex-direction: column; align-items: stretch; }
   .device, .transport-buttons { align-items: stretch; margin-left: 0; }

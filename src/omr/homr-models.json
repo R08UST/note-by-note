@@ -1,6 +1,6 @@
 {
   "release": "models-homr0.7.0",
-  "note": "Files homr-web 0.6.x fetches from ${baseUrl}/${sha256}/${filename}. OCR models are omitted because the app calls recognizePage with ocr:false.",
+  "note": "Files homr-web 0.6.x fetches from ${baseUrl}/${sha256}/${filename}. ocr:false skips chord and title OCR, but the tab guard can still open the PP-OCRv6 recogniser on a five-line staff. The detector and classifier are fetched only if a tab system is actually read. The WebGPU decoder stays on the shared fp32 file; decoder_*_web_fp16.onnx is not the default catalog.",
   "files": [
     {
       "sha256": "60f495496cb41473c0521d0811d8f44b9d5cff892d287974a8aebb3eaee2fa83",
@@ -38,6 +38,27 @@
       "backend": "tab",
       "bytes": 471919,
       "source": "homr-web-release"
+    },
+    {
+      "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
+      "file": "PP-OCRv6_det_small.onnx",
+      "backend": "ocr",
+      "bytes": 9929594,
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv6/det/PP-OCRv6_det_small.onnx"
+    },
+    {
+      "sha256": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",
+      "file": "PP-OCRv6_rec_small.onnx",
+      "backend": "ocr",
+      "bytes": 21234383,
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv6/rec/PP-OCRv6_rec_small.onnx"
+    },
+    {
+      "sha256": "e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c",
+      "file": "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+      "backend": "ocr",
+      "bytes": 585532,
+      "url": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx"
     }
   ]
 }

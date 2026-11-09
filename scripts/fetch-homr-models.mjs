@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Downloads homr-web's ONNX weights into public/models/homr/<sha256>/<file>.
 // homr publishes most of them as zip assets. The tab-digit classifier is on the
-// homr-web models release. OCR weights are intentionally not fetched.
+// homr-web models release. RapidOCR weights are plain files on ModelScope.
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
@@ -44,8 +44,9 @@ for (const entry of manifest.files) {
   }
   const scratch = path.join(dir, `.partial-${entry.file}`)
   console.log(`fetch ${entry.file}`)
-  if (entry.source === 'homr-web-release') {
-    await download(`${ownRelease}/${entry.file}`, scratch)
+  if (entry.url || entry.source === 'homr-web-release') {
+    const url = entry.url ?? `${ownRelease}/${entry.file}`
+    await download(url, scratch)
     const actual = await sha256(scratch)
     if (actual !== entry.sha256) throw new Error(`hash mismatch for ${entry.file}: ${actual}`)
     await rm(target, { force: true })

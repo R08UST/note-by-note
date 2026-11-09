@@ -4,12 +4,14 @@ import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
+import { type CatalogFile, type CatalogPiece, pieceTitle } from '../score/catalog'
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
-import { readScoreFile } from '../score/mxl'
+import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
 import { BUNDLED_PIECES } from '../score/pieces'
-import { listRuns, loadSettings, saveSettings, type RunRecord } from '../storage/db'
+import { getUserScore, listRuns, listUserScores, loadSettings, saveSettings, type RunRecord, type SavedScore } from '../storage/db'
 import { Controls } from './Controls'
+import { LibraryTab } from './LibraryTab'
 import { DevicePicker } from './DevicePicker'
 import { FeedbackStrip } from './FeedbackStrip'
 import { keyboardBounds, Keyboard } from './Keyboard'
@@ -48,6 +50,12 @@ export function PracticeApp() {
   const [inputs, setInputs] = useState<MidiPortInfo[]>([])
   const [inputId, setInputId] = useState('')
   const [runs, setRuns] = useState<RunRecord[]>([])
+  const [savedScores, setSavedScores] = useState<SavedScore[]>([])
+  const [catalog, setCatalog] = useState<CatalogPiece[]>([])
+  const [lastLibraryId, setLastLibraryId] = useState('')
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  const [libraryError, setLibraryError] = useState<string | null>(null)
+  const userPicked = useRef(false)
   const scoreRef = useRef<ScoreHandle>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -88,8 +96,19 @@ export function PracticeApp() {
   }, [])
 
   useEffect(() => {
-    if (tab !== 'history') return
+    void fetch(new URL('pieces/manifest.json', document.baseURI).href)
+      .then(async (response) => {
+        if (!response.ok) return
+        const body = (await response.json()) as CatalogFile
+        setCatalog(body.pieces ?? [])
+      })
+      .catch(() => setCatalog([]))
+  }, [])
+
+  useEffect(() => {
+    if (tab !== 'history' && tab !== 'library') return
     void listRuns().then(setRuns)
+    void listUserScores().then(setSavedScores)
   }, [tab, practice.previous])
 
   useEffect(() => {
@@ -103,6 +122,7 @@ export function PracticeApp() {
       setHands(settings.hands)
       setMode(settings.mode)
       setLatencyOffsetMs(settings.latencyOffsetMs)
+      if (settings.lastLibraryId) setLastLibraryId(settings.lastLibraryId)
       setHydrated(true)
     })
     return () => {
@@ -112,8 +132,22 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!hydrated) return
-    void saveSettings({ bpm, hands, mode, latencyOffsetMs })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs])
+    void saveSettings({ bpm, hands, mode, latencyOffsetMs, lastLibraryId: lastLibraryId || undefined })
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId])
+
+  useEffect(() => {
+    if (!hydrated || !lastLibraryId || userPicked.current) return
+    const bundled = BUNDLED_PIECES.find((item) => item.id === lastLibraryId)
+    if (bundled) {
+      userPicked.current = true
+      setPiece(bundled)
+      return
+    }
+    const entry = catalog.find((item) => item.id === lastLibraryId)
+    if (!entry) return
+    userPicked.current = true
+    void openCatalogPiece(entry, false)
+  }, [hydrated, lastLibraryId, catalog])
 
   useEffect(() => {
     setScoreState('loading')
@@ -145,6 +179,48 @@ export function PracticeApp() {
     if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
     setFileError(null)
     setPiece(next)
+    userPicked.current = true
+  }
+
+  const openSavedScore = async (id: number) => {
+    const saved = await getUserScore(id)
+    if (!saved) return
+    choosePiece({
+      id: `saved:${id}`,
+      title: saved.title,
+      blurb: '识谱保存',
+      xml: saved.xml,
+    })
+    window.location.hash = 'practice'
+    setTab('practice')
+  }
+
+  const openCatalogPiece = async (entry: CatalogPiece, focus = true) => {
+    setOpeningId(entry.id)
+    setLibraryError(null)
+    try {
+      const response = await fetch(new URL(entry.file, document.baseURI).href)
+      if (!response.ok) throw new Error(`打不开乐谱（HTTP ${response.status}）`)
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      const xml = entry.file.endsWith('.mxl') ? unpackMxl(bytes) : new TextDecoder().decode(bytes)
+      const score = parseMusicXml(xml)
+      if (score.notes.length === 0) throw new Error('这首谱没有可弹的音符。')
+      choosePiece({
+        id: entry.id,
+        title: pieceTitle(entry),
+        blurb: `${entry.composer} · ${entry.level}`,
+        xml,
+      })
+      setLastLibraryId(entry.id)
+      if (focus) {
+        window.location.hash = 'practice'
+        setTab('practice')
+      }
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : '打不开这首谱。')
+    } finally {
+      setOpeningId(null)
+    }
   }
 
   const onFile = async (file: File | undefined) => {
@@ -358,6 +434,19 @@ export function PracticeApp() {
         </section>
       </div>
 
+      <div className={tab === 'library' ? 'tab-panel' : 'tab-panel is-stashed'}>
+        <LibraryTab
+          pieces={catalog}
+          activeId={piece.id}
+          openingId={openingId}
+          error={libraryError}
+          recent={recentPieces(catalog, runs)}
+          saved={savedScores.flatMap((score) => (score.id == null ? [] : [{ id: score.id, title: score.title, createdAt: score.createdAt }]))}
+          onOpen={(entry) => void openCatalogPiece(entry)}
+          onOpenSaved={(id) => void openSavedScore(id)}
+        />
+      </div>
+
       <div className={tab === 'sight' ? 'tab-panel' : 'tab-panel is-stashed'}>
         <section className="panel">
           <h2>视奏</h2>
@@ -372,7 +461,12 @@ export function PracticeApp() {
       {omrMounted && (
         <div className={tab === 'omr' ? 'tab-panel' : 'tab-panel is-stashed'}>
           <Suspense fallback={<p className="panel">Opening the recognition engine…</p>}>
-            <OmrTab onPractice={useOmrPiece} />
+            <OmrTab
+              onPractice={useOmrPiece}
+              onSaved={() => {
+                void listUserScores().then(setSavedScores)
+              }}
+            />
           </Suspense>
         </div>
       )}
@@ -426,6 +520,23 @@ export function PracticeApp() {
             ))}
           </div>
           <p>The Q row starts at C4. The Z row starts at C3. Keys between those rows are the black notes.</p>
+          <section className="about">
+            <h2>关于 / 版权</h2>
+            <p>曲库里的谱可以打开来练。反复记号不会按反复展开，倚音不计入对错。</p>
+            <ul>
+              <li>
+                <a href="https://github.com/pepperhorn/opensongs-json">opensongs-json</a>：CC0-1.0。L1 单手旋律，包括带中文曲名的民歌。
+              </li>
+              <li>
+                <a href="https://noctavepiano.com/en/free-library/">Noctave 免费库</a>与
+                <a href="https://noctavepiano.com/en/sheet-music/">曲目页</a>：多数为 CC0-1.0 或 PDM-1.0，个别页面为 CC BY。以每首卡片上的许可和署名为准。
+              </li>
+              <li>
+                <a href="https://www.mutopiaproject.org/">Mutopia Project</a>：公有领域或 CC。这里用的三首是从 MIDI 转成的 MusicXML。
+              </li>
+            </ul>
+            <p>带 CC BY 的曲子会在卡片上写出「署名」。没有署名要求的曲子仍列出出处，方便核对。</p>
+          </section>
         </section>
       </div>
     </div>
@@ -464,6 +575,20 @@ function HistoryPanel({ runs }: { runs: RunRecord[] }) {
       )}
     </section>
   )
+}
+
+function recentPieces(catalog: CatalogPiece[], runs: RunRecord[]): CatalogPiece[] {
+  const seen = new Set<string>()
+  const found: CatalogPiece[] = []
+  for (const run of runs) {
+    if (seen.has(run.pieceId)) continue
+    const piece = catalog.find((item) => item.id === run.pieceId)
+    if (!piece) continue
+    seen.add(piece.id)
+    found.push(piece)
+    if (found.length === 8) break
+  }
+  return found
 }
 
 function countHands(notes: ScoreNote[]): { L: number; R: number } {
