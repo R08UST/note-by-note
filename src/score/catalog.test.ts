@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterCatalog, needsAttribution, pieceTitle, type CatalogPiece } from './catalog'
+import { filterCatalog, needsAttribution, nowPlayingLine, pieceTitle, quickPicks, type CatalogPiece } from './catalog'
 
 const sample: CatalogPiece[] = [
   {
@@ -46,5 +46,12 @@ describe('filterCatalog', () => {
     expect(pieceTitle(sample[1]!)).toBe('Minuet in G')
     expect(needsAttribution(sample[0]!)).toBe(false)
     expect(needsAttribution(sample[1]!)).toBe(true)
+  })
+
+  it('formats the current piece and picks three easy scores', () => {
+    expect(nowPlayingLine({ title: 'Jasmine', titleZh: '茉莉花', composer: 'Traditional', level: 'L1' })).toBe(
+      '茉莉花 · Traditional · L1',
+    )
+    expect(quickPicks(sample).map((piece) => piece.id)).toEqual(['a'])
   })
 })

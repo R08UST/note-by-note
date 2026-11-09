@@ -29,6 +29,33 @@ export function pieceTitle(piece: CatalogPiece): string {
   return piece.title_zh?.trim() || piece.title
 }
 
+export function nowPlayingLine(piece: {
+  title: string
+  titleZh: string | null
+  composer: string
+  level: string
+}): string {
+  const name = piece.titleZh?.trim() || piece.title
+  return [name, piece.composer, piece.level].filter((part) => part.trim()).join(' · ')
+}
+
+const QUICK_PICK_IDS = ['os-twinkle-twinkle-little-star', 'demo-light-steps', 'demo-sunday-chords']
+
+/** Three easy pieces for the empty practice stand. Falls back to the first L1 scores. */
+export function quickPicks(pieces: readonly CatalogPiece[]): CatalogPiece[] {
+  const picked: CatalogPiece[] = []
+  for (const id of QUICK_PICK_IDS) {
+    const piece = pieces.find((item) => item.id === id)
+    if (piece) picked.push(piece)
+  }
+  for (const piece of pieces) {
+    if (picked.length >= 3) break
+    if (piece.level !== 'L1' || picked.some((item) => item.id === piece.id)) continue
+    picked.push(piece)
+  }
+  return picked.slice(0, 3)
+}
+
 export function needsAttribution(piece: CatalogPiece): boolean {
   return /CC\s*BY/i.test(piece.license)
 }

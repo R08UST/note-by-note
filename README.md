@@ -2,13 +2,13 @@
 
 A browser practice stand for a beginner with a MIDI keyboard. The window is a tab bar:
 
-- **练习 Practice** — load a MusicXML score, play in Wait or Rhythm mode, and loop the piece when it ends.
+- **练习 Practice** — pick a piece from the library, then play it in Wait or Rhythm mode. `#library` opens the same tab with the picker showing.
 - **视奏 Sight-reading** — a placeholder for drills that are not built yet.
-- **识谱 OMR** — turn a photo of a page into MusicXML in the browser.
+- **识谱 OMR** — turn a photo or a multi-page PDF into MusicXML in the browser, then send it to 练习.
 - **记录 History** — saved runs in this browser.
 - **设置 Settings** — MIDI device, latency, and the computer-keyboard map.
 
-The tab is the URL hash (`#practice`, `#sight`, `#omr`, `#history`, `#settings`).
+The tab is the URL hash (`#practice`, `#sight`, `#omr`, `#history`, `#settings`). `#library` is an alias for 练习 and opens the piece picker.
 
 Middle C is MIDI 60. Staff 1 is the right hand and staff 2 is the left. The on-screen keyboard, the computer keyboard, and a Web MIDI device all feed the same note stream.
 
@@ -30,6 +30,8 @@ npm run preview
 
 The production build uses a relative asset base, so the `dist` folder can be served from a subfolder. `npm run fetch-models` must run before `npm run build` if the 识谱 tab should work; the weights are copied from `public/models/homr/` into `dist`.
 
+If a reverse proxy caches static files for a long time, send `Cache-Control: public, max-age=31536000, immutable` only on successful responses. In nginx that means the header must not use `always`, or a 404 for a missing model file stays cached after the file is added.
+
 WebAssembly threads need a cross-origin isolated page. WebGPU does not. For the threaded fallback, serve with:
 
 ```
@@ -47,7 +49,7 @@ OCR is disabled (`ocr: false`), so the ~32 MB RapidOCR models are not fetched an
 
 ## Pieces
 
-Three scores are bundled: Twinkle, Twinkle (right hand), Light Steps (both hands), and Sunday Chords. You can also open a `.musicxml`, `.xml`, or `.mxl` file.
+练习 opens onto the graded library (L1–L5) in a side panel on a wide window and a top drawer on a narrow one. The last piece you opened is restored. With nothing to restore, the page asks you to pick a piece and offers three L1 scores. Light Steps and Sunday Chords are in that library as built-in L1 examples. You can still open a `.musicxml`, `.xml`, or `.mxl` file from the picker. A score sent over from 识谱 is saved in this browser under 我的曲谱.
 
 ## Layout
 

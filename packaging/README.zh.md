@@ -44,13 +44,15 @@ Web MIDI 只能在安全环境下使用。本机的 `localhost` / `127.0.0.1` �
 
 ## 乐谱
 
-内置三首短曲：Twinkle, Twinkle（右手）、Light Steps（双手）、Sunday Chords（和弦）。也可以在「练习」里打开自己的 `.musicxml`、`.xml` 或 `.mxl` 文件。
+练习页左边（窄屏时在上方）是曲库。可以按 L1–L5、单手或双手、曲名来找。最近练过的、识谱后保存的，和全部曲库分开展示。点一首就在右侧打开。地址栏用 `#practice`。旧的 `#library` 也会打开练习，并把曲库展开。
 
-页面上方的标签：练习、曲库、视奏、识谱、记录、设置。地址栏的 `#library`、`#omr` 等可以直接打开对应标签。
+没有上次打开的曲子时，页面会写「先选一首曲子」，并给出三首 L1 让你直接开始。也可以打开自己的 `.musicxml`、`.xml` 或 `.mxl` 文件。
 
-曲库按 L1 到 L5 收录练习曲。点一首就会在「练习」里打开。反复记号不会展开，倚音不计入判定。
+页面上方的标签：练习、视奏、识谱、记录、设置。
 
-「识谱」可以一次选择多张图片，或一份多页 PDF，按页识别后合并成一首。模型文件需要放在 `models/homr/`（见模型说明）。这一部分使用 AGPL-3.0 许可的 [homr-web](https://github.com/jymen/homr-web)（移植自 [homr](https://github.com/liebharc/homr)）。
+「识谱」可以一次选择多张图片，或一份多页 PDF，按页识别后合并成一首。点「用这首练习」会打开练习页，并把这首记在「我的曲谱」里。模型文件需要放在 `models/homr/`（见模型说明）。这一部分使用 AGPL-3.0 许可的 [homr-web](https://github.com/jymen/homr-web)（移植自 [homr](https://github.com/liebharc/homr)）。
+
+如果用 nginx 给静态文件加长期缓存，`Cache-Control` 里的 `immutable` 只加在成功的响应上，不要写 `always`。否则一个还没放上去的模型文件会把 404 缓存住，以后补上文件也打不开。
 
 如果要用多线程的 WebAssembly，网站需要加上：
 
