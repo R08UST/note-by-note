@@ -19,12 +19,15 @@ export type RunStatus = 'idle' | 'countin' | 'playing' | 'finished'
 interface PracticeOptions {
   notes: ScoreNote[]
   pieceId: string
+  pieceTitle: string
   bpm: number
   hands: HandSelection
   mode: PracticeMode
   latencyOffsetMs: number
   timeSignature: TimeSignature
   scoreRef: RefObject<ScoreHandle | null>
+  loop: boolean
+  keyboardEnabled: boolean
 }
 
 type Engine = WaitMode | RhythmMode
@@ -38,12 +41,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function usePractice({
   notes,
   pieceId,
+  pieceTitle,
   bpm,
   hands,
   mode,
   latencyOffsetMs,
   timeSignature,
   scoreRef,
+  loop,
+  keyboardEnabled,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -72,8 +78,19 @@ export function usePractice({
     pieceId,
   })
 
-  const optionsRef = useRef({ notes, pieceId, bpm, hands, mode, latencyOffsetMs, timeSignature })
-  optionsRef.current = { notes, pieceId, bpm, hands, mode, latencyOffsetMs, timeSignature }
+  const optionsRef = useRef({
+    notes,
+    pieceId,
+    pieceTitle,
+    bpm,
+    hands,
+    mode,
+    latencyOffsetMs,
+    timeSignature,
+    loop,
+  })
+  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop }
+  const startRef = useRef<() => Promise<void>>(async () => {})
 
   const setRunStatus = (next: RunStatus) => {
     statusRef.current = next
@@ -130,6 +147,7 @@ export function usePractice({
     if (judgementsRef.current.length > 0) {
       const record: RunRecord = {
         pieceId: runRef.current.pieceId,
+        title: optionsRef.current.pieceTitle,
         createdAt: Date.now(),
         hitRate: report.hitRate,
         meanOffsetMs: report.meanOffsetMs,
@@ -139,6 +157,11 @@ export function usePractice({
       savedPieceRef.current = record.pieceId
       void saveRun(record)
       setPrevious(record)
+    }
+    if (reason === 'done' && optionsRef.current.loop) {
+      window.setTimeout(() => {
+        if (statusRef.current === 'finished' && optionsRef.current.loop) void startRef.current()
+      }, 350)
     }
   }
 
@@ -181,6 +204,7 @@ export function usePractice({
   }, [])
 
   useEffect(() => {
+    if (!keyboardEnabled) return
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (isTypingTarget(event.target)) return
@@ -213,7 +237,7 @@ export function usePractice({
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [handleInput])
+  }, [handleInput, keyboardEnabled])
 
   useEffect(() => {
     let cancel = false
@@ -322,6 +346,8 @@ export function usePractice({
 
     setRunStatus('playing')
   }
+
+  startRef.current = start
 
   const stop = () => {
     if (statusRef.current === 'playing' || statusRef.current === 'countin') finishRef.current('stop')

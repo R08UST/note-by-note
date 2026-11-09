@@ -7,13 +7,13 @@ interface ControlsProps {
   bpm: number
   hands: HandSelection
   mode: PracticeMode
-  latencyOffsetMs: number
+  loop: boolean
   status: RunStatus
   canStart: boolean
   onBpm: (bpm: number) => void
   onHands: (hands: HandSelection) => void
   onMode: (mode: PracticeMode) => void
-  onLatency: (latency: number) => void
+  onLoop: (loop: boolean) => void
   onStart: () => void
   onStop: () => void
 }
@@ -28,13 +28,13 @@ export function Controls({
   bpm,
   hands,
   mode,
-  latencyOffsetMs,
+  loop,
   status,
   canStart,
   onBpm,
   onHands,
   onMode,
-  onLatency,
+  onLoop,
   onStart,
   onStop,
 }: ControlsProps) {
@@ -74,18 +74,15 @@ export function Controls({
           Rhythm
         </button>
       </div>
-      <label className="field latency">
-        <span>Latency {latencyOffsetMs} ms</span>
-        <input
-          type="number"
-          min={-200}
-          max={300}
-          step={5}
-          value={latencyOffsetMs}
-          disabled={locked}
-          onChange={(event) => onLatency(Number(event.target.value) || 0)}
-        />
-      </label>
+      <button
+        type="button"
+        className={loop ? 'loop is-on' : 'loop'}
+        aria-pressed={loop}
+        disabled={locked}
+        onClick={() => onLoop(!loop)}
+      >
+        Loop
+      </button>
       <div className="transport-buttons">
         <button type="button" className="button primary" disabled={!canStart} onClick={onStart}>
           {status === 'finished' ? 'Start again' : 'Start'}
@@ -98,6 +95,7 @@ export function Controls({
         {mode === 'wait'
           ? 'Wait mode holds the cursor until the written notes are down. A wrong key is flagged, and you can try again.'
           : `Rhythm mode counts in, then keeps time. A hit within ${BEGINNER_TOLERANCE.perfectMs} ms is on time. The window is ${BEGINNER_TOLERANCE.earlyMs} ms early and ${BEGINNER_TOLERANCE.lateMs} ms late, tightened when notes sit close together.`}
+        {loop ? ' Loop starts the piece again when you reach the end.' : ''}
       </p>
     </div>
   )

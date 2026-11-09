@@ -117,6 +117,18 @@ export function ScoreView({ xml, notes, ref, onReady, onError }: ScoreViewProps)
     osmdRef.current = osmd
 
     const paint = async () => {
+      if (host.clientWidth < 40) {
+        await new Promise<void>((resolve) => {
+          const observer = new ResizeObserver(() => {
+            if (cancelled || host.clientWidth >= 40) {
+              observer.disconnect()
+              resolve()
+            }
+          })
+          observer.observe(host)
+        })
+        if (cancelled || host.clientWidth < 40) return
+      }
       try {
         await osmd.load(xml)
         if (cancelled) return

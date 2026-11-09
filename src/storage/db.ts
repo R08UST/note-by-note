@@ -13,6 +13,7 @@ export interface SettingsRecord {
 export interface RunRecord {
   id?: number
   pieceId: string
+  title?: string
   createdAt: number
   hitRate: number
   meanOffsetMs: number | null
@@ -55,6 +56,16 @@ export async function saveRun(run: Omit<RunRecord, 'id'>): Promise<void> {
     await db.runs.add(run)
   } catch {
     // Ignore storage failures.
+  }
+}
+
+export async function listRuns(): Promise<RunRecord[]> {
+  try {
+    const rows = await db.runs.toArray()
+    rows.sort((a, b) => b.createdAt - a.createdAt)
+    return rows
+  } catch {
+    return []
   }
 }
 

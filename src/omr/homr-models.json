@@ -1,0 +1,43 @@
+{
+  "release": "models-homr0.7.0",
+  "note": "Files homr-web 0.6.x fetches from ${baseUrl}/${sha256}/${filename}. OCR models are omitted because the app calls recognizePage with ocr:false.",
+  "files": [
+    {
+      "sha256": "60f495496cb41473c0521d0811d8f44b9d5cff892d287974a8aebb3eaee2fa83",
+      "file": "segnet_308-3296ccd40960f90ca6ab9c035cca945675d30a0f_fp16.onnx",
+      "backend": "webgpu",
+      "bytes": 28667207
+    },
+    {
+      "sha256": "9db62d5a6a13c8df2df321af3bcf72c7f81a95d4f876d4f0c202b28f8658087e",
+      "file": "encoder_pytorch_model_396-f6feedb42ff90087d898b0941a55d040fa6b2903_fp16.onnx",
+      "backend": "webgpu",
+      "bytes": 26466256
+    },
+    {
+      "sha256": "6ed36640db4ef5d223098b6d5efe4eda97c66b24a2c72faab8a018c749003a8d",
+      "file": "segnet_308-3296ccd40960f90ca6ab9c035cca945675d30a0f.onnx",
+      "backend": "wasm",
+      "bytes": 57311361
+    },
+    {
+      "sha256": "4c16df852b3789f2676b0d49f0545dab0740e4005f7b472c5252add642f5d5eb",
+      "file": "encoder_pytorch_model_396-f6feedb42ff90087d898b0941a55d040fa6b2903.onnx",
+      "backend": "wasm",
+      "bytes": 52861122
+    },
+    {
+      "sha256": "3e10fd5ae52d0b86792721922fcd954c283a7ed365de7446425bdabe38f3e57d",
+      "file": "decoder_pytorch_model_396-f6feedb42ff90087d898b0941a55d040fa6b2903.onnx",
+      "backend": "both",
+      "bytes": 47299551
+    },
+    {
+      "sha256": "037fac028e121b4d133e5f6bcd1099a1914e692e68ed90f7d3e1bb94d5bdcda3",
+      "file": "tab-digits-037fac028e12.onnx",
+      "backend": "tab",
+      "bytes": 471919,
+      "source": "homr-web-release"
+    }
+  ]
+}

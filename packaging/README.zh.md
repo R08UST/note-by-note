@@ -44,4 +44,17 @@ Web MIDI 只能在安全环境下使用。本机的 `localhost` / `127.0.0.1` �
 
 ## 乐谱
 
-内置三首短曲：Twinkle, Twinkle（右手）、Light Steps（双手）、Sunday Chords（和弦）。也可以点 **Open a score** 打开自己的 `.musicxml`、`.xml` 或 `.mxl` 文件。
+内置三首短曲：Twinkle, Twinkle（右手）、Light Steps（双手）、Sunday Chords（和弦）。也可以在「练习」里打开自己的 `.musicxml`、`.xml` 或 `.mxl` 文件。
+
+页面上方有五个标签：练习、视奏、识谱、记录、设置。地址栏的 `#practice`、`#omr` 等可以直接打开对应标签。
+
+「识谱」在浏览器里用 homr 把乐谱照片转成 MusicXML。模型文件已经放在这个压缩包的 `models/homr/` 里，第一次打开识谱时会缓存到本机，第二次不用重新下载。这一部分使用 AGPL-3.0 许可的 [homr-web](https://github.com/jymen/homr-web)（移植自 [homr](https://github.com/liebharc/homr)）。
+
+如果要用多线程的 WebAssembly，网站需要加上：
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+有 WebGPU 时不依赖这两项。没有的话，识别仍会在单线程 WebAssembly 上运行，只是更慢。
