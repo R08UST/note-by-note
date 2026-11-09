@@ -1,6 +1,6 @@
 export const TABS = [
   { id: 'practice', zh: '练习', en: 'Practice' },
-  { id: 'sight', zh: '视奏', en: 'Sight-reading' },
+  { id: 'train', zh: '训练', en: 'Training' },
   { id: 'omr', zh: '识谱', en: 'OMR' },
   { id: 'history', zh: '记录', en: 'History' },
   { id: 'settings', zh: '设置', en: 'Settings' },
@@ -8,10 +8,11 @@ export const TABS = [
 
 export type TabId = (typeof TABS)[number]['id']
 
-/** `#library` is an old address for the piece picker. It opens 练习. */
+/** `#library` opens the piece picker. `#sight` is the old name for 训练. */
 export function tabFromHash(hash: string): TabId {
   const id = hash.replace(/^#/, '')
   if (id === 'library') return 'practice'
+  if (id === 'sight') return 'train'
   return TABS.some((tab) => tab.id === id) ? (id as TabId) : 'practice'
 }
 

@@ -28,6 +28,7 @@ interface PracticeOptions {
   scoreRef: RefObject<ScoreHandle | null>
   loop: boolean
   keyboardEnabled: boolean
+  listenKeyboard?: boolean
 }
 
 type Engine = WaitMode | RhythmMode
@@ -50,6 +51,7 @@ export function usePractice({
   scoreRef,
   loop,
   keyboardEnabled,
+  listenKeyboard = true,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -152,6 +154,7 @@ export function usePractice({
         hitRate: report.hitRate,
         meanOffsetMs: report.meanOffsetMs,
         mode: runRef.current.mode,
+        errorsPerMeasure: report.errorsPerMeasure,
       }
       savedAtRef.current = record.createdAt
       savedPieceRef.current = record.pieceId
@@ -204,7 +207,7 @@ export function usePractice({
   }, [])
 
   useEffect(() => {
-    if (!keyboardEnabled) return
+    if (!listenKeyboard || !keyboardEnabled) return
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (isTypingTarget(event.target)) return
@@ -237,7 +240,7 @@ export function usePractice({
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [handleInput, keyboardEnabled])
+  }, [handleInput, keyboardEnabled, listenKeyboard])
 
   useEffect(() => {
     let cancel = false

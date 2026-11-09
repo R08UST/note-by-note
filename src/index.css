@@ -492,6 +492,57 @@ h1 {
   padding: 12px 14px;
 }
 .now-playing h2 { margin: 2px 0 0; font-family: var(--serif); font-size: 1.25rem; font-weight: 560; }
+
+.train-pane { display: flex; flex-direction: column; gap: 12px; }
+.train-switch { align-self: flex-start; }
+.level-rail { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.level-chip {
+  min-width: 64px;
+  background: #14110e;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 8px;
+  text-align: left;
+}
+.level-chip strong { display: block; }
+.level-chip span { color: var(--amber); font-size: 0.72rem; letter-spacing: 0.04em; }
+.level-chip.is-selected { border-color: var(--amber); background: var(--amber); color: var(--amber-ink); }
+.level-chip.is-selected span { color: var(--amber-ink); }
+.train-settings { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.train-settings select, .train-settings input[type="number"] {
+  background: #14110e;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.train-score { max-height: 42vh; }
+.note-hint { font-family: var(--serif); font-size: 1.4rem; }
+.heat { display: flex; flex-direction: column; gap: 6px; }
+.heat-keys { display: flex; gap: 2px; align-items: flex-end; height: 42px; }
+.heat-key { flex: 1; height: 70%; border-radius: 2px 2px 4px 4px; }
+.heat-key.is-black { height: 46%; }
+.timing-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.timing-bars li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: #14110e;
+  border-radius: 999px;
+  padding: 4px 10px;
+  overflow: hidden;
+  font-size: 0.82rem;
+}
+.timing-bars i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--ink);
+}
+.train-history { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.train-history h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.day-chart svg { width: 100%; height: 72px; background: #14110e; border-radius: 10px; }
 .attribution.is-required { color: var(--amber); }
 .about { margin-top: 8px; }
 .about h2 { font-size: 1.2rem; }

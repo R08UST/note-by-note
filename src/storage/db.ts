@@ -19,6 +19,7 @@ export interface RunRecord {
   hitRate: number
   meanOffsetMs: number | null
   mode: PracticeMode
+  errorsPerMeasure?: { measure: number; errors: number; expected: number }[]
 }
 
 export interface SavedScore {
@@ -28,10 +29,35 @@ export interface SavedScore {
   createdAt: number
 }
 
+export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece'
+
+export interface TrainRunRecord {
+  id?: number
+  mode: TrainMode
+  level: number
+  createdAt: number
+  pitchAccuracy: number
+  onTimeRate: number
+  meanOffsetMs: number | null
+  spreadMs: number | null
+  bpm: number
+  scoredTiming: boolean
+}
+
+export interface PitchStatRecord {
+  pitch: number
+  seen: number
+  errors: number
+  reactionMs: number
+  reactionCount: number
+}
+
 class PracticeDB extends Dexie {
   settings!: Table<SettingsRecord, string>
   runs!: Table<RunRecord, number>
   savedScores!: Table<SavedScore, number>
+  trainRuns!: Table<TrainRunRecord, number>
+  pitchStats!: Table<PitchStatRecord, number>
 
   constructor() {
     super('note-by-note')
@@ -41,6 +67,10 @@ class PracticeDB extends Dexie {
     })
     this.version(2).stores({
       savedScores: '++id, createdAt',
+    })
+    this.version(3).stores({
+      trainRuns: '++id, mode, createdAt, level',
+      pitchStats: 'pitch',
     })
   }
 }
@@ -114,5 +144,51 @@ export async function latestRun(pieceId: string): Promise<RunRecord | undefined>
     return rows[0]
   } catch {
     return undefined
+  }
+}
+
+export async function saveTrainRun(run: Omit<TrainRunRecord, 'id'>): Promise<void> {
+  try {
+    await db.trainRuns.add(run)
+  } catch {
+    // Practice still finishes if storage is blocked.
+  }
+}
+
+export async function listTrainRuns(): Promise<TrainRunRecord[]> {
+  try {
+    const rows = await db.trainRuns.toArray()
+    rows.sort((a, b) => a.createdAt - b.createdAt)
+    return rows
+  } catch {
+    return []
+  }
+}
+
+export async function listPitchStats(): Promise<PitchStatRecord[]> {
+  try {
+    return await db.pitchStats.toArray()
+  } catch {
+    return []
+  }
+}
+
+export async function rememberPitches(results: readonly { pitch: number; hit: boolean; reactionMs?: number }[]): Promise<void> {
+  try {
+    await db.transaction('rw', db.pitchStats, async () => {
+      for (const result of results) {
+        const current = await db.pitchStats.get(result.pitch)
+        const next: PitchStatRecord = current ?? { pitch: result.pitch, seen: 0, errors: 0, reactionMs: 0, reactionCount: 0 }
+        next.seen += 1
+        if (!result.hit) next.errors += 1
+        if (result.reactionMs != null) {
+          next.reactionMs += result.reactionMs
+          next.reactionCount += 1
+        }
+        await db.pitchStats.put(next)
+      }
+    })
+  } catch {
+    // The drill result is still on screen.
   }
 }

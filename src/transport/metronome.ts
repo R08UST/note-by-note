@@ -18,7 +18,7 @@ function ensureSynths(): void {
   }).toDestination()
 }
 
-export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number): Promise<void> {
+export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number, audible = true): Promise<void> {
   await Tone.start()
   audioStarted = true
   ensureSynths()
@@ -28,10 +28,11 @@ export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number
   let beat = 0
   const perMeasure = Math.max(1, Math.round(quarterBeatsPerMeasure))
   Tone.Transport.scheduleRepeat((time) => {
-    const downbeat = beat % perMeasure === 0
+    beat += 1
+    if (!audible) return
+    const downbeat = (beat - 1) % perMeasure === 0
     const synth = downbeat ? accent : tick
     synth?.triggerAttackRelease(downbeat ? 'E5' : 'C5', '32n', time)
-    beat += 1
   }, '4n')
   Tone.Transport.start()
 }

@@ -3,12 +3,12 @@
 A browser practice stand for a beginner with a MIDI keyboard. The window is a tab bar:
 
 - **练习 Practice** — pick a piece from the library, then play it in Wait or Rhythm mode. `#library` opens the same tab with the picker showing.
-- **视奏 Sight-reading** — a placeholder for drills that are not built yet.
+- **训练 Training** — sight-reading and rhythm drills. `#sight` opens this tab.
 - **识谱 OMR** — turn a photo or a multi-page PDF into MusicXML in the browser, then send it to 练习.
-- **记录 History** — saved runs in this browser.
+- **记录 History** — saved practice runs and training charts in this browser.
 - **设置 Settings** — MIDI device, latency, and the computer-keyboard map.
 
-The tab is the URL hash (`#practice`, `#sight`, `#omr`, `#history`, `#settings`). `#library` is an alias for 练习 and opens the piece picker.
+The tab is the URL hash (`#practice`, `#train`, `#omr`, `#history`, `#settings`). `#library` opens the piece picker. `#sight` opens 训练.
 
 Middle C is MIDI 60. Staff 1 is the right hand and staff 2 is the left. The on-screen keyboard, the computer keyboard, and a Web MIDI device all feed the same note stream.
 

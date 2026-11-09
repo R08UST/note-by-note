@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import type { ScoreNote } from '../judge/types'
+import type { PlayedEvent, ScoreNote } from '../judge/types'
 import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
@@ -8,7 +8,8 @@ import { type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine,
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
-import { getUserScore, listRuns, listUserScores, loadSettings, saveSettings, saveUserScore, type RunRecord, type SavedScore } from '../storage/db'
+import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
+import { getUserScore, listRuns, listTrainRuns, listUserScores, loadSettings, saveSettings, saveUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
 import { DevicePicker } from './DevicePicker'
@@ -16,7 +17,8 @@ import { FeedbackStrip } from './FeedbackStrip'
 import { keyboardBounds, Keyboard } from './Keyboard'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { SummaryPanel } from './SummaryPanel'
-import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
+import { TrainHistory } from './TrainHistory'
+import { TrainTab } from './TrainTab'
 import { usePractice } from './usePractice'
 
 const OmrTab = lazy(() => import('../omr/OmrTab'))
@@ -64,6 +66,7 @@ export function PracticeApp() {
   const [inputId, setInputId] = useState('')
   const [runs, setRuns] = useState<RunRecord[]>([])
   const [savedScores, setSavedScores] = useState<SavedScore[]>([])
+  const [trainRuns, setTrainRuns] = useState<TrainRunRecord[]>([])
   const [catalog, setCatalog] = useState<CatalogPiece[]>([])
   const [catalogReady, setCatalogReady] = useState(false)
   const [lastLibraryId, setLastLibraryId] = useState('')
@@ -74,6 +77,9 @@ export function PracticeApp() {
   const scoreRef = useRef<ScoreHandle>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const trainInput = useRef<(event: PlayedEvent) => void>(() => {})
+  const tabRef = useRef(tab)
+  tabRef.current = tab
 
   const parsed = useMemo(() => {
     if (!piece) return { score: null, error: null as string | null }
@@ -100,6 +106,7 @@ export function PracticeApp() {
     scoreRef,
     loop,
     keyboardEnabled,
+    listenKeyboard: tab === 'practice',
   })
 
   useEffect(() => {
@@ -126,9 +133,10 @@ export function PracticeApp() {
   }, [])
 
   useEffect(() => {
-    if (tab !== 'history' && tab !== 'practice') return
+    if (tab !== 'history' && tab !== 'practice' && tab !== 'train') return
     void listRuns().then(setRuns)
     void listUserScores().then(setSavedScores)
+    void listTrainRuns().then(setTrainRuns)
   }, [tab, practice.previous])
 
   useEffect(() => {
@@ -198,7 +206,10 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!midiOn || !inputId) return
-    return attachInput(inputId, practice.handleInput)
+    return attachInput(inputId, (event) => {
+      if (tabRef.current === 'train') trainInput.current(event)
+      else practice.handleInput(event)
+    })
   }, [midiOn, inputId, practice.handleInput])
 
   useEffect(() => {
@@ -522,15 +533,21 @@ export function PracticeApp() {
         )}
       </div>
 
-      <div className={tab === 'sight' ? 'tab-panel' : 'tab-panel is-stashed'}>
-        <section className="panel">
-          <h2>视奏</h2>
-          <p className="lede">Sight-reading drills are not in this version.</p>
-          <p>
-            The idea is a short drill that flashes one note or one beat, waits for the key, then moves on, separate from
-            playing a whole piece. Use 练习 for a real score in Wait or Rhythm mode until that drill exists.
-          </p>
-        </section>
+      <div className={tab === 'train' ? 'tab-panel' : 'tab-panel is-stashed'}>
+        <TrainTab
+          active={tab === 'train'}
+          keyboardEnabled={keyboardEnabled}
+          latencyOffsetMs={latencyOffsetMs}
+          piece={
+            piece
+              ? { id: piece.id, title: piece.titleZh?.trim() || piece.title, notes, time: parsed.score?.timeSignature ?? { beats: 4, beatType: 4 } }
+              : null
+          }
+          onSaved={() => {
+            void listTrainRuns().then(setTrainRuns)
+          }}
+          inputRef={trainInput}
+        />
       </div>
 
       {omrMounted && (
@@ -547,7 +564,7 @@ export function PracticeApp() {
       )}
 
       <div className={tab === 'history' ? 'tab-panel' : 'tab-panel is-stashed'}>
-        <HistoryPanel runs={runs} />
+        <HistoryPanel runs={runs} trainRuns={trainRuns} />
       </div>
 
       <div className={tab === 'settings' ? 'tab-panel' : 'tab-panel is-stashed'}>
@@ -618,10 +635,11 @@ export function PracticeApp() {
   )
 }
 
-function HistoryPanel({ runs }: { runs: RunRecord[] }) {
+function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: TrainRunRecord[] }) {
   return (
     <section className="panel">
       <h2>记录</h2>
+      <TrainHistory runs={trainRuns} />
       {runs.length === 0 ? (
         <p>No saved runs yet. Finish or stop a practice run and it will show up here, in this browser.</p>
       ) : (

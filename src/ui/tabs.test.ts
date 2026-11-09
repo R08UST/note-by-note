@@ -4,6 +4,8 @@ import { hashOpensPicker, tabFromHash } from './tabs'
 describe('tabFromHash', () => {
   it('reads a known tab and falls back to practice', () => {
     expect(tabFromHash('#library')).toBe('practice')
+    expect(tabFromHash('#sight')).toBe('train')
+    expect(tabFromHash('#train')).toBe('train')
     expect(tabFromHash('#omr')).toBe('omr')
     expect(tabFromHash('history')).toBe('history')
     expect(tabFromHash('#nope')).toBe('practice')
