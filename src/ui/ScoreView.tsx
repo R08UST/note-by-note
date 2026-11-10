@@ -2,7 +2,7 @@ import { CursorType, OpenSheetMusicDisplay, type GraphicalNote } from 'opensheet
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import type { Hand, ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
-import { mapNotesToHeads } from '../score/mapNotes'
+import { mapNotesToHeads, UNDRAWN_MEASURE } from '../score/mapNotes'
 import { collectHeads } from '../score/osmdHeads'
 
 export interface ScoreHandle {
@@ -17,7 +17,7 @@ interface ScoreViewProps {
   ref?: Ref<ScoreHandle>
   /** Notes whose onset is inside this span are marked. The sheet itself is not redrawn. */
   span?: { startBeat: number; endBeat: number } | null
-  onReady: (info: { matched: number; total: number }) => void
+  onReady: (info: { matched: number; total: number; undrawnIds: string[] }) => void
   onError: (message: string) => void
   onMeasure?: (measure: number, shiftKey: boolean) => void
   onNote?: (noteId: string, shiftKey: boolean) => void
@@ -247,7 +247,13 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           markSpan()
           if (beatRef.current != null) seekRef.current(beatRef.current)
           else osmd.cursor.show()
-          if (!cancelled) onReadyRef.current({ matched: entries.size, total: notesRef.current.length })
+          if (!cancelled) {
+            onReadyRef.current({
+              matched: entries.size,
+              total: notesRef.current.length,
+              undrawnIds: mapped.unmatched.filter((item) => item.reason === UNDRAWN_MEASURE).map((item) => item.id),
+            })
+          }
         }
         wireRef.current = () => {
           if (cancelled) return

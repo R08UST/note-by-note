@@ -67,7 +67,7 @@ for (const file of scores) {
     const collected = collectHeads(osmd.Sheet, (note) => osmd.EngravingRules.GNote(note) ?? stub)
     const mapped = mapNotesToHeads(parsed.notes, collected.heads)
     const rate = mapped.matched / parsed.notes.length
-    if (rate < 0.98) {
+    if (rate < 1) {
       low.push({
         file: path.relative(root, file),
         matched: mapped.matched,

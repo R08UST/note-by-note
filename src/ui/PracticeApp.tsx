@@ -90,6 +90,7 @@ export function PracticeApp() {
   const [scoreZoom, setScoreZoom] = useState(1)
   const [focusMode, setFocusMode] = useState(false)
   const [listenHands, setListenHands] = useState<Record<number, 'L' | 'R'>>({})
+  const [undrawnIds, setUndrawnIds] = useState<readonly string[]>([])
   const [menuHost, setMenuHost] = useState<HTMLDivElement | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -132,11 +133,18 @@ export function PracticeApp() {
   }, [piece])
 
   const notes = useMemo(() => parsed.score?.notes ?? [], [parsed.score])
-  const active = selectHands(notes, hands)
+  useEffect(() => {
+    setUndrawnIds([])
+  }, [piece?.id])
+  const judgedNotes = useMemo(
+    () => (undrawnIds.length === 0 ? notes : notes.filter((note) => !undrawnIds.includes(note.id))),
+    [notes, undrawnIds],
+  )
+  const active = selectHands(judgedNotes, hands)
   const bounds = keyboardBounds(notes)
 
   const practice = usePractice({
-    notes,
+    notes: judgedNotes,
     pieceId: piece?.id ?? '',
     pieceTitle: piece ? piece.titleZh?.trim() || piece.title : '',
     bpm,
@@ -856,7 +864,8 @@ export function PracticeApp() {
                           if (runningNow) void practice.seek({ startBeat: target.beat, endBeat: nextEnd })
                         }}
                         onReady={(info) => {
-                          setMapInfo(info)
+                          setMapInfo({ matched: info.matched, total: info.total })
+                          setUndrawnIds(info.undrawnIds)
                           setScoreState('ready')
                         }}
                         onError={(message) => {

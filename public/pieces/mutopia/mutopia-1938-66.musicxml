@@ -811,6 +811,9 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="3">
+      <note><rest measure="yes"/><duration>40320</duration></note>
+    </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
   <part id="Pa167b75bf51d1b1d361565801497c58f">

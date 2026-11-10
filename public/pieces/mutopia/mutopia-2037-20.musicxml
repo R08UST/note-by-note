@@ -3110,6 +3110,9 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="31">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
   <part id="P24a31ecbe89d47fd3dd87cabff2c462d">

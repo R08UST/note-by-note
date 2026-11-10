@@ -1666,6 +1666,27 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="24">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="25">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="26">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="27">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="28">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="29">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="30">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
   <part id="Pfc8ab272b00229c94aecefee3adb3359">

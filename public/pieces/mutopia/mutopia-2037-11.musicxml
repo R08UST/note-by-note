@@ -1730,6 +1730,21 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="25">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="26">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="27">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="28">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
+    <measure number="29">
+      <note><rest measure="yes"/><duration>20160</duration></note>
+    </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
   <part id="P5aac8acf5890d07517a4a64333918313">

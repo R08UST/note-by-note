@@ -4234,6 +4234,9 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="66">
+      <note><rest measure="yes"/><duration>40320</duration></note>
+    </measure>
   </part>
   
   <part id="P4aa7e7a59c40c181a4428a4430ce82d1">

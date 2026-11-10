@@ -15,6 +15,9 @@ export interface GraphicHead {
   tieTails: string[]
 }
 
+/** A judged note whose measure was never engraved, so the player cannot see it. */
+export const UNDRAWN_MEASURE = '谱上没有这一小节'
+
 export interface UnmatchedNote {
   id: string
   measure: number
@@ -32,7 +35,9 @@ export interface NoteMap {
 }
 
 function roundBeat(beat: number): number {
-  return Math.round(beat * 1000) / 1000
+  // Snap to the nearest 64th note. That is finer than a triplet and absorbs
+  // binary noise such as 3.0312499999999982 versus 3.03125.
+  return Math.round(beat * 64)
 }
 
 function voiceOf(note: ScoreNote): string {
@@ -109,7 +114,7 @@ function reasonFor(note: ScoreNote, heads: readonly GraphicHead[]): string {
   const samePitch = heads.filter((head) => head.measure === note.measure && head.pitch === note.pitch)
   if (samePitch.length === 0) {
     const inMeasure = heads.some((head) => head.measure === note.measure)
-    return inMeasure ? '本小节没有这个音高' : '谱上没有这一小节'
+    return inMeasure ? '本小节没有这个音高' : UNDRAWN_MEASURE
   }
   const sameTime = samePitch.filter((head) => roundBeat(head.localBeat) === localOf(note))
   if (sameTime.length === 0) return '时值对不上'

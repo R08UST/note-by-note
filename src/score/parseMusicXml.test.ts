@@ -61,6 +61,14 @@ describe('parseMusicXml', () => {
     expect(parsed.notes[0]).toMatchObject({ pitch: 64, beat: 1 })
   })
 
+  it('merges a tie stop that forgot its voice', () => {
+    const start = `<note><pitch><step>F</step><octave>2</octave></pitch><duration>2</duration><voice>2</voice><tie type="start"/><type>half</type></note>`
+    const stop = `<note><pitch><step>F</step><octave>2</octave></pitch><duration>2</duration><tie type="stop"/><type>half</type></note>`
+    const parsed = parseMusicXml(score(measure(1, attributes + start) + measure(2, stop)))
+    expect(parsed.notes).toHaveLength(1)
+    expect(parsed.notes[0]).toMatchObject({ pitch: 41, duration: 4, measure: 1 })
+  })
+
   it('merges a tied continuation into the first note', () => {
     const start = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><tie type="start"/><type>half</type></note>`
     const stop = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><tie type="stop"/><type>half</type></note>`

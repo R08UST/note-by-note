@@ -196,5 +196,17 @@
     "wave": 2,
     "title": "Das Wohltemperierte Clavier I, Praeludium I",
     "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (第 36 首)",
+    "reason": "one judged note does not land on a drawn beat; MIDI conversion timing was not repaired reliably"
+  },
+  {
+    "id": "noc-bach-french-suite-no-3-bwv-814-sarabande",
+    "wave": 1,
+    "title": "French Suite No. 3, Sarabande",
+    "reason": "one chord tone is judged a half beat away from the only drawn heads of that pitch"
   }
 ]

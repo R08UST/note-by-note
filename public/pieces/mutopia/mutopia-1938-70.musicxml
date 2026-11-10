@@ -1530,6 +1530,9 @@
         <bar-style>light-heavy</bar-style>
       </barline>
     </measure>
+    <measure number="9">
+      <note><rest measure="yes"/><duration>30240</duration></note>
+    </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
   <part id="Pdaafceb0721d9fda00fed2695c772ebf">

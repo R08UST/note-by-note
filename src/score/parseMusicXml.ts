@@ -102,6 +102,9 @@ export function parseMusicXml(xml: string): ParsedScore {
     let signature: TimeSignature = { beats: 4, beatType: 4 }
     const openTies = new Map<string, ScoreNote>()
     const measures = [...part.children].filter((element) => element.localName === 'measure')
+    const firstRaw = measures[0]?.getAttribute('number')
+    const firstNumber = firstRaw == null ? Number.NaN : Number(firstRaw)
+    const endingOffset = Number.isFinite(firstNumber) && firstNumber === 0 ? 0 : 1
 
     measures.forEach((measure, measureIndex) => {
       let local = 0
@@ -109,7 +112,8 @@ export function parseMusicXml(xml: string): ParsedScore {
       let maxLocal = 0
       const rawNumber = measure.getAttribute('number')
       const parsedNumber = rawNumber == null ? Number.NaN : Number(rawNumber)
-      const measureNumber = Number.isFinite(parsedNumber) ? parsedNumber : measureIndex + 1
+      // "X1" is an alternate ending. OSMD numbers that bar by its position, not by a printed number.
+      const measureNumber = Number.isFinite(parsedNumber) ? parsedNumber : measureIndex + endingOffset
 
       for (const element of measure.children) {
         if (element.localName === 'attributes') {
@@ -166,12 +170,20 @@ export function parseMusicXml(xml: string): ParsedScore {
         const voice = directText(element, 'voice') ?? '1'
         const hand = handFor(staff, partIndex, partStaves)
         const ties = tieFlags(element)
-        const tieKey = `${staff ?? (partIndex === 0 ? 1 : 2)}|${voice}|${pitch}`
+        const staffKey = staff ?? (partIndex === 0 ? 1 : 2)
+        const tieKey = `${staffKey}|${voice}|${pitch}`
+        // A tie stop with no voice (or the wrong voice) still continues the open
+        // attack of that pitch. It is not a new note the player has to strike.
+        const openKey = ties.stop
+          ? openTies.has(tieKey)
+            ? tieKey
+            : [...openTies.keys()].reverse().find((key) => key.endsWith(`|${pitch}`) && key.startsWith(`${staffKey}|`))
+          : undefined
 
-        if (ties.stop && openTies.has(tieKey)) {
-          const existing = openTies.get(tieKey)
+        if (ties.stop && openKey) {
+          const existing = openTies.get(openKey)
           if (existing) existing.duration += duration
-          if (!ties.start) openTies.delete(tieKey)
+          if (!ties.start) openTies.delete(openKey)
           continue
         }
 
