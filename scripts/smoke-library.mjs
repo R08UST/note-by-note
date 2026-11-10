@@ -86,3 +86,29 @@ const manifest = {
 writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(manifest))
 console.log(`kept ${pieces.length}, dropped ${dropped.length}`)
 if (dropped.length) console.log(JSON.stringify(dropped, null, 2))
+
+const etudesPath = path.join(root, 'public/pieces/etudes.json')
+if (readFileSync) {
+  const etudes = JSON.parse(readFileSync(etudesPath, 'utf8'))
+  const etudeJobs = etudes.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
+  const list = path.join('/tmp', 'library-etudes.json')
+  writeFileSync(list, JSON.stringify(etudeJobs))
+  const child = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), list], {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+  })
+  if (child.status !== 0) {
+    console.error(child.stderr)
+    throw new Error('etude audit failed')
+  }
+  const checked = new Map(JSON.parse(child.stdout).map((item) => [item.id, item]))
+  const failed = etudes.filter((piece) => checked.get(piece.id)?.error)
+  if (failed.length) {
+    console.log(JSON.stringify(failed.map((piece) => ({ id: piece.id, error: checked.get(piece.id)?.error }))))
+    throw new Error('an etude did not parse')
+  }
+  const merged = JSON.parse(readFileSync(path.join(root, 'public/pieces/manifest.json'), 'utf8'))
+  merged.pieces = merged.pieces.filter((piece) => !String(piece.id).startsWith('etude-')).concat(etudes)
+  writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(merged))
+  console.log(`etudes kept ${etudes.length}`)
+}

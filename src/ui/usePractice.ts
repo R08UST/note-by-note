@@ -9,6 +9,7 @@ import { summarize, type RunSummary } from '../report/summary'
 import type { TimeSignature } from '../score/parseMusicXml'
 import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
 import { latestRun, saveRun, type RunRecord } from '../storage/db'
+import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
 import { scoreColor } from './format'
@@ -78,6 +79,7 @@ export function usePractice({
     countInBeats: 4,
     notes: [] as ScoreNote[],
     pieceId,
+    perfectMs: 80,
   })
 
   const optionsRef = useRef({
@@ -139,7 +141,7 @@ export function usePractice({
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = 0
-    const report = summarize(runRef.current.notes, judgementsRef.current)
+    const report = summarize(runRef.current.notes, judgementsRef.current, runRef.current.perfectMs)
     setSummary(report)
     setCurrent([])
     setCountBeat(null)
@@ -293,17 +295,24 @@ export function usePractice({
     setLast(null)
     finishingRef.current = false
     const countInBeats = quarterBeatsPerMeasure(options.timeSignature)
+    const windows = timingForExercise(active, options.bpm, 1)
     runRef.current = {
       bpm: options.bpm,
       mode: options.mode,
       countInBeats,
       notes: active,
       pieceId: options.pieceId,
+      perfectMs: windows.perfectMs,
     }
     const engine: Engine =
       options.mode === 'wait'
         ? new WaitMode(active)
-        : new RhythmMode(active, { bpm: options.bpm, latencyOffsetMs: options.latencyOffsetMs })
+        : new RhythmMode(active, {
+            bpm: options.bpm,
+            latencyOffsetMs: options.latencyOffsetMs,
+            earlyMs: windows.earlyMs,
+            lateMs: windows.lateMs,
+          })
     engineRef.current = engine
     const beat = engine.cursorBeat() ?? firstOnset(active)[0]?.beat ?? 0
     scoreRef.current?.prepare(options.hands, beat)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { levelStars, qualifyingCount, takeQualifies, unlockedThrough, type TakeScore } from './mastery'
+import { levelStars, qualifyingCount, shouldStepBack, takeQualifies, unlockedThrough, type TakeScore } from './mastery'
 
 function take(level: number, pitch: number, time: number, scoredTiming = true): TakeScore {
   return { level, pitchAccuracy: pitch, onTimeRate: time, scoredTiming }
@@ -21,5 +21,7 @@ describe('mastery gate', () => {
     expect(levelStars([take(2, 0.2, 0)], 2)).toBe(1)
     expect(levelStars([], 3)).toBe(0)
     expect(unlockedThrough([take(1, 1, 1), take(1, 1, 1)], 12)).toBe(1)
+    expect(shouldStepBack([0.9, 0.5, 0.4, 0.7])).toBe(true)
+    expect(shouldStepBack([0.5, 0.9, 0.4])).toBe(false)
   })
 })

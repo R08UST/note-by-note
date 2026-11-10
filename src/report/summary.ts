@@ -44,7 +44,7 @@ function sampleSpread(values: number[]): number | null {
 export function summarize(
   notes: ScoreNote[],
   judgements: readonly Judgement[],
-  perfectMs = BEGINNER_TOLERANCE.perfectMs,
+  perfectMs: number = BEGINNER_TOLERANCE.perfectMs,
 ): RunSummary {
   const byId = new Map(notes.map((note) => [note.id, note]))
   const hits = judgements.filter((item) => item.result === 'hit')

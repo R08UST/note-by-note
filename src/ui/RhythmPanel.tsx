@@ -8,6 +8,7 @@ import { levelStars, unlockedThrough, type TakeScore } from '../train/mastery'
 import {
   generateHandsRhythm,
   generatePulse,
+  generatePulseAndRhythm,
   generateRhythm,
   matchRhythmPitch,
   onTimeRate,
@@ -31,7 +32,7 @@ interface RhythmPanelProps {
   onSaved: () => void
 }
 
-type RhythmKind = 'line' | 'hands' | 'pulse' | 'piece'
+type RhythmKind = 'line' | 'hands' | 'pulse' | 'beat' | 'piece'
 
 export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, onBind, onSaved }: RhythmPanelProps) {
   const [level, setLevel] = useState(1)
@@ -69,6 +70,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
 
   const exercise = useMemo(() => {
     if (kind === 'hands') return generateHandsRhythm(seed)
+    if (kind === 'beat') return generatePulseAndRhythm(spec.id, seed)
     if (kind === 'pulse') return generatePulse(subdivision)
     if (kind === 'piece') {
       const measures = useWorst && worst.length > 0 ? worst : rangeMeasures(fromMeasure, toMeasure)
@@ -87,6 +89,8 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     metronome,
     latencyOffsetMs,
     time: exercise.time,
+    level: spec.id,
+    countInBars: 2,
     scoreRef,
     match: (played, upcoming) => matchRhythmPitch(played, upcoming, matchRule, chosen),
     onDone: (summary, judgements) => {
@@ -109,7 +113,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
         reload()
         onSaved()
       })
-      if (autoTempo && accuracy >= 0.9 && timing >= 0.8) setBpm((value) => Math.min(132, value + 4))
+      if (autoTempo && accuracy >= 0.9 && timing >= 0.8) setBpm((value) => Math.min(Math.round(spec.startBpm * 1.5), value + 5))
     },
   })
 
@@ -119,11 +123,14 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
 
   return (
     <div className="train-pane">
-      <LevelRail count={RHYTHM_LEVELS.length} value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
-      <p className="device-note">L{spec.id} {spec.title}。{spec.detail}。任意键都算打中这一拍，除非你改成指定音。干净地通过一次，速度加 4。</p>
+      <LevelRail count={RHYTHM_LEVELS.length} prefix="R" value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
+      <p className="device-note">R{spec.id} {spec.title}。{spec.detail}</p>
+      <p className="device-note">依据：{spec.source}</p>
+      <p className="device-note">先跟稳拍子，再打节奏。干净通过后速度加 5。预备是两小节。</p>
       <div className="segmented" role="group" aria-label="节奏题型">
         <button type="button" aria-pressed={kind === 'line'} onClick={() => setKind('line')}>单行</button>
         <button type="button" aria-pressed={kind === 'hands'} onClick={() => setKind('hands')}>双手</button>
+        <button type="button" aria-pressed={kind === 'beat'} onClick={() => setKind('beat')}>拍加节奏</button>
         <button type="button" aria-pressed={kind === 'pulse'} onClick={() => setKind('pulse')}>跟拍</button>
         <button type="button" aria-pressed={kind === 'piece'} onClick={() => setKind('piece')}>从曲目</button>
       </div>

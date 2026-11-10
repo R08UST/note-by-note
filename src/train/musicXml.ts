@@ -10,6 +10,8 @@ export interface WrittenNote {
   ticks: number
   hand: Hand
   measure: number
+  /** Sound with the previous note instead of after it. */
+  chord?: boolean
   /** Eighth-note triplet. Three of these fill one quarter. */
   triplet?: 'start' | 'mid' | 'stop'
   tie?: 'start' | 'stop'
@@ -87,6 +89,7 @@ function noteXml(note: WrittenNote, fifths: number, staff: number | null): strin
           const alter = spelled.alter === 0 ? '' : `<alter>${spelled.alter}</alter>`
           return `<pitch><step>${spelled.step}</step>${alter}<octave>${spelled.octave}</octave></pitch>`
         })()
+  const chord = note.chord ? '<chord/>' : ''
   const triplet =
     note.triplet == null
       ? ''
@@ -99,7 +102,7 @@ function noteXml(note: WrittenNote, fifths: number, staff: number | null): strin
   const notationXml = notations.length > 0 ? `<notations>${notations.join('')}</notations>` : ''
   const staffXml = staff == null ? '' : `<staff>${staff}</staff>`
   const voice = staff === 2 ? 2 : 1
-  return `<note>${head}<duration>${note.ticks}</duration>${tie}<voice>${voice}</voice><type>${type}</type>${dotted ? '<dot/>' : ''}${triplet}${staffXml}${notationXml}</note>`
+  return `<note>${chord}${head}<duration>${note.ticks}</duration>${tie}<voice>${voice}</voice><type>${type}</type>${dotted ? '<dot/>' : ''}${triplet}${staffXml}${notationXml}</note>`
 }
 
 export function quarterBeats(time: TimeSignature): number {
@@ -143,7 +146,7 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
     const writeStaff = (staffNotes: WrittenNote[], staff: number | null, hand: Hand) => {
       let local = 0
       let open: ScoreNote | null = null
-      for (const note of staffNotes) {
+      staffNotes.forEach((note, index) => {
         chunks.push(noteXml(note, score.fifths, staff))
         if (note.pitch != null && note.tie !== 'stop') {
           const attack: ScoreNote = {
@@ -160,8 +163,9 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
           open.duration += note.ticks / TICKS
           open = null
         }
-        local += note.ticks
-      }
+        const next = staffNotes[index + 1]
+        if (!next?.chord) local += note.ticks
+      })
       if (local < perMeasure) chunks.push(noteXml({ pitch: null, ticks: perMeasure - local, hand, measure: number }, score.fifths, staff))
     }
     if (score.staves === 1) {

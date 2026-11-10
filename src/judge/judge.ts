@@ -174,6 +174,6 @@ export class Judge {
   }
 }
 
-export function isOnTime(offsetMs: number, perfectMs = BEGINNER_TOLERANCE.perfectMs): boolean {
+export function isOnTime(offsetMs: number, perfectMs: number = BEGINNER_TOLERANCE.perfectMs): boolean {
   return Math.abs(offsetMs) <= perfectMs
 }

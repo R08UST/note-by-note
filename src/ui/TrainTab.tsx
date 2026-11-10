@@ -11,10 +11,11 @@ interface TrainTabProps {
   latencyOffsetMs: number
   piece: { id: string; title: string; notes: ScoreNote[]; time: TimeSignature } | null
   onSaved: () => void
+  onCheckpoint: (pieceId: string) => void
   inputRef: { current: (event: PlayedEvent) => void }
 }
 
-export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, inputRef }: TrainTabProps) {
+export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef }: TrainTabProps) {
   const [pane, setPane] = useState<'sight' | 'rhythm'>(() => 'sight')
   const sightPush = useRef<(event: PlayedEvent) => void>(() => {})
   const rhythmPush = useRef<(event: PlayedEvent) => void>(() => {})
@@ -27,7 +28,7 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
   return (
     <section className="panel train">
       <h2>训练</h2>
-      <p className="lede">认谱和节奏分开练。音高和拍子用的是同一套判定：早 200 毫秒、晚 250 毫秒，±80 毫秒算准时。</p>
+      <p className="lede">认谱和节奏分开练。判定窗口跟着速度和最短的音符走，最长不超过 250 毫秒。</p>
       <div className="segmented train-switch" role="tablist" aria-label="训练">
         <button type="button" role="tab" aria-selected={pane === 'sight'} onClick={() => setPane('sight')}>视奏</button>
         <button type="button" role="tab" aria-selected={pane === 'rhythm'} onClick={() => setPane('rhythm')}>节奏</button>
@@ -41,6 +42,7 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
             sightPush.current = push
           }}
           onSaved={onSaved}
+          onCheckpoint={onCheckpoint}
         />
       ) : (
         <RhythmPanel

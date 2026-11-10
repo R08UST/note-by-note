@@ -43,11 +43,27 @@ function heatColor(rate: number, seen: number): string {
   return `rgb(${red}, ${green}, 48)`
 }
 
+export function PreviewGate({
+  seconds,
+  onSkip,
+}: {
+  seconds: number
+  onSkip: () => void
+}) {
+  return (
+    <div className="preview-gate">
+      <p>先看 {seconds} 秒。看调号、拍号、第一个音，以及反复出现的节奏。</p>
+      <button type="button" className="button ghost" onClick={onSkip}>跳过预习</button>
+    </div>
+  )
+}
+
 export function LevelRail({
   count,
   value,
   unlocked,
   stars,
+  prefix = 'L',
   onChange,
 }: {
   count: number
@@ -55,6 +71,7 @@ export function LevelRail({
   unlocked: number
   stars: (level: number) => 0 | 1 | 2 | 3
   onChange: (level: number) => void
+  prefix?: string
 }) {
   return (
     <div className="level-rail" role="listbox" aria-label="级别">
@@ -73,7 +90,7 @@ export function LevelRail({
             onClick={() => onChange(level)}
             title={open ? mark : '先通过上一级'}
           >
-            <strong>L{level}</strong>
+            <strong>{prefix}{level}</strong>
             <span>{open ? mark : '锁定'}</span>
           </button>
         )

@@ -4,9 +4,9 @@ import { pitchForCode } from '../midi/keyboardMap'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { listPitchStats, listTrainRuns, rememberPitches, saveTrainRun, type PitchStatRecord, type TrainRunRecord } from '../storage/db'
-import { levelStars, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
-import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel, type ClefChoice, type RangeChoice } from '../train/sight'
-import { HeatKeys, LevelRail } from './TrainBits'
+import { levelStars, migratedSightLevel, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
+import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '../train/sight'
+import { HeatKeys, LevelRail, PreviewGate } from './TrainBits'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
@@ -16,15 +16,15 @@ interface SightPanelProps {
   latencyOffsetMs: number
   onBind: (push: (event: PlayedEvent) => void) => void
   onSaved: () => void
+  onCheckpoint: (pieceId: string) => void
 }
 
 const CARDS = 8
 
-export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, onSaved }: SightPanelProps) {
+export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, onSaved, onCheckpoint }: SightPanelProps) {
   const [level, setLevel] = useState(1)
   const [kind, setKind] = useState<'flash' | 'phrase' | 'weak'>('phrase')
-  const [clef, setClef] = useState<ClefChoice>('auto')
-  const [range, setRange] = useState<RangeChoice>('level')
+  const [hand, setHand] = useState<'R' | 'L' | 'both'>('R')
   const [bpm, setBpm] = useState(72)
   const [metronome, setMetronome] = useState(true)
   const [hints, setHints] = useState(false)
@@ -39,6 +39,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   const [flashing, setFlashing] = useState(false)
   const [flashNote, setFlashNote] = useState('')
   const [report, setReport] = useState<RunSummary | null>(null)
+  const [preview, setPreview] = useState<number | null>(null)
   const scoreRef = useRef<ScoreHandle>(null)
   const shownAt = useRef(0)
   const lock = useRef(false)
@@ -55,21 +56,29 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
 
   const takes: TakeScore[] = runs
     .filter((run) => run.mode === 'sight-flash' || run.mode === 'sight-phrase')
-    .map((run) => ({ level: run.level, pitchAccuracy: run.pitchAccuracy, onTimeRate: run.onTimeRate, scoredTiming: run.scoredTiming }))
+    .map((run) => ({
+      level: migratedSightLevel(run.level, run.curriculum),
+      pitchAccuracy: run.pitchAccuracy,
+      onTimeRate: run.onTimeRate,
+      scoredTiming: run.scoredTiming,
+      hand: run.hand,
+      seed: run.seed,
+      firstAttempt: run.firstAttempt,
+    }))
   const unlocked = unlockedThrough(takes, SIGHT_LEVELS.length)
   const spec = sightLevel(Math.min(level, unlocked))
   const phraseLike = kind !== 'flash'
 
   const phrase = useMemo(
-    () => generateSightPhrase({ level: spec.id, seed, clef, range, weakness: weaknessRef.current, focusWeak: kind === 'weak' }),
-    [spec.id, seed, clef, range, kind],
+    () =>       generateSightPhrase({ level: spec.id, seed, hand, weakness: weaknessRef.current, focusWeak: kind === 'weak' }),
+    [spec.id, seed, hand, kind],
   )
   const cards = useMemo(() => {
     if (phraseLike) return []
     return Array.from({ length: CARDS }, (_, index) =>
-      generateFlash({ level: spec.id, seed: seed + index + 1, clef, range, weakness: weaknessRef.current, focusWeak: false }),
+      generateFlash({ level: spec.id, seed: seed + index + 1, hand: hand === 'both' ? 'R' : hand, weakness: weaknessRef.current, focusWeak: false }),
     )
-  }, [phraseLike, spec.id, seed, clef, range])
+  }, [phraseLike, spec.id, seed, hand])
   const card = cards[cardIndex] ?? null
   const shown = phraseLike ? phrase : card
 
@@ -82,6 +91,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     metronome,
     latencyOffsetMs,
     time: phrase.time,
+    level: spec.id,
     scoreRef,
     match: (played) => played,
     onDone: (summary, judgements) => {
@@ -97,6 +107,10 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         spreadMs: summary.timingSpreadMs,
         bpm,
         scoredTiming: timing === 'strict',
+        hand,
+        seed,
+        firstAttempt: true,
+        curriculum: 2,
       }).then(() => {
         reload()
         onSaved()
@@ -168,6 +182,20 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   }, [active, keyboardEnabled, phraseLike])
 
   useEffect(() => {
+    if (preview == null || preview <= 0) return
+    const id = window.setTimeout(() => setPreview((value) => (value == null ? null : value - 1)), 1000)
+    return () => window.clearTimeout(id)
+  }, [preview])
+
+  const startDrill = useRef(drill.start)
+  startDrill.current = drill.start
+  useEffect(() => {
+    if (preview !== 0) return
+    setPreview(null)
+    void startDrill.current()
+  }, [preview])
+
+  useEffect(() => {
     if (!flashing || timerSeconds <= 0) return
     const id = window.setTimeout(() => answerRef.current(-1, shownAt.current + timerSeconds * 1000), timerSeconds * 1000)
     return () => window.clearTimeout(id)
@@ -183,35 +211,34 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   }
 
   const hintPitch = phraseLike ? drill.current[0]?.pitch : shown?.notes[0]?.pitch
-  const timeGate = timing === 'strict' || timerSeconds > 0
 
   return (
     <div className="train-pane">
-      <LevelRail count={SIGHT_LEVELS.length} value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
+      <LevelRail count={SIGHT_LEVELS.length} prefix="S" value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
       <p className="device-note">
-        L{spec.id} {spec.title}。{spec.detail}。累计 3 次音高 ≥90%{timeGate ? '、准时 ≥80%' : ''} 解锁下一级。
+        S{spec.id} {spec.title}。{spec.detail}
       </p>
+      <p className="device-note">依据：{spec.source}</p>
+      <p className="device-note">同一级先右手、再左手、再双手。3 条不同的曲子第一次就干净通过，才算过关。先看 30 秒。</p>
       <div className="segmented" role="group" aria-label="视奏题型">
         <button type="button" aria-pressed={kind === 'flash'} onClick={() => setKind('flash')}>单音认谱</button>
         <button type="button" aria-pressed={kind === 'phrase'} onClick={() => setKind('phrase')}>短句视奏</button>
         <button type="button" aria-pressed={kind === 'weak'} onClick={() => setKind('weak')}>弱点</button>
       </div>
+      {spec.id === 3 || spec.id === 6 || spec.id === 10 ? (
+        <div className="omr-actions">
+          <span className="device-note">过关试奏，只读一遍：</span>
+          {spec.id >= 3 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-twinkle-twinkle-little-star')}>小星星</button>}
+          {spec.id >= 6 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-ode-to-joy')}>欢乐颂</button>}
+          {spec.id >= 10 && <button type="button" className="button ghost" onClick={() => onCheckpoint('noc-bach-menuet-bwv-anh-113')}>小步舞曲</button>}
+        </div>
+      ) : null}
       <div className="train-settings">
-        <label className="field">谱表
-          <select value={clef} onChange={(event) => setClef(event.target.value as ClefChoice)}>
-            <option value="auto">按级别</option>
-            <option value="treble">高音</option>
-            <option value="bass">低音</option>
-            <option value="grand">大谱表</option>
-          </select>
-        </label>
-        <label className="field">音域
-          <select value={range} onChange={(event) => setRange(event.target.value as RangeChoice)}>
-            <option value="narrow">窄</option>
-            <option value="level">本级</option>
-            <option value="wide">宽</option>
-          </select>
-        </label>
+        <div className="segmented" role="group" aria-label="哪只手">
+          <button type="button" aria-pressed={hand === 'R'} onClick={() => setHand('R')}>右手</button>
+          <button type="button" aria-pressed={hand === 'L'} onClick={() => setHand('L')}>左手</button>
+          <button type="button" aria-pressed={hand === 'both'} onClick={() => setHand('both')}>{spec.together ? '双手' : '交替'}</button>
+        </div>
         <label className="field">速度 {bpm}
           <input type="range" min={48} max={132} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
         </label>
@@ -242,8 +269,9 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       <div className="omr-actions">
         {phraseLike ? (
           <>
-            <button type="button" className="button primary" onClick={() => void drill.start()} disabled={drill.status === 'playing' || drill.status === 'countin'}>
-              {drill.status === 'countin' ? '预备…' : '开始'}
+            {preview != null && preview > 0 && <PreviewGate seconds={preview} onSkip={() => { setPreview(null); void drill.start() }} />}
+            <button type="button" className="button primary" onClick={() => setPreview(30)} disabled={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}>
+              {drill.status === 'countin' ? '预备…' : preview != null && preview > 0 ? `预习 ${preview}` : '开始'}
             </button>
             <button type="button" className="button stop" onClick={drill.stop}>停止</button>
           </>

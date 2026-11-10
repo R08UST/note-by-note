@@ -5,19 +5,34 @@ export const TIME_GATE = 0.8
 export interface TakeScore {
   level: number
   pitchAccuracy: number
-  /** Fraction of notes inside ±80ms. Ignored when the drill did not score time. */
+  /** Fraction of notes inside the on-time band. Ignored when the drill did not score time. */
   onTimeRate: number
   scoredTiming: boolean
+  hand?: 'R' | 'L' | 'both'
+  seed?: number
+  /** Replays do not count. Missing means this is the first attempt. */
+  firstAttempt?: boolean
 }
 
 export function takeQualifies(take: TakeScore): boolean {
+  if (take.firstAttempt === false) return false
   if (take.pitchAccuracy < PITCH_GATE) return false
   if (take.scoredTiming && take.onTimeRate < TIME_GATE) return false
   return true
 }
 
-export function qualifyingCount(takes: readonly TakeScore[], level: number): number {
-  return takes.filter((take) => take.level === level && takeQualifies(take)).length
+export function qualifyingCount(takes: readonly TakeScore[], level: number, hand?: TakeScore['hand']): number {
+  const seen = new Set<string>()
+  let count = 0
+  takes.forEach((take, index) => {
+    if (take.level !== level || !takeQualifies(take)) return
+    if (hand && take.hand && take.hand !== hand) return
+    const key = take.seed == null ? `row-${index}` : `${take.hand ?? ''}:${take.seed}`
+    if (seen.has(key)) return
+    seen.add(key)
+    count += 1
+  })
+  return count
 }
 
 /** 0–3 stars from how many passing takes this level has. */
@@ -54,4 +69,23 @@ export function errorRate(stat: PitchMemory | undefined): number {
 
 export function weaknessMap(stats: readonly PitchMemory[]): Map<number, number> {
   return new Map(stats.map((stat) => [stat.pitch, errorRate(stat)]))
+}
+
+/** Old 12-level drills map onto the nearest new S level. New runs set curriculum 2 and are not mapped. */
+export function migratedSightLevel(level: number, curriculum?: number): number {
+  if (curriculum === 2) return level
+  if (level <= 2) return 1
+  if (level <= 4) return 2
+  if (level <= 6) return 3
+  if (level <= 7) return 4
+  if (level <= 9) return 5
+  if (level <= 10) return 6
+  if (level <= 11) return 7
+  return 8
+}
+
+/** Three scores under 80% in a row: offer to step back (Piano Marvel strikes). */
+export function shouldStepBack(scores: readonly number[]): boolean {
+  const recent = scores.slice(-3)
+  return recent.length >= 3 && recent.every((score) => score < 0.8)
 }

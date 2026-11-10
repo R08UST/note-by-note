@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PlayedEvent, ScoreNote } from '../judge/types'
 import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
@@ -17,6 +17,7 @@ import { FeedbackStrip } from './FeedbackStrip'
 import { keyboardBounds, Keyboard } from './Keyboard'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { SummaryPanel } from './SummaryPanel'
+import { LatencyCalibrator } from './LatencyCalibrator'
 import { TrainHistory } from './TrainHistory'
 import { TrainTab } from './TrainTab'
 import { usePractice } from './usePractice'
@@ -47,7 +48,7 @@ export function PracticeApp() {
   const [omrMounted, setOmrMounted] = useState(() => tabFromHash(window.location.hash) === 'omr')
   const [piece, setPiece] = useState<LoadedPiece | null>(null)
   const [pickerOpen, setPickerOpen] = useState(() => hashOpensPicker(window.location.hash))
-  const [query, setQuery] = useState<CatalogQuery>({ level: 'all', hands: 'all', text: '' })
+  const [query, setQuery] = useState<CatalogQuery>({ level: 'all', hands: 'all', text: '', category: 'graded' })
   const [bpm, setBpm] = useState(72)
   const [hands, setHands] = useState<HandSelection>('both')
   const [mode, setMode] = useState<PracticeMode>('wait')
@@ -78,6 +79,10 @@ export function PracticeApp() {
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const trainInput = useRef<(event: PlayedEvent) => void>(() => {})
+  const calibrateInput = useRef<((event: PlayedEvent) => void) | null>(null)
+  const bindCalibrator = useCallback((push: ((event: PlayedEvent) => void) | null) => {
+    calibrateInput.current = push
+  }, [])
   const tabRef = useRef(tab)
   tabRef.current = tab
 
@@ -207,7 +212,8 @@ export function PracticeApp() {
   useEffect(() => {
     if (!midiOn || !inputId) return
     return attachInput(inputId, (event) => {
-      if (tabRef.current === 'train') trainInput.current(event)
+      if (calibrateInput.current) calibrateInput.current(event)
+      else if (tabRef.current === 'train') trainInput.current(event)
       else practice.handleInput(event)
     })
   }, [midiOn, inputId, practice.handleInput])
@@ -546,6 +552,10 @@ export function PracticeApp() {
           onSaved={() => {
             void listTrainRuns().then(setTrainRuns)
           }}
+          onCheckpoint={(id) => {
+            const entry = catalog.find((item) => item.id === id)
+            if (entry) void openCatalogPiece(entry)
+          }}
           inputRef={trainInput}
         />
       </div>
@@ -580,6 +590,7 @@ export function PracticeApp() {
             onEnable={() => void onEnableMidi()}
             onSelect={setInputId}
           />
+          <LatencyCalibrator value={latencyOffsetMs} onChange={setLatencyOffsetMs} bind={bindCalibrator} />
           <label className="field latency">
             <span>Latency calibration {latencyOffsetMs} ms</span>
             <input

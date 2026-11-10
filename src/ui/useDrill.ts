@@ -8,6 +8,7 @@ import type { TimeSignature } from '../score/parseMusicXml'
 import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
+import { timingForExercise } from '../train/timing'
 import type { ScoreHandle } from './ScoreView'
 
 type Engine = WaitMode | RhythmMode
@@ -22,6 +23,8 @@ interface DrillOptions {
   metronome: boolean
   latencyOffsetMs: number
   time: TimeSignature
+  level?: number
+  countInBars?: number
   scoreRef: RefObject<ScoreHandle | null>
   /** Rewrite a played pitch before the judge sees it. Rhythm drills use this so any key can count. */
   match: (played: number, upcoming: ScoreNote[]) => number
@@ -43,6 +46,8 @@ export function useDrill({
   metronome,
   latencyOffsetMs,
   time,
+  level = 1,
+  countInBars = 1,
   scoreRef,
   match,
   onDone,
@@ -58,6 +63,7 @@ export function useDrill({
   const judgementsRef = useRef<Judgement[]>([])
   const rafRef = useRef(0)
   const held = useRef<Set<string>>(new Set())
+  const perfectRef = useRef(80)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
   const matchRef = useRef(match)
@@ -75,7 +81,7 @@ export function useDrill({
     stopMetronome()
     const engine = engineRef.current
     if (engine && timing === 'strict') engine.advanceTo(Number.POSITIVE_INFINITY)
-    const report = summarize(runRef.current.notes, judgementsRef.current)
+    const report = summarize(runRef.current.notes, judgementsRef.current, perfectRef.current)
     setSummary(report)
     setCurrent([])
     setCountBeat(null)
@@ -172,9 +178,11 @@ export function useDrill({
     judgementsRef.current = []
     setJudgements([])
     setSummary(null)
-    const countIn = quarterBeatsPerMeasure(time)
+    const windows = timingForExercise(notes, bpm, level)
+    perfectRef.current = windows.perfectMs
+    const countIn = quarterBeatsPerMeasure(time) * countInBars
     runRef.current = { bpm, countIn, timing, notes }
-    const engine: Engine = timing === 'wait' ? new WaitMode(notes) : new RhythmMode(notes, { bpm, latencyOffsetMs })
+    const engine: Engine = timing === 'wait' ? new WaitMode(notes) : new RhythmMode(notes, { bpm, latencyOffsetMs, earlyMs: windows.earlyMs, lateMs: windows.lateMs })
     engineRef.current = engine
     scoreRef.current?.prepare('both', engine.cursorBeat() ?? 0)
     setCurrent(engine.currentNotes())

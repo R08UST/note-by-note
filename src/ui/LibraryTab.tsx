@@ -53,19 +53,22 @@ export function LibraryTab({
       </div>
       <div className="library-filters">
         <div className="segmented" role="group" aria-label="程度">
-          <button type="button" aria-pressed={query.level === 'all'} onClick={() => onQuery({ ...query, level: 'all' })}>
+          <button type="button" aria-pressed={query.category !== 'etude' && query.level === 'all'} onClick={() => onQuery({ ...query, category: 'graded', level: 'all' })}>
             全部
           </button>
           {LEVELS.map((level) => (
             <button
               key={level}
               type="button"
-              aria-pressed={query.level === level}
-              onClick={() => onQuery({ ...query, level })}
+              aria-pressed={query.category !== 'etude' && query.level === level}
+              onClick={() => onQuery({ ...query, category: 'graded', level })}
             >
-              {level} {pieces.filter((piece) => piece.level === level).length}
+              {level} {pieces.filter((piece) => piece.category !== 'etude' && piece.level === level).length}
             </button>
           ))}
+          <button type="button" aria-pressed={query.category === 'etude'} onClick={() => onQuery({ ...query, category: 'etude', level: 'all' })}>
+            练习曲 {pieces.filter((piece) => piece.category === 'etude').length}
+          </button>
         </div>
         <div className="segmented" role="group" aria-label="声部">
           <button type="button" aria-pressed={query.hands === 'all'} onClick={() => onQuery({ ...query, hands: 'all' })}>

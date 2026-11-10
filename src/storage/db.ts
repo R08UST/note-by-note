@@ -42,6 +42,10 @@ export interface TrainRunRecord {
   spreadMs: number | null
   bpm: number
   scoredTiming: boolean
+  hand?: 'R' | 'L' | 'both'
+  seed?: number
+  firstAttempt?: boolean
+  curriculum?: number
 }
 
 export interface PitchStatRecord {
