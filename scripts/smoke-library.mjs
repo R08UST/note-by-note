@@ -112,3 +112,27 @@ if (readFileSync) {
   writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(merged))
   console.log(`etudes kept ${etudes.length}`)
 }
+
+const methodsPath = path.join(root, 'public/pieces/method.json')
+const methods = JSON.parse(readFileSync(methodsPath, 'utf8'))
+const methodJobs = methods.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
+const methodList = path.join('/tmp', 'library-methods.json')
+writeFileSync(methodList, JSON.stringify(methodJobs))
+const methodChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), methodList], {
+  encoding: 'utf8',
+  maxBuffer: 8 * 1024 * 1024,
+})
+if (methodChild.status !== 0) {
+  console.error(methodChild.stderr)
+  throw new Error('method audit failed')
+}
+const methodChecked = new Map(JSON.parse(methodChild.stdout).map((item) => [item.id, item]))
+const methodFailed = methods.filter((piece) => methodChecked.get(piece.id)?.error || methodChecked.get(piece.id)?.notes < 1)
+if (methodFailed.length) {
+  console.log(JSON.stringify(methodFailed.map((piece) => ({ id: piece.id, error: methodChecked.get(piece.id)?.error }))))
+  throw new Error('a method piece did not parse')
+}
+const withMethods = JSON.parse(readFileSync(path.join(root, 'public/pieces/manifest.json'), 'utf8'))
+withMethods.pieces = withMethods.pieces.filter((piece) => !String(piece.id).startsWith('method-')).concat(methods)
+writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withMethods))
+console.log(`methods kept ${methods.length}`)

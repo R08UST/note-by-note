@@ -53,19 +53,22 @@ export function LibraryTab({
       </div>
       <div className="library-filters">
         <div className="segmented" role="group" aria-label="程度">
-          <button type="button" aria-pressed={query.category !== 'etude' && query.level === 'all'} onClick={() => onQuery({ ...query, category: 'graded', level: 'all' })}>
+          <button type="button" aria-pressed={(query.category == null || query.category === 'graded') && query.level === 'all'} onClick={() => onQuery({ ...query, category: 'graded', level: 'all' })}>
             全部
           </button>
           {LEVELS.map((level) => (
             <button
               key={level}
               type="button"
-              aria-pressed={query.category !== 'etude' && query.level === level}
-              onClick={() => onQuery({ ...query, category: 'graded', level })}
+              aria-pressed={query.category !== 'etude' && query.category !== 'method' && query.level === level}
+              onClick={() => onQuery({ ...query, category: query.category === 'method' ? 'method' : 'graded', level })}
             >
-              {level} {pieces.filter((piece) => piece.category !== 'etude' && piece.level === level).length}
+              {level} {pieces.filter((piece) => piece.category !== 'etude' && piece.category !== 'method' && piece.level === level).length}
             </button>
           ))}
+          <button type="button" aria-pressed={query.category === 'method'} onClick={() => onQuery({ ...query, category: 'method', level: 'all' })}>
+            教材 {pieces.filter((piece) => piece.category === 'method').length}
+          </button>
           <button type="button" aria-pressed={query.category === 'etude'} onClick={() => onQuery({ ...query, category: 'etude', level: 'all' })}>
             练习曲 {pieces.filter((piece) => piece.category === 'etude').length}
           </button>
@@ -124,7 +127,7 @@ export function LibraryTab({
       </section>
 
       <section className="library-section">
-        <h3>全部曲库</h3>
+        <h3>{query.category === 'method' ? '教材' : query.category === 'etude' ? '练习曲' : '全部曲库'}</h3>
         <p className="device-note">
           {shown.length} 首
           {openingId ? ' · 正在打开…' : ''}
@@ -133,30 +136,35 @@ export function LibraryTab({
         {shown.length === 0 ? (
           <p>没有符合的曲子。</p>
         ) : (
-          <ul className="library-grid">
-            {shown.map((piece) => (
-              <li key={piece.id}>
-                <button
-                  type="button"
-                  className={piece.id === activeId ? 'library-card is-selected' : 'library-card'}
-                  disabled={openingId === piece.id}
-                  onClick={() => onOpen(piece)}
-                >
-                  <strong>{pieceTitle(piece)}</strong>
-                  {piece.title_zh && <em>{piece.title}</em>}
-                  <span>
-                    {piece.composer} · {piece.level} · {piece.hands === 'one' ? '单手' : '双手'} · {piece.measures} 小节
-                  </span>
-                  <span>
-                    {piece.key || '—'} · {piece.time || '—'} · {piece.license}
-                  </span>
-                  <span className={needsAttribution(piece) ? 'attribution is-required' : 'attribution'}>
-                    {needsAttribution(piece) ? `署名：${piece.attribution}` : piece.attribution}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          groupByBook(shown).map((group) => (
+            <div key={group.name}>
+              {group.name && <h3>{group.name}</h3>}
+              <ul className="library-grid">
+                {group.pieces.map((piece) => (
+                  <li key={piece.id}>
+                    <button
+                      type="button"
+                      className={piece.id === activeId ? 'library-card is-selected' : 'library-card'}
+                      disabled={openingId === piece.id}
+                      onClick={() => onOpen(piece)}
+                    >
+                      <strong>{pieceTitle(piece)}</strong>
+                      {piece.title_zh && <em>{piece.title}</em>}
+                      <span>
+                        {piece.composer} · {piece.level} · {piece.hands === 'one' ? '单手' : '双手'} · {piece.measures} 小节
+                      </span>
+                      <span>
+                        {piece.key || '—'} · {piece.time || '—'} · {piece.license}
+                      </span>
+                      <span className={needsAttribution(piece) ? 'attribution is-required' : 'attribution'}>
+                        {needsAttribution(piece) ? `署名：${piece.attribution}` : piece.attribution}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
         )}
       </section>
       <button type="button" className="button ghost" onClick={onOpenFile}>
@@ -164,4 +172,22 @@ export function LibraryTab({
       </button>
     </section>
   )
+}
+
+function groupByBook(pieces: CatalogPiece[]): { name: string; pieces: CatalogPiece[] }[] {
+  if (!pieces.some((piece) => piece.book)) return [{ name: '', pieces }]
+  const order: string[] = []
+  const groups = new Map<string, CatalogPiece[]>()
+  for (const piece of pieces) {
+    const name = piece.book || '其他'
+    if (!groups.has(name)) {
+      groups.set(name, [])
+      order.push(name)
+    }
+    groups.get(name)!.push(piece)
+  }
+  return order.map((name) => ({
+    name,
+    pieces: (groups.get(name) ?? []).slice().sort((a, b) => (a.number ?? 0) - (b.number ?? 0) || a.id.localeCompare(b.id)),
+  }))
 }

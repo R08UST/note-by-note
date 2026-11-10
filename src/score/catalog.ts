@@ -1,8 +1,11 @@
 export interface CatalogPiece {
   id: string
   level: 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
-  /** Graded repertoire is the default. Etudes are the 练习曲 shelf. */
-  category?: 'etude'
+  /** Graded repertoire is the default. Etudes are 练习曲. Method books are 教材. */
+  category?: 'etude' | 'method'
+  /** Shelf name, for example 拜厄 Op.101. */
+  book?: string
+  number?: number
   title: string
   title_zh: string | null
   composer: string
@@ -25,7 +28,7 @@ export interface CatalogQuery {
   level: CatalogPiece['level'] | 'all'
   hands: CatalogPiece['hands'] | 'all'
   text: string
-  category?: 'all' | 'graded' | 'etude'
+  category?: 'all' | 'graded' | 'etude' | 'method'
 }
 
 export function pieceTitle(piece: CatalogPiece): string {
@@ -67,7 +70,8 @@ export function filterCatalog(pieces: readonly CatalogPiece[], query: CatalogQue
   const needle = query.text.trim().toLowerCase()
   return pieces.filter((piece) => {
     if (query.category === 'etude' && piece.category !== 'etude') return false
-    if (query.category === 'graded' && piece.category === 'etude') return false
+    if (query.category === 'method' && piece.category !== 'method') return false
+    if ((query.category == null || query.category === 'graded') && (piece.category === 'etude' || piece.category === 'method')) return false
     if (query.category !== 'etude' && query.level !== 'all' && piece.level !== query.level) return false
     if (query.hands !== 'all' && piece.hands !== query.hands) return false
     if (!needle) return true

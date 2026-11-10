@@ -41,6 +41,14 @@ describe('filterCatalog', () => {
     expect(filterCatalog(sample, { level: 'all', hands: 'all', text: '茉莉' }).map((piece) => piece.id)).toEqual(['a'])
   })
 
+  it('keeps method books on the 教材 shelf and out of the graded list', () => {
+    const method: CatalogPiece = { ...sample[0]!, id: 'method-burgmuller-op100-02', category: 'method', book: '布格缪勒 Op.100', number: 2 }
+    const shelf = [...sample, method]
+    expect(filterCatalog(shelf, { level: 'all', hands: 'all', text: '', category: 'graded' }).map((piece) => piece.id)).toEqual(['a', 'b'])
+    expect(filterCatalog(shelf, { level: 'all', hands: 'all', text: '', category: 'method' }).map((piece) => piece.id)).toEqual([method.id])
+    expect(filterCatalog(shelf, { level: 'L1', hands: 'all', text: '', category: 'method' }).map((piece) => piece.id)).toEqual([method.id])
+  })
+
   it('shows the Chinese title when there is one, and flags CC BY', () => {
     expect(pieceTitle(sample[0]!)).toBe('茉莉花')
     expect(pieceTitle(sample[1]!)).toBe('Minuet in G')

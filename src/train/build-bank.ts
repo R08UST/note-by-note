@@ -60,9 +60,10 @@ function blocked(piece: CatalogPiece): boolean {
 function readCatalog(): CatalogPiece[] {
   const manifest = JSON.parse(readFileSync(new URL('./manifest.json', ROOT), 'utf8')) as { pieces: CatalogPiece[] }
   const etudes = JSON.parse(readFileSync(new URL('./etudes.json', ROOT), 'utf8')) as CatalogPiece[]
+  const methods = JSON.parse(readFileSync(new URL('./method.json', ROOT), 'utf8')) as CatalogPiece[]
   const seen = new Set<string>()
   const rows: CatalogPiece[] = []
-  for (const piece of [...manifest.pieces, ...etudes]) {
+  for (const piece of [...manifest.pieces, ...etudes, ...methods]) {
     if (seen.has(piece.id) || blocked(piece)) continue
     seen.add(piece.id)
     rows.push(piece)
@@ -157,6 +158,11 @@ function excerptsFor(level: SightLevel, pieces: readonly { piece: CatalogPiece; 
   found.sort((a, b) => Number(b.preferred) - Number(a.preferred) || Number(a.echo) - Number(b.echo) || a.piece.id.localeCompare(b.piece.id) || a.start - b.start)
   const folk = found.filter((item) => item.piece.id.startsWith('os-'))
   const studies = found.filter((item) => !item.piece.id.startsWith('os-'))
+  studies.sort((a, b) => {
+    const group = Number(!a.piece.id.startsWith('method-')) - Number(!b.piece.id.startsWith('method-'))
+    if (group !== 0) return group
+    return Number(b.preferred) - Number(a.preferred) || Number(a.echo) - Number(b.echo) || a.piece.id.localeCompare(b.piece.id) || a.start - b.start
+  })
   return [
     ...takeDiverse(folk.filter((item) => item.hand === 'R'), 6),
     ...takeDiverse(studies.filter((item) => item.hand === 'R'), 4),
