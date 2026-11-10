@@ -23,6 +23,8 @@ interface ScoreViewProps {
   onNote?: (noteId: string, shiftKey: boolean) => void
   /** 1 fits the sheet to the frame width. Larger values zoom in from that fit. */
   zoom?: number
+  /** Changes when the frame is resized by layout, such as entering focus mode. */
+  layoutKey?: string | number
 }
 
 interface Entry {
@@ -52,7 +54,7 @@ function scrollFrame(cursor: HTMLElement) {
   frame.scrollTop += box.top - view.top - 24
 }
 
-export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote, zoom = 1 }: ScoreViewProps) {
+export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote, zoom = 1, layoutKey = 0 }: ScoreViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
   const stepsRef = useRef<number[]>([])
@@ -259,6 +261,8 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           if (cancelled) return
           osmd.Zoom = fitRef.current * zoomRef.current
           osmd.render()
+          const sheets = [...host.querySelectorAll(':scope > svg')]
+          sheets.slice(0, -1).forEach((node) => node.remove())
           engage()
         }
         host.dataset.osmdLoads = String((Number(host.dataset.osmdLoads) || 0) + 1)
@@ -306,6 +310,17 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     if (!readyRef.current) return
     wireRef.current()
   }, [zoom])
+
+  useEffect(() => {
+    if (!readyRef.current) return
+    const frame = requestAnimationFrame(() => {
+      const host = hostRef.current
+      if (!host || naturalRef.current < 8) return
+      fitRef.current = Math.max(0.35, (host.clientWidth - 12) / naturalRef.current)
+      wireRef.current()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [layoutKey])
 
   return <div className="score-host" ref={hostRef} />
 }

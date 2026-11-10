@@ -91,6 +91,8 @@ export function PracticeApp() {
   const [focusMode, setFocusMode] = useState(false)
   const [listenHands, setListenHands] = useState<Record<number, 'L' | 'R'>>({})
   const [undrawnIds, setUndrawnIds] = useState<readonly string[]>([])
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportCollapsed, setReportCollapsed] = useState(false)
   const [menuHost, setMenuHost] = useState<HTMLDivElement | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -161,6 +163,12 @@ export function PracticeApp() {
     keyboardEnabled,
     listenKeyboard: tab === 'practice',
   })
+
+  useEffect(() => {
+    if (!practice.summary) return
+    setReportOpen(true)
+    setReportCollapsed(false)
+  }, [practice.summary])
 
   useEffect(() => {
     const onHash = () => {
@@ -515,6 +523,11 @@ export function PracticeApp() {
     if (tab !== 'practice') return
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
+      if (event.key === 'Escape' && reportOpen) {
+        event.preventDefault()
+        setReportOpen(false)
+        return
+      }
       if (event.altKey && event.key === 'ArrowLeft') {
         event.preventDefault()
         stepMeasure(-1)
@@ -720,6 +733,9 @@ export function PracticeApp() {
                     <IconButton label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}><Glyph d="M8 3 V13 M3 8 H13" /></IconButton>
                   </div>
                   <button type="button" className="button ghost" onClick={() => setFocusMode(true)}>专注</button>
+                  {practice.summary && !reportOpen && (
+                    <button type="button" className="button ghost" onClick={() => setReportOpen(true)}>成绩</button>
+                  )}
                   <details className="more-menu">
                     <summary className="button ghost">更多</summary>
                     <div className="more-panel">
@@ -771,11 +787,14 @@ export function PracticeApp() {
                   misses={misses}
                   extras={extras}
                 />
-                {practice.summary && (
+                {practice.summary && reportOpen && (
                   <SummaryPanel
                     summary={practice.passes.length > 1 ? (practice.passes[practice.passes.length - 1] ?? practice.summary) : practice.summary}
                     passes={practice.passes}
                     saved={practice.judgements.length > 0}
+                    collapsed={reportCollapsed}
+                    onToggleCollapsed={() => setReportCollapsed((value) => !value)}
+                    onClose={() => setReportOpen(false)}
                     onJump={(measure) => {
                       const target = firstOnsetInMeasure(groups, measure)
                       if (!target) return
@@ -825,6 +844,7 @@ export function PracticeApp() {
                         span={{ startBeat: cursorBeat, endBeat }}
                         ref={scoreRef}
                         zoom={scoreZoom}
+                        layoutKey={focusMode ? 'focus' : 'page'}
                         onNote={(id, shift) => {
                           const note = notes.find((item) => item.id === id)
                           if (!note) return
