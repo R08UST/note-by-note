@@ -10,6 +10,8 @@ export interface TakeScore {
   scoredTiming: boolean
   hand?: 'R' | 'L' | 'both'
   seed?: number
+  /** Stable bank id. Replays of the same item count once. */
+  itemId?: string
   /** Replays do not count. Missing means this is the first attempt. */
   firstAttempt?: boolean
 }
@@ -27,7 +29,7 @@ export function qualifyingCount(takes: readonly TakeScore[], level: number, hand
   takes.forEach((take, index) => {
     if (take.level !== level || !takeQualifies(take)) return
     if (hand && take.hand && take.hand !== hand) return
-    const key = take.seed == null ? `row-${index}` : `${take.hand ?? ''}:${take.seed}`
+    const key = take.itemId ?? (take.seed == null ? `row-${index}` : `${take.hand ?? ''}:${take.seed}`)
     if (seen.has(key)) return
     seen.add(key)
     count += 1

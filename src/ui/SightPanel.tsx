@@ -4,8 +4,11 @@ import { pitchForCode } from '../midi/keyboardMap'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { listPitchStats, listTrainRuns, rememberPitches, saveTrainRun, type PitchStatRecord, type TrainRunRecord } from '../storage/db'
-import { levelStars, migratedSightLevel, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
+import { PITCH_GATE, TIME_GATE, levelStars, migratedSightLevel, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
+import { bankFileName, exerciseFromBank } from '../train/bank'
 import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '../train/sight'
+import { BankBar } from './BankBar'
+import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { HeatKeys, LevelRail, PreviewGate } from './TrainBits'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
@@ -63,16 +66,23 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       scoredTiming: run.scoredTiming,
       hand: run.hand,
       seed: run.seed,
+      itemId: run.itemId,
       firstAttempt: run.firstAttempt,
     }))
   const unlocked = unlockedThrough(takes, SIGHT_LEVELS.length)
   const spec = sightLevel(Math.min(level, unlocked))
   const phraseLike = kind !== 'flash'
+  const bank = useQuestionBank(bankFileName('s', spec.id, hand), phraseLike)
 
-  const phrase = useMemo(
-    () =>       generateSightPhrase({ level: spec.id, seed, hand, weakness: weaknessRef.current, focusWeak: kind === 'weak' }),
-    [spec.id, seed, hand, kind],
-  )
+  const phrase = useMemo(() => {
+    if (phraseLike && bank.current) {
+      const number = bankNumber(bank.current.id)
+      const built = exerciseFromBank(bank.current, `视奏 S${spec.id} · 第 ${number} 题`, hand)
+      return { ...built, itemId: bank.current.id, seed: number }
+    }
+    const built = generateSightPhrase({ level: spec.id, seed, hand, weakness: weaknessRef.current, focusWeak: kind === 'weak' })
+    return { ...built, itemId: '', seed }
+  }, [phraseLike, bank.current, spec.id, hand, seed, kind])
   const cards = useMemo(() => {
     if (phraseLike) return []
     return Array.from({ length: CARDS }, (_, index) =>
@@ -108,13 +118,18 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         bpm,
         scoredTiming: timing === 'strict',
         hand,
-        seed,
-        firstAttempt: true,
+        seed: phrase.seed,
+        itemId: phrase.itemId || undefined,
+        firstAttempt: phrase.itemId ? !bank.marks[phrase.itemId] : true,
         curriculum: 2,
       }).then(() => {
         reload()
         onSaved()
       })
+      if (phrase.itemId) {
+        const clean = (summary.expected === 0 ? 0 : summary.hits / summary.expected) >= PITCH_GATE && (timing === 'wait' || onTime >= TIME_GATE)
+        bank.finish(clean)
+      }
       void rememberPitches(phrase.notes.map((note) => ({ pitch: note.pitch, hit: hitNote(note, judgements) }))).then(reload)
     },
   })
@@ -280,11 +295,22 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
             {flashing ? `第 ${cardIndex + 1} / ${CARDS} 张` : '开始 8 张'}
           </button>
         )}
-        <button type="button" className="button ghost" onClick={() => { setReport(null); setSeed((value) => value + 17) }}>换一题</button>
+        <button type="button" className="button ghost" onClick={() => { setReport(null); if (phraseLike && bank.items.length > 0) bank.advance(); else setSeed((value) => value + 17) }}>换一题</button>
         {hints && hintPitch != null && <span className="note-hint">{noteName(hintPitch)}</span>}
         {flashNote && <span className="device-note">{flashNote}</span>}
       </div>
       {drill.countBeat != null && phraseLike && <div className="count-in">{drill.countBeat}</div>}
+      {phraseLike && (
+        <BankBar
+          items={bank.items}
+          currentId={bank.current?.id}
+          marks={bank.marks}
+          open={bank.open}
+          onToggle={() => bank.setOpen((value) => !value)}
+          onPick={(id) => { setReport(null); bank.pick(id) }}
+        />
+      )}
+      {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
       {shown && (
         <div className="score-frame train-score">
           <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />

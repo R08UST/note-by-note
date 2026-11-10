@@ -4,7 +4,8 @@ import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import type { TimeSignature } from '../score/parseMusicXml'
 import { latestRun, listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
-import { levelStars, unlockedThrough, type TakeScore } from '../train/mastery'
+import { PITCH_GATE, TIME_GATE, levelStars, unlockedThrough, type TakeScore } from '../train/mastery'
+import { bankFileName, exerciseFromBank } from '../train/bank'
 import {
   generateHandsRhythm,
   generatePulse,
@@ -20,6 +21,8 @@ import {
   type RhythmMatch,
 } from '../train/rhythm'
 import { LevelRail } from './TrainBits'
+import { BankBar } from './BankBar'
+import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
@@ -64,9 +67,18 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
 
   const takes: TakeScore[] = runs
     .filter((run) => run.mode === 'rhythm' || run.mode === 'rhythm-hands')
-    .map((run) => ({ level: run.level, pitchAccuracy: run.pitchAccuracy, onTimeRate: run.onTimeRate, scoredTiming: true }))
+    .map((run) => ({
+      level: run.level,
+      pitchAccuracy: run.pitchAccuracy,
+      onTimeRate: run.onTimeRate,
+      scoredTiming: true,
+      seed: run.seed,
+      itemId: run.itemId,
+      firstAttempt: run.firstAttempt,
+    }))
   const unlocked = unlockedThrough(takes, RHYTHM_LEVELS.length)
   const spec = rhythmLevel(Math.min(level, unlocked))
+  const bank = useQuestionBank(bankFileName('r', spec.id), kind === 'line')
 
   const exercise = useMemo(() => {
     if (kind === 'hands') return generateHandsRhythm(seed)
@@ -76,8 +88,12 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       const measures = useWorst && worst.length > 0 ? worst : rangeMeasures(fromMeasure, toMeasure)
       return rhythmFromPiece({ notes: piece?.notes ?? [], measures, time: piece?.time ?? { beats: 4, beatType: 4 } })
     }
+    if (bank.current) {
+      const number = bankNumber(bank.current.id)
+      return exerciseFromBank(bank.current, `节奏 R${spec.id} · 第 ${number} 题`, 'R')
+    }
     return generateRhythm(spec.id, seed)
-  }, [kind, seed, spec.id, subdivision, useWorst, worst, fromMeasure, toMeasure, piece])
+  }, [kind, seed, spec.id, subdivision, useWorst, worst, fromMeasure, toMeasure, piece, bank.current])
 
   const matchRule: RhythmMatch = kind === 'hands' ? 'hands' : rule
   const drill = useDrill({
@@ -109,10 +125,14 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
         spreadMs: summary.timingSpreadMs,
         bpm,
         scoredTiming: true,
+        seed: kind === 'line' ? bankNumber(bank.current?.id ?? '') : seed,
+        itemId: kind === 'line' ? bank.current?.id : undefined,
+        firstAttempt: kind === 'line' && bank.current ? !bank.marks[bank.current.id] : undefined,
       }).then(() => {
         reload()
         onSaved()
       })
+      if (kind === 'line' && bank.current) bank.finish(accuracy >= PITCH_GATE && timing >= TIME_GATE)
       if (autoTempo && accuracy >= 0.9 && timing >= 0.8) setBpm((value) => Math.min(Math.round(spec.startBpm * 1.5), value + 5))
     },
   })
@@ -183,8 +203,19 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
           {drill.status === 'countin' ? '预备…' : '开始'}
         </button>
         <button type="button" className="button stop" onClick={drill.stop}>停止</button>
-        <button type="button" className="button ghost" onClick={() => { setReport(null); setSeed((value) => value + 9) }}>换一题</button>
+        <button type="button" className="button ghost" onClick={() => { setReport(null); if (kind === 'line' && bank.items.length > 0) bank.advance(); else setSeed((value) => value + 9) }}>换一题</button>
       </div>
+      {kind === 'line' && (
+        <BankBar
+          items={bank.items}
+          currentId={bank.current?.id}
+          marks={bank.marks}
+          open={bank.open}
+          onToggle={() => bank.setOpen((value) => !value)}
+          onPick={(id) => { setReport(null); bank.pick(id) }}
+        />
+      )}
+      {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
       {drill.countBeat != null && <div className="count-in">{drill.countBeat}</div>}
       <div className="score-frame train-score">
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />

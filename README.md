@@ -3,7 +3,7 @@
 A browser practice stand for a beginner with a MIDI keyboard. The program is licensed under the **GNU Affero General Public License v3.0 or later** (`LICENSE`). Third-party scores and libraries are listed in `THIRD_PARTY.md`. The window is a tab bar:
 
 - **练习 Practice** — pick a piece from the library, then play it in Wait or Rhythm mode. `#library` opens the same tab with the picker showing.
-- **训练 Training** — sight-reading and rhythm drills. `#sight` opens this tab.
+- **训练 Training** — sight-reading and rhythm drills. Each S and R level has a fixed 题库 of about 80 items. Unseen items come first, a recent item is not served again, and you can open the 题号 list to redo one. Some items are phrases cut from the CC0 folk tunes and the public-domain etudes. `#sight` opens this tab.
 - **识谱 OMR** — turn a photo or a multi-page PDF into MusicXML in the browser, then send it to 练习.
 - **记录 History** — saved practice runs and training charts in this browser.
 - **设置 Settings** — MIDI device, latency, and the computer-keyboard map.

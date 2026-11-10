@@ -46,6 +46,8 @@ export interface TrainRunRecord {
   seed?: number
   firstAttempt?: boolean
   curriculum?: number
+  /** Stable 题库 id, so a redo is not a new piece. */
+  itemId?: string
 }
 
 export interface PracticeRangeRecord {
@@ -54,6 +56,12 @@ export interface PracticeRangeRecord {
   end: number
   loops: number
   ramp: boolean
+}
+
+export interface BankMarkRecord {
+  id: string
+  clean: boolean
+  at: number
 }
 
 export interface PitchStatRecord {
@@ -71,6 +79,7 @@ class PracticeDB extends Dexie {
   trainRuns!: Table<TrainRunRecord, number>
   pitchStats!: Table<PitchStatRecord, number>
   ranges!: Table<PracticeRangeRecord, string>
+  bankMarks!: Table<BankMarkRecord, string>
 
   constructor() {
     super('note-by-note')
@@ -87,6 +96,9 @@ class PracticeDB extends Dexie {
     })
     this.version(4).stores({
       ranges: 'pieceId',
+    })
+    this.version(5).stores({
+      bankMarks: 'id',
     })
   }
 }
@@ -202,6 +214,23 @@ export async function savePracticeRange(range: PracticeRangeRecord): Promise<voi
     await db.ranges.put(range)
   } catch {
     // The passage can still be practiced if storage is blocked.
+  }
+}
+
+export async function listBankMarks(): Promise<BankMarkRecord[]> {
+  try {
+    return await db.bankMarks.toArray()
+  } catch {
+    return []
+  }
+}
+
+export async function markBankItem(id: string, clean: boolean): Promise<void> {
+  try {
+    const current = await db.bankMarks.get(id)
+    await db.bankMarks.put({ id, clean: Boolean(clean || current?.clean), at: Date.now() })
+  } catch {
+    // The drill result is still on screen if storage is blocked.
   }
 }
 
