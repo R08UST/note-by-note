@@ -3,10 +3,9 @@
  * Run with: npx vite-node src/train/build-bank.ts
  * The written JSON is the 题库. Do not regenerate it unless the level rules change.
  */
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { Window } from 'happy-dom'
 import type { ScoreNote } from '../judge/types'
-import { parseMusicXml } from '../score/parseMusicXml'
 import { noteKeys, tooSimilar, type BankItem, type StoredNote } from './bank'
 import { SIGHT_LEVELS, type SightLevel } from './curriculum'
 import { cellSpans as spansOf, CONTOURS, generateRhythmLine, generateSight, type BuiltExercise } from './generate'
@@ -22,6 +21,7 @@ interface CatalogPiece {
   file: string
   key: string
   time: string
+  category?: string
 }
 
 const KEYS: Record<string, { fifths: number; minor: boolean }> = {
@@ -159,15 +159,16 @@ function excerptsFor(level: SightLevel, pieces: readonly { piece: CatalogPiece; 
   const folk = found.filter((item) => item.piece.id.startsWith('os-'))
   const studies = found.filter((item) => !item.piece.id.startsWith('os-'))
   studies.sort((a, b) => {
-    const group = Number(!a.piece.id.startsWith('method-')) - Number(!b.piece.id.startsWith('method-'))
+    const rank = (piece: CatalogPiece) => (piece.id.startsWith('method-') ? 0 : piece.category === 'method' ? 1 : 2)
+    const group = rank(a.piece) - rank(b.piece)
     if (group !== 0) return group
     return Number(b.preferred) - Number(a.preferred) || Number(a.echo) - Number(b.echo) || a.piece.id.localeCompare(b.piece.id) || a.start - b.start
   })
   return [
     ...takeDiverse(folk.filter((item) => item.hand === 'R'), 6),
-    ...takeDiverse(studies.filter((item) => item.hand === 'R'), 4),
+    ...takeDiverse(studies.filter((item) => item.hand === 'R'), 6),
     ...takeDiverse(folk.filter((item) => item.hand === 'L'), 6),
-    ...takeDiverse(studies.filter((item) => item.hand === 'L'), 4),
+    ...takeDiverse(studies.filter((item) => item.hand === 'L'), 6),
   ]
 }
 
@@ -240,21 +241,33 @@ function writeBank(name: string, items: BankItem[]) {
   writeFileSync(path, JSON.stringify({ items }))
 }
 
+function parsedNotes(catalog: CatalogPiece[]): { piece: CatalogPiece; notes: ScoreNote[] }[] {
+  const jobs = catalog.map((piece) => ({
+    id: piece.id,
+    path: new URL(`./${piece.file.replace('pieces/', '')}`, ROOT).pathname,
+  }))
+  const byId = new Map<string, ScoreNote[]>()
+  for (let start = 0; start < jobs.length; start += 15) {
+    const list = `/tmp/bank-notes-${start}.json`
+    writeFileSync(list, JSON.stringify(jobs.slice(start, start + 15)))
+    const child = spawnSync(process.execPath, [new URL('../../scripts/dump-notes.mjs', import.meta.url).pathname, list], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    if (child.status !== 0) continue
+    const rows = JSON.parse(child.stdout) as { id: string; notes: ScoreNote[] }[]
+    for (const row of rows) if (row.notes.length > 0) byId.set(row.id, row.notes)
+  }
+  return catalog.flatMap((piece) => {
+    const notes = byId.get(piece.id)
+    return notes ? [{ piece, notes }] : []
+  })
+}
+
 function main() {
-  const window = new Window()
-  globalThis.DOMParser = window.DOMParser as unknown as typeof DOMParser
   mkdirSync(new URL('./banks/', import.meta.url), { recursive: true })
   const catalog = readCatalog()
-  const parsed: { piece: CatalogPiece; notes: ScoreNote[] }[] = []
-  for (const piece of catalog) {
-    try {
-      const xml = readFileSync(new URL(`./${piece.file.replace('pieces/', '')}`, ROOT), 'utf8')
-      const score = parseMusicXml(xml)
-      if (score.notes.length > 0) parsed.push({ piece, notes: score.notes })
-    } catch {
-      // A file that does not parse is skipped. The generated bank still fills the level.
-    }
-  }
+  const parsed = parsedNotes(catalog)
 
   const libraryCount: Record<string, number> = {}
   for (const level of SIGHT_LEVELS) {
@@ -335,7 +348,6 @@ function main() {
     console.log(`R${level} ${kept.length}`)
   }
   console.log('LIBRARY', JSON.stringify(libraryCount))
-  window.happyDOM.close()
 }
 
 main()

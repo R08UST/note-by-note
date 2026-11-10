@@ -31,7 +31,7 @@ Graded pieces already in `public/pieces` keep the license written on each card (
 - Anton Diabelli, 28 melodische Übungsstücke, Op. 149, Nos. 1–10, primo part. CC BY-SA 3.0. Typeset by Alberto Simões for the Mutopia Project. Share-alike applies to these derived MusicXML files.
 - Louis Streabbog (Gobbaerts), Les étoiles d'or, No. 1 Valse. CC BY-SA 4.0. Typeset by Masamichi Hosoda. Mutopia-2015/12/27-2092.
 
-Nos. 11–28 of Diabelli were not imported. Mikrokosmos, John Thompson (小汤/大汤; Thompson died 1963), Kodály's 333 exercises, and Pozzoli were not imported because they are still under copyright.
+Diabelli Op. 149 Nos. 11–28 are in `public/pieces/mutopia.json` where the conversion passed (No. 16 did not). Each kept file is the primo part, labeled 第一钢琴. Mikrokosmos, John Thompson (小汤/大汤; Thompson died 1963), Kodály's 333 exercises, and Pozzoli were not imported because they are still under copyright.
 
 教材 added in `public/pieces/method.json`:
 
@@ -41,3 +41,7 @@ Nos. 11–28 of Diabelli were not imported. Mikrokosmos, John Thompson (小汤/�
 - Ferdinand Beyer, Vorschule im Klavierspiel, Op. 101, was not imported. No MusicXML or LilyPond edition with an explicit public-domain or CC BY / CC BY-SA license was found (Mutopia has no Beyer). The public-domain scan used for checking is IMSLP file #12916, Edition Peters Nr. 2721, plate 8033, copyright tag V/V/V: `https://imslp.org/wiki/Special:ImagefromIndex/12916`. A note-accurate OMR of that scan was not reliable enough to mark any exercise `validated`.
 - Carl Czerny, Practical Method for Beginners, Op. 599, was not imported. No public-domain or CC typeset MusicXML was found. A public-domain scan exists as IMSLP #105466 (copyright tag V/V/V, 56 pages) and was not transcribed because the same OMR check could not be validated.
 - Cornelius Gurlitt, Op. 117 and Op. 140, were not imported. Mutopia has no Gurlitt directory, and no CC or public-domain typeset edition was found in this pass.
+
+The approved Mutopia shortlist (waves 1 and 2) is in `public/pieces/mutopia/`. Each MusicXML file is converted from that piece's Mutopia MIDI, which Mutopia renders from the LilyPond source. The card shows the composer, typesetter, Mutopia id, license, and piece-info link. Method books sit on the 教材 shelf: 安娜·玛格达莱娜曲集, 巴赫小前奏曲, 车尔尼 Op.821, 哈农, 舒曼少年曲集, 布格缪勒 Op.100, 柴可夫斯基少年钢琴曲集, 迪亚贝利 Op.149, and 克莱门蒂 Op.42. Other shortlist pieces are graded L2–L5. Four-hand scores keep the primo part only. Hanon, Satie *Enfantillages*, and Clementi Op. 42 are split into separate items. Licenses are Public Domain or CC BY / CC BY-SA 2.5, 3.0, or 4.0, taken from each Mutopia page.
+
+Not imported from that shortlist: duplicate editions Bach 983, 493, and 1015, and Chopin prelude 4 (921); the 57 Swedish dances; pieces already in the library (Czerny Op. 821 Nos. 1, 3, 11; Burgmüller Op. 100 Nos. 1, 3, 12; Schumann Op. 68 No. 1; Bach Musette Anh. 126). The MIDI conversion did not keep a usable time signature for Czerny Op. 821 Nos. 5, 9, 13, 17; Bach BWV 928, 936, 940, 943, and WTC I Prelude 1; Burgmüller Op. 100 Nos. 7, 13, 14; Schumann Op. 68 No. 16; Tchaikovsky Op. 39 No. 16; Diabelli Op. 149 No. 16; Diabelli Op. 163 sonatina 1 movement 4; Grieg Albumblatt; and some Clementi Op. 42 lessons. Those stay out. `public/pieces/mutopia-skipped.json` lists each one.

@@ -113,6 +113,37 @@ if (readFileSync) {
   console.log(`etudes kept ${etudes.length}`)
 }
 
+const mutopiaPath = path.join(root, 'public/pieces/mutopia.json')
+if (readFileSync(mutopiaPath, 'utf8').trim()) {
+  const mutopia = JSON.parse(readFileSync(mutopiaPath, 'utf8'))
+  const mutopiaJobs = mutopia.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
+  const mutopiaResults = []
+  for (let start = 0; start < mutopiaJobs.length; start += 12) {
+    const mutopiaList = path.join('/tmp', `library-mutopia-${start}.json`)
+    writeFileSync(mutopiaList, JSON.stringify(mutopiaJobs.slice(start, start + 12)))
+    const mutopiaChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), mutopiaList], {
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    })
+    if (mutopiaChild.status !== 0) {
+      console.error(mutopiaChild.stderr)
+      throw new Error('mutopia audit failed')
+    }
+    mutopiaResults.push(...JSON.parse(mutopiaChild.stdout))
+    if ((start + 12) % 60 === 0) console.log(`mutopia ${Math.min(start + 12, mutopiaJobs.length)}/${mutopiaJobs.length}`)
+  }
+  const mutopiaChecked = new Map(mutopiaResults.map((item) => [item.id, item]))
+  const mutopiaFailed = mutopia.filter((piece) => mutopiaChecked.get(piece.id)?.error || mutopiaChecked.get(piece.id)?.notes < 1)
+  if (mutopiaFailed.length) {
+    console.log(JSON.stringify(mutopiaFailed.map((piece) => ({ id: piece.id, error: mutopiaChecked.get(piece.id)?.error }))))
+    throw new Error('a mutopia piece did not parse')
+  }
+  const withMutopia = JSON.parse(readFileSync(path.join(root, 'public/pieces/manifest.json'), 'utf8'))
+  withMutopia.pieces = withMutopia.pieces.filter((piece) => !String(piece.id).startsWith('mutopia-')).concat(mutopia)
+  writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withMutopia))
+  console.log(`mutopia kept ${mutopia.length}`)
+}
+
 const methodsPath = path.join(root, 'public/pieces/method.json')
 const methods = JSON.parse(readFileSync(methodsPath, 'utf8'))
 const methodJobs = methods.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))

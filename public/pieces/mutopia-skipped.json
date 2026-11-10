@@ -1,0 +1,200 @@
+[
+  {
+    "id": 2060,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 1",
+    "reason": "already in the app as noc-czerny-op821-1"
+  },
+  {
+    "id": 2062,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 3",
+    "reason": "already in the app as noc-czerny-op821-3"
+  },
+  {
+    "id": 2066,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 5 (Czerny_Op_821_No_005.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 2072,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 9 (Czerny_Op_821_No_009.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 2076,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 11",
+    "reason": "already in the app as noc-czerny-op821-11"
+  },
+  {
+    "id": 2078,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 13 (Czerny_Op_821_No_013.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 2083,
+    "wave": 1,
+    "title": "160 Eight-Measure Exercises, No. 17 (Czerny_Op_821_No_017.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 79,
+    "wave": 1,
+    "title": "Musette",
+    "reason": "already in the app as mut-bach-musette-anh126"
+  },
+  {
+    "id": 63,
+    "wave": 1,
+    "title": "Praeludium 10 (bach-praeludium-10.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1576,
+    "wave": 1,
+    "title": "Praeludium Nr. 4 (bwv-936.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1594,
+    "wave": 1,
+    "title": "Praeludium Nr. 2 (bwv-940.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1533,
+    "wave": 1,
+    "title": "Praeludium C-Dur (bwv-943.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 202,
+    "wave": 1,
+    "title": "La Candeur",
+    "reason": "already in the app as noc-burgmuller-op100-1"
+  },
+  {
+    "id": 218,
+    "wave": 1,
+    "title": "La Pastorale",
+    "reason": "already in the app as noc-burgmuller-op100-3"
+  },
+  {
+    "id": 216,
+    "wave": 1,
+    "title": "Le Courant Limpide (25EF-07.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 223,
+    "wave": 1,
+    "title": "L'Adieu",
+    "reason": "already in the app as noc-burgmuller-op100-12"
+  },
+  {
+    "id": 224,
+    "wave": 1,
+    "title": "Consolation (25EF-13.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 225,
+    "wave": 1,
+    "title": "La Styrienne (25EF-14.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 647,
+    "wave": 1,
+    "title": "Album pour la jeunesse - 1.Mélodie",
+    "reason": "already in the app as mut-schumann-op68-01"
+  },
+  {
+    "id": 676,
+    "wave": 1,
+    "title": "Album pour la jeunesse - 16.Premier chagrin (schumann-op68-16-premier-chagrin.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 2080,
+    "wave": 1,
+    "title": "Old French Song (16OldFrenchSong.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 520,
+    "wave": 1,
+    "title": "28 melodische Übungsstücke (No. 16) (op149-16-1.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1567,
+    "wave": 1,
+    "title": "Jugendfreuden - Sechs Sonatinen (diabeli.op163.s1-4.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les13-mozart-trio.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les15-prel-dmin.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les22-arietta.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les30-prel-besmaj.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les41-prel-bmin.mid)",
+    "reason": "a measure is far from the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les42-cpebach-rondo.mid)",
+    "reason": "a measure is far from the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les42-prel-eesmaj.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 1938,
+    "wave": 2,
+    "title": "Clementi's Art of Playing on the Piano Forte (clementi-op42-les45-prel-fismin.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 2194,
+    "wave": 2,
+    "title": "Albumblatt in E minor (No03_Albumblatt.mid)",
+    "reason": "measure durations do not match the time signature"
+  },
+  {
+    "id": 5,
+    "wave": 2,
+    "title": "Das Wohltemperierte Clavier I, Praeludium I",
+    "reason": "measure durations do not match the time signature"
+  }
+]
