@@ -727,7 +727,6 @@ input[type="range"] {
 .train-history h3 { margin: 0 0 4px; font-size: 0.95rem; }
 .calibrator-dot { width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--line); background: #14110e; }
 .calibrator-dot.is-on { background: var(--amber); color: var(--amber-ink); }
-.preview-gate { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .attribution.is-required { color: var(--amber); }
 .about { margin-top: 8px; }
 .about h2 { font-size: 1.2rem; }

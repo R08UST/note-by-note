@@ -20,7 +20,7 @@ import {
   worstMeasures,
   type RhythmMatch,
 } from '../train/rhythm'
-import { LevelRail, PreviewGate } from './TrainBits'
+import { LevelRail } from './TrainBits'
 import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
@@ -59,7 +59,6 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
   const [runs, setRuns] = useState<TrainRunRecord[]>([])
   const [report, setReport] = useState<RunSummary | null>(null)
   const [offsets, setOffsets] = useState<Judgement[]>([])
-  const [preview, setPreview] = useState<number | null>(null)
   const [hold, setHold] = useState<number | null>(null)
   const [session, setSession] = useState({ done: 0, clean: 0 })
   const [offer, setOffer] = useState(false)
@@ -174,20 +173,11 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     onBind((event) => drill.push(event))
   })
 
-  const startDrill = useRef(drill.start)
-  startDrill.current = drill.start
-  useEffect(() => {
-    if (preview !== 0) return
-    setPreview(null)
-    void startDrill.current()
-  }, [preview])
-
   const goNext = () => {
     setHold(null)
     setReport(null)
     if (!bank.current) {
       bank.advance()
-      setPreview(30)
       return
     }
     const plan = afterExercise({
@@ -202,13 +192,11 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     })
     bank.commitRecent(plan.recent)
     if (plan.itemId) bank.select(plan.itemId)
-    setPreview(30)
   }
   const retryItem = () => {
     retrying.current = true
     setHold(null)
     setReport(null)
-    setPreview(30)
   }
   goNextRef.current = goNext
   retryRef.current = retryItem
@@ -237,7 +225,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return
-      if (drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)) return
+      if (drill.status === 'playing' || drill.status === 'countin') return
       if (!report && hold == null) return
       if (event.key === 'Enter') {
         event.preventDefault()
@@ -249,7 +237,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [active, kind, drill.status, preview, report, hold])
+  }, [active, kind, drill.status, report, hold])
 
   return (
     <div className="train-pane">
@@ -309,9 +297,8 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       {kind === 'piece' && !piece && <p className="score-status">先在练习里打开一首曲子，再抽它的节奏。</p>}
       {kind === 'hands' && <p className="device-note">中央 C 以上算右手，以下算左手。</p>}
       <div className="omr-actions">
-        {preview != null && preview > 0 && kind === 'line' && <PreviewGate seconds={preview} onSkip={() => { setPreview(null); void drill.start() }} />}
-        <button type="button" className="button primary" disabled={exercise.notes.length === 0 || drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)} onClick={() => void drill.start()}>
-          {drill.status === 'countin' ? '预备…' : preview != null && preview > 0 ? `预习 ${preview}` : '开始'}
+        <button type="button" className="button primary" disabled={exercise.notes.length === 0 || drill.status === 'playing' || drill.status === 'countin'} onClick={() => void drill.start()}>
+          {drill.status === 'countin' ? '预备…' : '开始'}
         </button>
         <button type="button" className="button stop" onClick={drill.stop}>停止</button>
         {kind !== 'line' && <button type="button" className="button ghost" onClick={() => { setReport(null); setSeed((value) => value + 9) }}>换一题</button>}
@@ -322,7 +309,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
           onContinuous={onContinuous}
           onRetry={retryItem}
           onNext={goNext}
-          busy={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}
+          busy={drill.status === 'playing' || drill.status === 'countin'}
           sessionDone={session.done}
           sessionClean={session.clean}
           itemId={bank.current?.id}
@@ -334,7 +321,6 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
             setReport(null)
             if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
             setLevel((value) => Math.min(RHYTHM_LEVELS.length, value + 1))
-            setPreview(30)
           }}
           onStay={() => {
             declined.current.add(spec.id)

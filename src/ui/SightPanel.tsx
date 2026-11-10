@@ -10,7 +10,7 @@ import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '..
 import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
-import { HeatKeys, LevelRail, PreviewGate } from './TrainBits'
+import { HeatKeys, LevelRail } from './TrainBits'
 import { DemoBar } from './DemoBar'
 import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
@@ -47,7 +47,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   const [flashing, setFlashing] = useState(false)
   const [flashNote, setFlashNote] = useState('')
   const [report, setReport] = useState<RunSummary | null>(null)
-  const [preview, setPreview] = useState<number | null>(null)
   const [hold, setHold] = useState<number | null>(null)
   const [session, setSession] = useState({ done: 0, clean: 0 })
   const [offer, setOffer] = useState(false)
@@ -224,26 +223,11 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     return () => window.removeEventListener('keydown', down)
   }, [active, keyboardEnabled, phraseLike])
 
-  useEffect(() => {
-    if (preview == null || preview <= 0) return
-    const id = window.setTimeout(() => setPreview((value) => (value == null ? null : value - 1)), 1000)
-    return () => window.clearTimeout(id)
-  }, [preview])
-
-  const startDrill = useRef(drill.start)
-  startDrill.current = drill.start
-  useEffect(() => {
-    if (preview !== 0) return
-    setPreview(null)
-    void startDrill.current()
-  }, [preview])
-
   const goNext = () => {
     setHold(null)
     setReport(null)
     if (!bank.current) {
       bank.advance()
-      setPreview(30)
       return
     }
     const plan = afterExercise({
@@ -259,13 +243,11 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     bank.commitRecent(plan.recent)
     if (plan.hand !== hand) setHand(plan.hand)
     else if (plan.itemId) bank.select(plan.itemId)
-    setPreview(30)
   }
   const retryItem = () => {
     retrying.current = true
     setHold(null)
     setReport(null)
-    setPreview(30)
   }
   goNextRef.current = goNext
   retryRef.current = retryItem
@@ -294,7 +276,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       if (event.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return
-      if (drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)) return
+      if (drill.status === 'playing' || drill.status === 'countin') return
       if (!report && hold == null) return
       if (event.key === 'Enter') {
         event.preventDefault()
@@ -306,7 +288,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [active, phraseLike, drill.status, preview, report, hold])
+  }, [active, phraseLike, drill.status, report, hold])
 
   useEffect(() => {
     if (!flashing || timerSeconds <= 0) return
@@ -332,7 +314,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         S{spec.id} {spec.title}。{spec.detail}
       </p>
       <p className="device-note">依据：{spec.source}</p>
-      <p className="device-note">同一级先右手、再左手、再双手。连续练习就按这个顺序换题，不自动升级。3 条不同的曲子第一次就干净通过，才算过关。先看 30 秒。</p>
+      <p className="device-note">同一级先右手、再左手、再双手。连续练习就按这个顺序换题，不自动升级。3 条不同的曲子第一次就干净通过，才算过关。</p>
       <div className="segmented" role="group" aria-label="视奏题型">
         <button type="button" aria-pressed={kind === 'flash'} onClick={() => setKind('flash')}>单音认谱</button>
         <button type="button" aria-pressed={kind === 'phrase'} onClick={() => setKind('phrase')}>短句视奏</button>
@@ -382,9 +364,8 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       <div className="omr-actions">
         {phraseLike ? (
           <>
-            {preview != null && preview > 0 && <PreviewGate seconds={preview} onSkip={() => { setPreview(null); void drill.start() }} />}
-            <button type="button" className="button primary" onClick={() => setPreview(30)} disabled={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}>
-              {drill.status === 'countin' ? '预备…' : preview != null && preview > 0 ? `预习 ${preview}` : '开始'}
+            <button type="button" className="button primary" onClick={() => void drill.start()} disabled={drill.status === 'playing' || drill.status === 'countin'}>
+              {drill.status === 'countin' ? '预备…' : '开始'}
             </button>
             <button type="button" className="button stop" onClick={drill.stop}>停止</button>
           </>
@@ -414,7 +395,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           onContinuous={onContinuous}
           onRetry={retryItem}
           onNext={goNext}
-          busy={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}
+          busy={drill.status === 'playing' || drill.status === 'countin'}
           sessionDone={session.done}
           sessionClean={session.clean}
           itemId={bank.current?.id}
@@ -427,7 +408,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
             setReport(null)
             if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
             setLevel((value) => Math.min(SIGHT_LEVELS.length, value + 1))
-            setPreview(30)
           }}
           onStay={() => {
             declined.current.add(spec.id)

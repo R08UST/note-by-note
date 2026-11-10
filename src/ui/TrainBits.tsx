@@ -43,21 +43,6 @@ function heatColor(rate: number, seen: number): string {
   return `rgb(${red}, ${green}, 48)`
 }
 
-export function PreviewGate({
-  seconds,
-  onSkip,
-}: {
-  seconds: number
-  onSkip: () => void
-}) {
-  return (
-    <div className="preview-gate">
-      <p>先看 {seconds} 秒。看调号、拍号、第一个音，以及反复出现的节奏。</p>
-      <button type="button" className="button ghost" onClick={onSkip}>跳过预习</button>
-    </div>
-  )
-}
-
 export function LevelRail({
   count,
   value,
