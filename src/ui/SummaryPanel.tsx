@@ -3,9 +3,12 @@ import type { RunSummary } from '../report/summary'
 interface SummaryPanelProps {
   summary: RunSummary
   saved: boolean
+  passes?: RunSummary[]
+  onJump?: (measure: number) => void
+  onPracticeAround?: (measure: number) => void
 }
 
-export function SummaryPanel({ summary, saved }: SummaryPanelProps) {
+export function SummaryPanel({ summary, saved, passes = [], onJump, onPracticeAround }: SummaryPanelProps) {
   const percent = Math.round(summary.hitRate * 100)
   const mean =
     summary.meanOffsetMs == null
@@ -47,11 +50,23 @@ export function SummaryPanel({ summary, saved }: SummaryPanelProps) {
         <ol>
           {summary.errorsPerMeasure.map((measure) => (
             <li key={measure.measure} className={measure.errors > 0 ? 'has-error' : ''}>
-              <strong>{measure.errors}</strong>
-              <span>bar {measure.measure}</span>
+              <button type="button" onClick={() => onJump?.(measure.measure)}>
+                <strong>{measure.errors}</strong>
+                <span>第 {measure.measure} 小节</span>
+              </button>
+              {measure.errors > 0 && onPracticeAround && (
+                <button type="button" className="button ghost" onClick={() => onPracticeAround(measure.measure)}>
+                  练前后一小节
+                </button>
+              )}
             </li>
           ))}
         </ol>
+        {passes.length > 1 && (
+          <p className="device-note">
+            共 {passes.length} 遍，各遍命中 {passes.map((pass) => `${Math.round(pass.hitRate * 100)}%`).join('、')}
+          </p>
+        )}
       </div>
       <p className="summary-note">
         {summary.timedHits === 0

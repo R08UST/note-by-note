@@ -4,23 +4,26 @@ import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
+import { notesInRange } from '../modes/span'
 import { type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
 import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
-import { getUserScore, listRuns, listTrainRuns, listUserScores, loadSettings, saveSettings, saveUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
+import { getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
 import { DevicePicker } from './DevicePicker'
 import { FeedbackStrip } from './FeedbackStrip'
 import { keyboardBounds, Keyboard } from './Keyboard'
-import { ScoreView, type ScoreHandle } from './ScoreView'
+import type { ScoreHandle } from './ScoreView'
 import { SummaryPanel } from './SummaryPanel'
 import { LatencyCalibrator } from './LatencyCalibrator'
 import { TrainHistory } from './TrainHistory'
-import { TrainTab } from './TrainTab'
 import { usePractice } from './usePractice'
+
+const ScoreView = lazy(() => import('./ScoreView').then((mod) => ({ default: mod.ScoreView })))
+const TrainTab = lazy(() => import('./TrainTab').then((mod) => ({ default: mod.TrainTab })))
 
 const OmrTab = lazy(() => import('../omr/OmrTab'))
 
@@ -53,6 +56,12 @@ export function PracticeApp() {
   const [hands, setHands] = useState<HandSelection>('both')
   const [mode, setMode] = useState<PracticeMode>('wait')
   const [loop, setLoop] = useState(false)
+  const [loopLimit, setLoopLimit] = useState(0)
+  const [ramp, setRamp] = useState(false)
+  const [rangeStart, setRangeStart] = useState(1)
+  const [rangeEnd, setRangeEnd] = useState(1)
+  const [anchor, setAnchor] = useState(1)
+  const [rangeReady, setRangeReady] = useState('')
   const [latencyOffsetMs, setLatencyOffsetMs] = useState(0)
   const [keyboardEnabled, setKeyboardEnabled] = useState(true)
   const [hydrated, setHydrated] = useState(false)
@@ -110,6 +119,11 @@ export function PracticeApp() {
     timeSignature: parsed.score?.timeSignature ?? { beats: 4, beatType: 4 },
     scoreRef,
     loop,
+    range: { start: rangeStart, end: rangeEnd },
+    anchor,
+    loopLimit,
+    ramp,
+    onRamp: () => setBpm((value) => Math.min(160, value + 4)),
     keyboardEnabled,
     listenKeyboard: tab === 'practice',
   })
@@ -127,6 +141,8 @@ export function PracticeApp() {
   }, [])
 
   useEffect(() => {
+    const needLibrary = tab === 'practice' && (piece == null || pickerOpen || lastLibraryId !== '')
+    if (!needLibrary || catalogReady) return
     void fetch(new URL('pieces/manifest.json', document.baseURI).href)
       .then(async (response) => {
         if (!response.ok) return
@@ -135,7 +151,7 @@ export function PracticeApp() {
       })
       .catch(() => setCatalog([]))
       .finally(() => setCatalogReady(true))
-  }, [])
+  }, [tab, piece, pickerOpen, lastLibraryId, catalogReady])
 
   useEffect(() => {
     if (tab !== 'history' && tab !== 'practice' && tab !== 'train') return
@@ -347,15 +363,74 @@ export function PracticeApp() {
     if (hashOpensPicker(window.location.hash)) window.location.hash = 'practice'
   }
 
+  useEffect(() => {
+    if (!piece || notes.length === 0) return
+    const last = Math.max(1, ...notes.map((note) => note.measure))
+    let cancel = false
+    void loadPracticeRange(piece.id).then((saved) => {
+      if (cancel) return
+      if (saved) {
+        setRangeStart(Math.max(1, Math.min(saved.start, last)))
+        setRangeEnd(Math.max(1, Math.min(saved.end, last)))
+        setAnchor(Math.max(1, Math.min(saved.start, last)))
+        setLoopLimit(saved.loops)
+        setRamp(saved.ramp)
+      } else {
+        setRangeStart(1)
+        setRangeEnd(last)
+        setAnchor(1)
+      }
+      setRangeReady(piece.id)
+    })
+    return () => {
+      cancel = true
+    }
+  }, [piece?.id, notes.length])
+
+  useEffect(() => {
+    if (!piece || rangeReady !== piece.id) return
+    void savePracticeRange({ pieceId: piece.id, start: rangeStart, end: rangeEnd, loops: loopLimit, ramp })
+  }, [piece?.id, rangeStart, rangeEnd, loopLimit, ramp, rangeReady])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.altKey || tab !== 'practice') return
+      if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        jumpTo(anchor - 1, true)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        jumpTo(anchor + 1, true)
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        jumpTo(rangeStart, true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+  const lastMeasure = Math.max(1, ...notes.map((note) => note.measure))
   const counts = countHands(notes)
-  const hintNotes = practice.status === 'idle' ? firstOnset(active) : []
+  const jumpTo = (measure: number, restart: boolean) => {
+    const next = Math.min(rangeEnd, Math.max(rangeStart, measure))
+    setAnchor(next)
+    if (!restart) {
+      const beat = notes.filter((note) => note.measure === next).reduce((min, note) => Math.min(min, note.beat), Number.POSITIVE_INFINITY)
+      if (Number.isFinite(beat)) scoreRef.current?.setBeat(beat)
+      return
+    }
+    if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
+    window.setTimeout(() => void practice.start(), 70)
+  }
+  const hintNotes = practice.status === 'idle' ? firstOnset(notesInRange(active, { start: Math.max(rangeStart, anchor), end: rangeEnd })) : []
   const targetNotes = practice.status === 'playing' || practice.status === 'countin' ? practice.current : []
   const hits = practice.judgements.filter((item) => item.result === 'hit').length
   const wrongs = practice.judgements.filter((item) => item.result === 'wrong').length
   const misses = practice.judgements.filter((item) => item.result === 'miss').length
   const extras = practice.judgements.filter((item) => item.result === 'extra').length
   const running = practice.status === 'playing' || practice.status === 'countin'
-  const canStart = !running && active.length > 0 && scoreState !== 'loading'
+  const canStart = !running && notesInRange(active, { start: Math.max(rangeStart, anchor), end: rangeEnd }).length > 0 && scoreState !== 'loading'
 
   return (
     <div className="app">
@@ -446,6 +521,31 @@ export function PracticeApp() {
                     换一首
                   </button>
                 </header>
+                <div className="passage">
+                  <div className="omr-actions">
+                    <button type="button" className="button ghost" onClick={() => jumpTo(anchor - 1, true)}>上一小节</button>
+                    <button type="button" className="button ghost" onClick={() => jumpTo(anchor + 1, true)}>下一小节</button>
+                    <button type="button" className="button ghost" onClick={() => jumpTo(rangeStart, true)}>回到开头</button>
+                    {mode === 'wait' && (
+                      <button type="button" className="button ghost" onClick={practice.stepBack} disabled={practice.status !== 'playing'}>
+                        退一音
+                      </button>
+                    )}
+                  </div>
+                  <div className="omr-actions">
+                    <label className="field">从
+                      <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => setRangeStart(Math.max(1, Number(event.target.value) || 1))} />
+                    </label>
+                    <label className="field">到
+                      <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => setRangeEnd(Math.max(1, Number(event.target.value) || 1))} />
+                    </label>
+                    <label className="field">循环遍数
+                      <input type="number" min={0} max={20} value={loopLimit} onChange={(event) => setLoopLimit(Math.max(0, Number(event.target.value) || 0))} />
+                    </label>
+                    <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后 +4</label>
+                    <span className="device-note">点小节就从那里重来。按住 Shift 再点，扩选范围。Alt+左右是上一小节和下一小节。循环遍数 0 表示一直循环。</span>
+                  </div>
+                </div>
                 <Controls
                   bpm={bpm}
                   hands={hands}
@@ -471,7 +571,23 @@ export function PracticeApp() {
                   misses={misses}
                   extras={extras}
                 />
-                {practice.summary && <SummaryPanel summary={practice.summary} saved={practice.judgements.length > 0} />}
+                {practice.summary && (
+                  <SummaryPanel
+                    summary={practice.passes.length > 1 ? (practice.passes[practice.passes.length - 1] ?? practice.summary) : practice.summary}
+                    passes={practice.passes}
+                    saved={practice.judgements.length > 0}
+                    onJump={(measure) => jumpTo(measure, true)}
+                    onPracticeAround={(measure) => {
+                      const start = Math.max(1, measure - 1)
+                      const end = Math.min(lastMeasure, measure + 1)
+                      setRangeStart(start)
+                      setRangeEnd(end)
+                      setAnchor(start)
+                      setLoop(true)
+                      window.setTimeout(() => void practice.start(), 70)
+                    }}
+                  />
+                )}
                 <section className="score-frame" aria-label="Score">
                   {scoreState === 'loading' && <p className="score-status">Opening the score…</p>}
                   {(scoreMessage || parsed.error || fileError) && (
@@ -490,19 +606,30 @@ export function PracticeApp() {
                     )}
                   </div>
                   {parsed.score && (
-                    <ScoreView
-                      xml={piece.xml}
-                      notes={notes}
-                      ref={scoreRef}
-                      onReady={(info) => {
-                        setMapInfo(info)
-                        setScoreState('ready')
-                      }}
-                      onError={(message) => {
-                        setScoreMessage(message)
-                        setScoreState('error')
-                      }}
-                    />
+                    <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
+                      <ScoreView
+                        xml={piece.xml}
+                        notes={notes}
+                        range={{ start: rangeStart, end: rangeEnd }}
+                        ref={scoreRef}
+                        onMeasure={(measure, shift) => {
+                          if (shift) {
+                            setRangeStart((start) => Math.min(start, measure))
+                            setRangeEnd((end) => Math.max(end, measure))
+                            return
+                          }
+                          jumpTo(measure, true)
+                        }}
+                        onReady={(info) => {
+                          setMapInfo(info)
+                          setScoreState('ready')
+                        }}
+                        onError={(message) => {
+                          setScoreMessage(message)
+                          setScoreState('error')
+                        }}
+                      />
+                    </Suspense>
                   )}
                   {scoreState === 'ready' && mapInfo.total > 0 && mapInfo.matched < mapInfo.total && (
                     <p className="score-status warn">
@@ -539,8 +666,10 @@ export function PracticeApp() {
         )}
       </div>
 
-      <div className={tab === 'train' ? 'tab-panel' : 'tab-panel is-stashed'}>
-        <TrainTab
+      {tab === 'train' && (
+        <div className="tab-panel">
+          <Suspense fallback={<p className="panel">正在打开训练…</p>}>
+            <TrainTab
           active={tab === 'train'}
           keyboardEnabled={keyboardEnabled}
           latencyOffsetMs={latencyOffsetMs}
@@ -558,7 +687,9 @@ export function PracticeApp() {
           }}
           inputRef={trainInput}
         />
-      </div>
+          </Suspense>
+        </div>
+      )}
 
       {omrMounted && (
         <div className={tab === 'omr' ? 'tab-panel' : 'tab-panel is-stashed'}>

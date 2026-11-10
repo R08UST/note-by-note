@@ -67,4 +67,19 @@ export class WaitMode {
   advanceTo(_timeMs: number): Judgement[] {
     return []
   }
+
+  /** Move to the previous attack. Hits on the attack you leave are dropped, so the report only keeps what you replay. */
+  retreat(): void {
+    if (this.index > 0 && this.groups[this.index]?.every((note) => !this.hit.has(note.id))) {
+      this.index -= 1
+    }
+    const group = this.groups[this.index]
+    if (!group) return
+    const ids = new Set(group.map((note) => note.id))
+    for (const note of group) this.hit.delete(note.id)
+    for (let index = this._judgements.length - 1; index >= 0; index -= 1) {
+      const item = this._judgements[index]
+      if (item?.noteId && ids.has(item.noteId)) this._judgements.splice(index, 1)
+    }
+  }
 }

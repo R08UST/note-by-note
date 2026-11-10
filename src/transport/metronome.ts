@@ -1,11 +1,16 @@
-import * as Tone from 'tone'
-
-let accent: Tone.Synth | null = null
-let tick: Tone.Synth | null = null
+let accent: import('tone').Synth | null = null
+let tick: import('tone').Synth | null = null
+let tone: typeof import('tone') | null = null
 let audioStarted = false
 
-function ensureSynths(): void {
+async function loadTone(): Promise<typeof import('tone')> {
+  if (!tone) tone = await import('tone')
+  return tone
+}
+
+async function ensureSynths(): Promise<void> {
   if (accent && tick) return
+  const Tone = await loadTone()
   accent = new Tone.Synth({
     oscillator: { type: 'triangle' },
     envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.03 },
@@ -18,10 +23,12 @@ function ensureSynths(): void {
   }).toDestination()
 }
 
+/** The click is a small synth, created the first time sound is needed. No sample library is fetched. */
 export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number, audible = true): Promise<void> {
+  const Tone = await loadTone()
   await Tone.start()
   audioStarted = true
-  ensureSynths()
+  await ensureSynths()
   stopMetronome()
   Tone.Transport.bpm.value = bpm
   Tone.Transport.position = 0
@@ -38,16 +45,16 @@ export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number
 }
 
 export function stopMetronome(): void {
-  if (!audioStarted) return
+  if (!audioStarted || !tone) return
   try {
-    if (Tone.Transport.state !== 'stopped') Tone.Transport.stop()
-    Tone.Transport.cancel()
-    Tone.Transport.position = 0
+    if (tone.Transport.state !== 'stopped') tone.Transport.stop()
+    tone.Transport.cancel()
+    tone.Transport.position = 0
   } catch {
     // The audio context has not been started yet.
   }
 }
 
 export function transportSeconds(): number {
-  return Tone.Transport.seconds
+  return tone?.Transport.seconds ?? 0
 }

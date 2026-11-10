@@ -48,6 +48,14 @@ export interface TrainRunRecord {
   curriculum?: number
 }
 
+export interface PracticeRangeRecord {
+  pieceId: string
+  start: number
+  end: number
+  loops: number
+  ramp: boolean
+}
+
 export interface PitchStatRecord {
   pitch: number
   seen: number
@@ -62,6 +70,7 @@ class PracticeDB extends Dexie {
   savedScores!: Table<SavedScore, number>
   trainRuns!: Table<TrainRunRecord, number>
   pitchStats!: Table<PitchStatRecord, number>
+  ranges!: Table<PracticeRangeRecord, string>
 
   constructor() {
     super('note-by-note')
@@ -75,6 +84,9 @@ class PracticeDB extends Dexie {
     this.version(3).stores({
       trainRuns: '++id, mode, createdAt, level',
       pitchStats: 'pitch',
+    })
+    this.version(4).stores({
+      ranges: 'pieceId',
     })
   }
 }
@@ -174,6 +186,22 @@ export async function listPitchStats(): Promise<PitchStatRecord[]> {
     return await db.pitchStats.toArray()
   } catch {
     return []
+  }
+}
+
+export async function loadPracticeRange(pieceId: string): Promise<PracticeRangeRecord | undefined> {
+  try {
+    return await db.ranges.get(pieceId)
+  } catch {
+    return undefined
+  }
+}
+
+export async function savePracticeRange(range: PracticeRangeRecord): Promise<void> {
+  try {
+    await db.ranges.put(range)
+  } catch {
+    // The passage can still be practiced if storage is blocked.
   }
 }
 

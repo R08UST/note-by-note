@@ -1,4 +1,3 @@
-import { BEGINNER_TOLERANCE } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import type { RunStatus } from './usePractice'
@@ -94,7 +93,7 @@ export function Controls({
       <p className="control-hint">
         {mode === 'wait'
           ? 'Wait mode holds the cursor until the written notes are down. A wrong key is flagged, and you can try again.'
-          : `Rhythm mode counts in, then keeps time. A hit within ${BEGINNER_TOLERANCE.perfectMs} ms is on time. The window is ${BEGINNER_TOLERANCE.earlyMs} ms early and ${BEGINNER_TOLERANCE.lateMs} ms late, tightened when notes sit close together.`}
+          : 'Rhythm mode counts in, then keeps time. The window is half the shortest note, and never wider than 250 ms.'}
         {loop ? ' Loop starts the piece again when you reach the end.' : ''}
       </p>
     </div>

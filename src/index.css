@@ -228,6 +228,16 @@ h1 {
 .summary-measures li.has-error { background: #f3c7bb; }
 .summary-measures strong { display: block; font-family: var(--serif); font-size: 1.2rem; }
 .summary-measures span { font-size: 0.68rem; color: #7b6b5b; }
+.summary-measures button { background: transparent; border: 0; color: inherit; padding: 0; text-align: left; }
+.summary-measures .button.ghost {
+  border: 1px solid #e39b3b;
+  color: #6b4a1d;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.summary-measures li { align-items: center; }
 .summary-note { grid-column: 1 / -1; color: #5e5146; }
 
 .score-frame {
@@ -253,6 +263,8 @@ h1 {
 
 .score-host { min-height: 200px; padding: 0 8px 12px; }
 .score-host svg { width: 100%; height: auto; }
+.score-host .is-practice-range { outline: 2px solid rgba(227, 155, 59, 0.9); outline-offset: 3px; }
+.score-skeleton { min-height: 220px; border-radius: 12px; background: repeating-linear-gradient(-45deg, #efe6d6, #efe6d6 12px, #e7dcc8 12px, #e7dcc8 24px); }
 
 .score-status {
   margin: 0;

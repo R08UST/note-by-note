@@ -14,8 +14,10 @@ interface ScoreViewProps {
   xml: string
   notes: ScoreNote[]
   ref?: Ref<ScoreHandle>
+  range?: { start: number; end: number } | null
   onReady: (info: { matched: number; total: number }) => void
   onError: (message: string) => void
+  onMeasure?: (measure: number, shiftKey: boolean) => void
 }
 
 interface Entry {
@@ -55,7 +57,7 @@ function assign(steps: { beat: number; gnotes: GraphicalNote[] }[], notes: Score
   return { entries, matched }
 }
 
-export function ScoreView({ xml, notes, ref, onReady, onError }: ScoreViewProps) {
+export function ScoreView({ xml, notes, ref, range, onReady, onError, onMeasure }: ScoreViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
   const stepsRef = useRef<number[]>([])
@@ -64,9 +66,13 @@ export function ScoreView({ xml, notes, ref, onReady, onError }: ScoreViewProps)
   const notesRef = useRef(notes)
   const onReadyRef = useRef(onReady)
   const onErrorRef = useRef(onError)
+  const onMeasureRef = useRef(onMeasure)
+  const rangeRef = useRef(range)
   notesRef.current = notes
   onReadyRef.current = onReady
   onErrorRef.current = onError
+  onMeasureRef.current = onMeasure
+  rangeRef.current = range
 
   useImperativeHandle(ref, () => ({
     prepare(hands, beat) {
@@ -160,6 +166,26 @@ export function ScoreView({ xml, notes, ref, onReady, onError }: ScoreViewProps)
         stepIndexRef.current = 0
         osmd.cursor.reset()
         osmd.cursor.show()
+        const measures = osmd.GraphicSheet?.MeasureList ?? []
+        for (const line of measures) {
+          for (const measure of line ?? []) {
+            const number = measure?.MeasureNumber
+            const svg = measure?.getSVGGElement?.()
+            if (!svg || number == null || number < 1) continue
+            svg.dataset.measure = String(number)
+            svg.style.cursor = 'pointer'
+            const mark = () => {
+              const selected = rangeRef.current
+              const on = selected != null && number >= selected.start && number <= selected.end
+              svg.classList.toggle('is-practice-range', on)
+            }
+            mark()
+            svg.addEventListener('click', (event) => {
+              event.preventDefault()
+              onMeasureRef.current?.(number, event.shiftKey)
+            })
+          }
+        }
         if (!cancelled) {
           onReadyRef.current({ matched: best?.matched ?? 0, total: notesRef.current.length })
         }
@@ -184,6 +210,16 @@ export function ScoreView({ xml, notes, ref, onReady, onError }: ScoreViewProps)
       host.replaceChildren()
     }
   }, [xml])
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    host.querySelectorAll<SVGGElement>('[data-measure]').forEach((element) => {
+      const number = Number(element.dataset.measure)
+      const on = range != null && number >= range.start && number <= range.end
+      element.classList.toggle('is-practice-range', on)
+    })
+  }, [range, xml])
 
   return <div className="score-host" ref={hostRef} />
 }
