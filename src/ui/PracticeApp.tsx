@@ -102,7 +102,7 @@ export function PracticeApp() {
     try {
       return { score: parseMusicXml(piece.xml) as ParsedScore, error: null as string | null }
     } catch (error) {
-      return { score: null, error: error instanceof Error ? error.message : 'Could not read that score.' }
+      return { score: null, error: error instanceof Error ? error.message : '读不了这份乐谱。' }
     }
   }, [piece])
 
@@ -308,7 +308,7 @@ export function PracticeApp() {
     try {
       const xml = await readScoreFile(file)
       const score = parseMusicXml(xml)
-      if (score.notes.length === 0) throw new Error('That file has no notes to play.')
+      if (score.notes.length === 0) throw new Error('这个文件里没有可弹的音。')
       choosePiece({
         id: `file:${file.name}:${file.size}:${file.lastModified}`,
         title: score.title || file.name,
@@ -318,7 +318,7 @@ export function PracticeApp() {
         xml,
       })
     } catch (error) {
-      setFileError(error instanceof Error ? error.message : 'Could not open that file.')
+      setFileError(error instanceof Error ? error.message : '打不开这个文件。')
     }
   }
 
@@ -332,7 +332,7 @@ export function PracticeApp() {
       setInputs(next)
       setInputId(next[0]?.id ?? '')
     } catch (error) {
-      setMidiError(error instanceof Error ? error.message : 'MIDI access was blocked.')
+      setMidiError(error instanceof Error ? error.message : 'MIDI 没有获得允许。')
     } finally {
       setMidiBusy(false)
     }
@@ -410,18 +410,15 @@ export function PracticeApp() {
   const lastMeasure = Math.max(1, ...notes.map((note) => note.measure))
   const groups = onsets(active)
   const counts = countHands(notes)
-  const restart = () => {
-    if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
-    window.setTimeout(() => void practice.start(), 70)
-  }
+  const runningNow = practice.status === 'playing' || practice.status === 'countin'
   const stepNote = (direction: -1 | 1) => {
     if (practice.stepOnset(direction)) return
     const next = neighborOnset(groups, cursorBeat, direction)
     if (!next || next.beat > endBeat + 1e-3) return
-    if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
     setCursorBeat(next.beat)
     setRangeStart(next.measure)
-    scoreRef.current?.setBeat(next.beat)
+    if (runningNow) void practice.seek({ startBeat: next.beat, endBeat })
+    else scoreRef.current?.setBeat(next.beat)
   }
   const stepMeasure = (direction: -1 | 1) => {
     let measure = rangeStart
@@ -430,7 +427,8 @@ export function PracticeApp() {
     if (!target || target.beat > endBeat + 1e-3) return
     setCursorBeat(target.beat)
     setRangeStart(target.measure)
-    restart()
+    if (runningNow) void practice.seek({ startBeat: target.beat, endBeat })
+    else scoreRef.current?.setBeat(target.beat)
   }
   const hintNotes = practice.status === 'idle' ? firstOnset(notesInBeats(active, { startBeat: cursorBeat, endBeat })) : []
   const targetNotes = practice.status === 'playing' || practice.status === 'countin' ? practice.current : []
@@ -462,8 +460,8 @@ export function PracticeApp() {
         const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
         if (!first) return
         setCursorBeat(first.beat)
-        scoreRef.current?.setBeat(first.beat)
-        restart()
+        if (runningNow) void practice.seek({ startBeat: first.beat, endBeat })
+        else scoreRef.current?.setBeat(first.beat)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -474,12 +472,12 @@ export function PracticeApp() {
     <div className="app">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Practice stand</p>
+          <p className="eyebrow">练习台</p>
           <h1>Note by Note</h1>
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Sections">
+      <nav className="tabs" aria-label="分区">
         {TABS.map((item) => (
           <a
             key={item.id}
@@ -569,8 +567,8 @@ export function PracticeApp() {
                       const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
                       if (!first) return
                       setCursorBeat(first.beat)
-                      scoreRef.current?.setBeat(first.beat)
-                      restart()
+                      if (runningNow) void practice.seek({ startBeat: first.beat, endBeat })
+                      else scoreRef.current?.setBeat(first.beat)
                     }}>回到开头</button>
                     {mode === 'wait' && (
                       <button type="button" className="button ghost" onClick={practice.stepBack} disabled={practice.status !== 'playing'}>
@@ -618,7 +616,7 @@ export function PracticeApp() {
                 />
                 <FeedbackStrip
                   status={practice.status}
-                  modeLabel={mode === 'wait' ? 'Wait mode' : 'Rhythm mode'}
+                  modeLabel={mode === 'wait' ? '等待' : '节奏'}
                   last={practice.last}
                   recent={practice.judgements.slice(-8)}
                   current={practice.status === 'idle' ? hintNotes : practice.current}
@@ -637,8 +635,8 @@ export function PracticeApp() {
                       if (!target) return
                       setCursorBeat(target.beat)
                       setRangeStart(target.measure)
-                      if (target.beat > endBeat) setEndBeat(target.beat)
-                      restart()
+                      if (target.beat > endBeat) setEndBeat(Math.max(endBeat, target.beat))
+                      if (runningNow) void practice.seek({ startBeat: target.beat, endBeat: Math.max(endBeat, target.beat) })
                     }}
                     onPracticeAround={(measure) => {
                       const start = Math.max(1, measure - 1)
@@ -650,25 +648,27 @@ export function PracticeApp() {
                       if (from) setCursorBeat(from.beat)
                       if (to) setEndBeat(to.beat)
                       setLoop(true)
-                      window.setTimeout(() => void practice.start(), 70)
+                      const span = { startBeat: from?.beat ?? cursorBeat, endBeat: to?.beat ?? endBeat }
+                      if (runningNow) void practice.seek(span)
+                      else window.setTimeout(() => void practice.start(), 0)
                     }}
                   />
                 )}
-                <section className="score-frame" aria-label="Score">
-                  {scoreState === 'loading' && <p className="score-status">Opening the score…</p>}
+                <section className="score-frame" aria-label="乐谱">
+                  {scoreState === 'loading' && <p className="score-status">正在打开乐谱…</p>}
                   {(scoreMessage || parsed.error || fileError) && (
                     <p className="score-status error">{scoreMessage || parsed.error || fileError}</p>
                   )}
                   {active.length === 0 && notes.length > 0 && (
-                    <p className="score-status">This hand has no notes in the score. Switch hands to practice it.</p>
+                    <p className="score-status">这只手在谱上没有音。换一只手再练。</p>
                   )}
                   <div className="score-meta">
                     <span>{piece.titleZh?.trim() || piece.title}</span>
-                    <span>
-                      {counts.R} right · {counts.L} left
+                      <span>
+                      右手 {counts.R} · 左手 {counts.L}
                     </span>
                     {practice.status === 'idle' && practice.previous && (
-                      <span>Last run {Math.round(practice.previous.hitRate * 100)}% hits</span>
+                      <span>上次命中 {Math.round(practice.previous.hitRate * 100)}%</span>
                     )}
                   </div>
                   {parsed.score && (
@@ -694,8 +694,9 @@ export function PracticeApp() {
                           }
                           setCursorBeat(note.beat)
                           setRangeStart(note.measure)
-                          if (note.beat > endBeat) setEndBeat(note.beat)
-                          restart()
+                          const nextEnd = Math.max(endBeat, note.beat)
+                          if (note.beat > endBeat) setEndBeat(nextEnd)
+                          if (runningNow) void practice.seek({ startBeat: note.beat, endBeat: nextEnd })
                         }}
                         onMeasure={(measure, shift) => {
                           const target = shift ? lastOnsetInMeasure(groups, measure) : firstOnsetInMeasure(groups, measure)
@@ -711,8 +712,9 @@ export function PracticeApp() {
                           }
                           setCursorBeat(target.beat)
                           setRangeStart(target.measure)
-                          if (target.beat > endBeat) setEndBeat(target.beat)
-                          restart()
+                          const nextEnd = Math.max(endBeat, target.beat)
+                          if (target.beat > endBeat) setEndBeat(nextEnd)
+                          if (runningNow) void practice.seek({ startBeat: target.beat, endBeat: nextEnd })
                         }}
                         onReady={(info) => {
                           setMapInfo(info)
@@ -727,7 +729,7 @@ export function PracticeApp() {
                   )}
                   {scoreState === 'ready' && mapInfo.total > 0 && mapInfo.matched < mapInfo.total && (
                     <p className="score-status warn">
-                      Highlighted {mapInfo.matched} of {mapInfo.total} notes on the page. The strip still scores every note.
+                      谱面上标出了 {mapInfo.matched}/{mapInfo.total} 个音。下面的统计仍按每个音计。
                     </p>
                   )}
                   {practice.countBeat != null && (
@@ -736,12 +738,12 @@ export function PracticeApp() {
                     </div>
                   )}
                 </section>
-                <section className="keyboard-panel" aria-label="Piano keyboard">
+                <section className="keyboard-panel" aria-label="钢琴键盘">
                   <div className="keyboard-caption">
                     <p>
                       {keyboardEnabled
-                        ? 'Click a key, or play the computer keyboard. The map is under 设置.'
-                        : 'Computer keys are off. Click the on-screen keys, or turn them back on under 设置.'}
+                        ? '点键，或用电脑键盘。键位在设置里。'
+                        : '电脑键盘已关闭。点屏幕上的键，或到设置里重新打开。'}
                     </p>
                   </div>
                   <Keyboard
@@ -789,7 +791,7 @@ export function PracticeApp() {
 
       {omrMounted && (
         <div className={tab === 'omr' ? 'tab-panel' : 'tab-panel is-stashed'}>
-          <Suspense fallback={<p className="panel">Opening the recognition engine…</p>}>
+          <Suspense fallback={<p className="panel">正在打开识谱…</p>}>
             <OmrTab
               onPractice={useOmrPiece}
               onSaved={() => {
@@ -819,7 +821,7 @@ export function PracticeApp() {
           />
           <LatencyCalibrator value={latencyOffsetMs} onChange={setLatencyOffsetMs} bind={bindCalibrator} />
           <label className="field latency">
-            <span>Latency calibration {latencyOffsetMs} ms</span>
+            <span>延迟校准 {latencyOffsetMs} 毫秒</span>
             <input
               type="number"
               min={-200}
@@ -830,9 +832,7 @@ export function PracticeApp() {
             />
           </label>
           <p>
-            If the keyboard’s note arrives after you played it, raise this until an on-time attack sits in the center of
-            the rhythm meter. The value is subtracted from the MIDI timestamp before it is compared with the score. It
-            applies the next time you press Start.
+            如果琴键的音比你弹下去的时刻晚到，就把这个数调高，直到准时的音落在节奏尺的中间。这个数值会从 MIDI 时间里减掉，再和乐谱比较。下次按开始时生效。
           </p>
           <label className="check">
             <input
@@ -840,7 +840,7 @@ export function PracticeApp() {
               checked={keyboardEnabled}
               onChange={(event) => setKeyboardEnabled(event.target.checked)}
             />
-            Computer keyboard plays notes
+            电脑键盘可以弹音
           </label>
           <div className="key-map">
             {KEY_BINDINGS.filter((binding) => /^[A-Z]$/.test(binding.label)).map((binding) => (
@@ -849,7 +849,7 @@ export function PracticeApp() {
               </span>
             ))}
           </div>
-          <p>The Q row starts at C4. The Z row starts at C3. Keys between those rows are the black notes.</p>
+          <p>Q 这一排从 C4 起。Z 这一排从 C3 起。两排之间是黑键。</p>
           <section className="about">
             <h2>关于 / 版权</h2>
             <p>曲库里的谱可以打开来练。反复记号不会按反复展开，倚音不计入对错。</p>
@@ -879,16 +879,16 @@ function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: Train
       <h2>记录</h2>
       <TrainHistory runs={trainRuns} />
       {runs.length === 0 ? (
-        <p>No saved runs yet. Finish or stop a practice run and it will show up here, in this browser.</p>
+        <p>还没有记录。练完或停下一次，就会出现在这个浏览器里。</p>
       ) : (
         <table className="runs">
           <thead>
             <tr>
-              <th>When</th>
-              <th>Piece</th>
-              <th>Mode</th>
-              <th>Hit rate</th>
-              <th>Mean offset</th>
+              <th>时间</th>
+              <th>曲子</th>
+              <th>方式</th>
+              <th>命中率</th>
+              <th>平均偏差</th>
             </tr>
           </thead>
           <tbody>
@@ -896,7 +896,7 @@ function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: Train
               <tr key={run.id ?? run.createdAt}>
                 <td>{new Date(run.createdAt).toLocaleString()}</td>
                 <td>{run.title || run.pieceId}</td>
-                <td>{run.mode}</td>
+                <td>{run.mode === 'wait' ? '等待' : run.mode === 'rhythm' ? '节奏' : run.mode}</td>
                 <td>{Math.round(run.hitRate * 100)}%</td>
                 <td>{run.meanOffsetMs == null ? '—' : `${Math.round(run.meanOffsetMs)} ms`}</td>
               </tr>

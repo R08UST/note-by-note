@@ -31,22 +31,22 @@ export function FeedbackStrip({
   const tone = last ? judgementTone(last) : 'idle'
   const showMeter = last?.result === 'hit' && typeof last.offsetMs === 'number'
 
-  let headline = 'The keyboard below is live. Start when you want the score to listen.'
-  if (status === 'countin') headline = 'Count-in. The bar begins on the next downbeat.'
-  else if (status === 'playing' && waiting) headline = `Next: ${waiting}`
-  else if (status === 'playing') headline = 'Keep going.'
-  else if (status === 'finished') headline = 'Run finished.'
-  else if (waiting && status === 'idle') headline = `First notes: ${waiting}`
+  let headline = '下面的键盘已经接上。准备好再开始，乐谱才会听。'
+  if (status === 'countin') headline = '预备。数完就从当前音进入。'
+  else if (status === 'playing' && waiting) headline = `下一个：${waiting}`
+  else if (status === 'playing') headline = '继续。'
+  else if (status === 'finished') headline = '这次练完了。'
+  else if (waiting && status === 'idle') headline = `开头：${waiting}`
 
   return (
     <section className="feedback" aria-live="polite">
       <div className="feedback-copy">
         <p className="feedback-kicker">
           {modeLabel}
-          {measure ? ` · measure ${measure}` : ''}
+          {measure ? ` · 第 ${measure} 小节` : ''}
         </p>
         <p className="feedback-headline">{headline}</p>
-        {last && <p className={`feedback-last tone-${tone}`}>{describeJudgement(last)}</p>}
+        <p className={`feedback-last tone-${tone}`}>{last ? describeJudgement(last) : ' '}</p>
       </div>
       <div className="feedback-meter" hidden={!showMeter}>
         <div className="meter">
@@ -54,35 +54,39 @@ export function FeedbackStrip({
           {showMeter && last?.offsetMs != null && <span className="meter-mark" style={{ left: `${meterPercent(last.offsetMs)}%` }} />}
         </div>
         <div className="meter-labels">
-          <span>early</span>
-          <span>on time</span>
-          <span>late</span>
+          <span>抢拍</span>
+          <span>准时</span>
+          <span>拖拍</span>
         </div>
       </div>
-      {recent.length > 0 && (
-        <ol className="history">
-          {recent.map((item, index) => (
+      <ol className="history">
+        {recent.length === 0 ? (
+          <li className="history-spacer" aria-hidden="true">
+            {' '}
+          </li>
+        ) : (
+          recent.map((item, index) => (
             <li key={`${item.noteId ?? 'x'}-${index}`} className={`tone-${judgementTone(item)}`}>
               {noteName(item.pitch)}
             </li>
-          ))}
-        </ol>
-      )}
+          ))
+        )}
+      </ol>
       <dl className="tally">
         <div>
-          <dt>Hits</dt>
+          <dt>命中</dt>
           <dd>{hits}</dd>
         </div>
         <div>
-          <dt>Wrong</dt>
+          <dt>错音</dt>
           <dd>{wrongs}</dd>
         </div>
         <div>
-          <dt>Missed</dt>
+          <dt>错过</dt>
           <dd>{misses}</dd>
         </div>
         <div>
-          <dt>Extra</dt>
+          <dt>多弹</dt>
           <dd>{extras}</dd>
         </div>
       </dl>

@@ -14,6 +14,7 @@ import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
 import { scoreColor } from './format'
+import { practiceTransition } from './practiceMachine'
 import type { ScoreHandle } from './ScoreView'
 
 export type RunStatus = 'idle' | 'countin' | 'playing' | 'finished'
@@ -114,6 +115,8 @@ export function usePractice({
   })
   optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, span, loopLimit, ramp, onRamp }
   const startRef = useRef<(keepPasses?: boolean) => Promise<void>>(async () => {})
+  const launchRef = useRef<(keepPasses: boolean, seamless: boolean) => Promise<void>>(async () => {})
+  const runIdRef = useRef(0)
 
   const setRunStatus = (next: RunStatus) => {
     statusRef.current = next
@@ -173,10 +176,7 @@ export function usePractice({
       setSummary(report)
       if (options.ramp && report.hitRate >= 0.9) options.onRamp()
       finishingRef.current = false
-      setRunStatus('idle')
-      window.setTimeout(() => {
-        void startRef.current(true)
-      }, 280)
+      void launchRef.current(true, true)
       return
     }
     if (passesRef.current.length > 0 || reason === 'done') {
@@ -188,7 +188,7 @@ export function usePractice({
     setCurrent([])
     setCountBeat(null)
     engineRef.current = null
-    setRunStatus('finished')
+    setRunStatus(practiceTransition(statusRef.current, { type: 'finish' }))
     finishingRef.current = false
     if (judgementsRef.current.length > 0) {
       const record: RunRecord = {
@@ -320,13 +320,18 @@ export function usePractice({
     }
   }, [])
 
-  const start = async (keepPasses = false) => {
+  const launch = async (keepPasses = false, seamless = false) => {
     if (!keepPasses) {
       passesRef.current = []
       setPasses([])
     }
     const startingFrom = statusRef.current
-    if (startingFrom === 'playing' || startingFrom === 'countin') return
+    if (!seamless && (startingFrom === 'playing' || startingFrom === 'countin')) return
+    const nextStatus = practiceTransition(startingFrom, {
+      type: seamless ? 'seek' : 'start',
+      mode: optionsRef.current.mode,
+    })
+    if (seamless && nextStatus !== 'playing' && nextStatus !== 'countin') return
     const options = optionsRef.current
     const selected = notesInBeats(selectHands(options.notes, options.hands), options.span)
     if (selected.length === 0) return
@@ -339,9 +344,10 @@ export function usePractice({
     setFlashes({})
     judgementsRef.current = []
     setJudgements([])
-    setSummary(null)
+    if (!seamless) setSummary(null)
     setLast(null)
     finishingRef.current = false
+    const runId = (runIdRef.current += 1)
     const countInBeats = quarterBeatsPerMeasure(options.timeSignature)
     const windows = timingForExercise(active, options.bpm, 1)
     runRef.current = {
@@ -368,11 +374,12 @@ export function usePractice({
     setCurrent(engine.currentNotes())
 
     if (options.mode === 'rhythm') {
-      setRunStatus('countin')
+      setRunStatus(nextStatus === 'countin' ? 'countin' : nextStatus)
       setCountBeat(1)
       await startMetronome(options.bpm, countInBeats)
-      if (statusRef.current !== 'countin') return
+      if (runIdRef.current !== runId || statusRef.current !== 'countin') return
       const loop = () => {
+        if (runIdRef.current !== runId) return
         if (statusRef.current !== 'countin' && statusRef.current !== 'playing') return
         const scoreMs = toScoreTimeMs(transportSeconds() * 1000, runRef.current.countInBeats, runRef.current.bpm)
         if (scoreMs < 0) {
@@ -382,7 +389,7 @@ export function usePractice({
           scoreRef.current?.setBeat(runRef.current.entryBeat)
         } else {
           if (statusRef.current === 'countin') {
-            setRunStatus('playing')
+            setRunStatus(practiceTransition('countin', { type: 'countin-done' }))
             setCountBeat(null)
           }
           const live = engineRef.current
@@ -398,7 +405,7 @@ export function usePractice({
             }
           }
         }
-        if (statusRef.current === 'countin' || statusRef.current === 'playing') {
+        if (runIdRef.current === runId && (statusRef.current === 'countin' || statusRef.current === 'playing')) {
           rafRef.current = requestAnimationFrame(loop)
         }
       }
@@ -406,10 +413,19 @@ export function usePractice({
       return
     }
 
-    setRunStatus('playing')
+    setRunStatus(nextStatus === 'playing' ? 'playing' : nextStatus)
+  }
+
+  const start = (keepPasses = false) => launch(keepPasses, false)
+
+  const seek = (span?: BeatSpan) => {
+    if (span) optionsRef.current = { ...optionsRef.current, span }
+    if (statusRef.current !== 'playing' && statusRef.current !== 'countin') return
+    void launch(true, true)
   }
 
   startRef.current = start
+  launchRef.current = launch
 
   const stop = () => {
     if (statusRef.current === 'playing' || statusRef.current === 'countin') finishRef.current('stop')
@@ -447,6 +463,7 @@ export function usePractice({
     previous,
     handleInput,
     start,
+    seek,
     stop,
     stepBack,
     stepOnset,

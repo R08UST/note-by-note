@@ -1,9 +1,9 @@
 export const TABS = [
-  { id: 'practice', zh: '练习', en: 'Practice' },
-  { id: 'train', zh: '训练', en: 'Training' },
-  { id: 'omr', zh: '识谱', en: 'OMR' },
-  { id: 'history', zh: '记录', en: 'History' },
-  { id: 'settings', zh: '设置', en: 'Settings' },
+  { id: 'practice', zh: '练习', en: '练曲子' },
+  { id: 'train', zh: '训练', en: '视奏与节奏' },
+  { id: 'omr', zh: '识谱', en: '拍照识谱' },
+  { id: 'history', zh: '记录', en: '成绩' },
+  { id: 'settings', zh: '设置', en: '设备' },
 ] as const
 
 export type TabId = (typeof TABS)[number]['id']

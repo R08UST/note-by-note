@@ -248,7 +248,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
         }
       } catch (error) {
         if (!cancelled) {
-          onErrorRef.current(error instanceof Error ? error.message : 'The score could not be drawn.')
+          onErrorRef.current(error instanceof Error ? error.message : '这份乐谱画不出来。')
         }
       }
     }

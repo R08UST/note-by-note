@@ -4,19 +4,19 @@ import { noteName } from '../score/pitch'
 
 export function formatOffset(offsetMs: number): string {
   const rounded = Math.round(offsetMs)
-  if (isOnTime(rounded)) return 'on time'
-  if (rounded < 0) return `${Math.abs(rounded)} ms early`
-  return `${rounded} ms late`
+  if (isOnTime(rounded)) return '准时'
+  if (rounded < 0) return `抢了 ${Math.abs(rounded)} 毫秒`
+  return `拖了 ${rounded} 毫秒`
 }
 
 export function describeJudgement(judgement: Judgement): string {
   const name = noteName(judgement.pitch)
   if (judgement.result === 'hit') {
-    return judgement.offsetMs == null ? `${name} hit` : `${name}, ${formatOffset(judgement.offsetMs)}`
+    return judgement.offsetMs == null ? `${name} 弹对了` : `${name}，${formatOffset(judgement.offsetMs)}`
   }
-  if (judgement.result === 'wrong') return `${name} is not the written note`
-  if (judgement.result === 'miss') return `Missed ${name}`
-  return `${name} is extra`
+  if (judgement.result === 'wrong') return `${name} 不是谱上的音`
+  if (judgement.result === 'miss') return `错过了 ${name}`
+  return `${name} 多弹了`
 }
 
 export type FeedbackTone = 'good' | 'warn' | 'bad' | 'idle'

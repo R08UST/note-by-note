@@ -16,37 +16,37 @@ export function SummaryPanel({ summary, saved, passes = [], onJump, onPracticeAr
       : `${summary.meanOffsetMs > 0 ? '+' : ''}${Math.round(summary.meanOffsetMs)} ms`
   const spread = summary.timingSpreadMs == null ? '—' : `${Math.round(summary.timingSpreadMs)} ms`
   return (
-    <section className="summary" aria-label="Run summary">
+    <section className="summary" aria-label="这次成绩">
       <div className="summary-score">
-        <p className="summary-kicker">Hit rate</p>
+        <p className="summary-kicker">命中率</p>
         <p className="summary-percent">{percent}%</p>
         <p className="summary-sub">
-          {summary.hits} of {summary.judged || 0} judged notes
-          {summary.unplayed > 0 ? ` · ${summary.unplayed} not reached` : ''}
+          已判定 {summary.judged || 0} 个音，命中 {summary.hits}
+          {summary.unplayed > 0 ? ` · 还没弹到 ${summary.unplayed}` : ''}
         </p>
       </div>
       <div className="summary-stats">
         <p>
-          <span>Mean offset</span>
+          <span>平均偏差</span>
           <strong>{mean}</strong>
         </p>
         <p>
-          <span>Timing spread</span>
+          <span>分散</span>
           <strong>{spread}</strong>
         </p>
         <p>
-          <span>On time</span>
+          <span>准时</span>
           <strong>{summary.timedHits === 0 ? '—' : `${summary.perfects}/${summary.timedHits}`}</strong>
         </p>
         <p>
-          <span>Wrong / missed / extra</span>
+          <span>错音 / 错过 / 多弹</span>
           <strong>
             {summary.wrongs} / {summary.misses} / {summary.extras}
           </strong>
         </p>
       </div>
       <div className="summary-measures">
-        <p className="summary-kicker">Errors per measure</p>
+        <p className="summary-kicker">每小节错音</p>
         <ol>
           {summary.errorsPerMeasure.map((measure) => (
             <li key={measure.measure} className={measure.errors > 0 ? 'has-error' : ''}>
@@ -70,11 +70,11 @@ export function SummaryPanel({ summary, saved, passes = [], onJump, onPracticeAr
       </div>
       <p className="summary-note">
         {summary.timedHits === 0
-          ? 'Wait mode checks pitches. Switch to Rhythm to score early and late.'
-          : 'Mean offset is negative when you rush and positive when you drag. Spread is how widely those offsets scatter.'}
-        {summary.unplayed > 0 ? ' Unplayed notes were not marked as misses.' : ''}
-        {summary.untiedWrongs > 0 ? ` ${summary.untiedWrongs} wrong key${summary.untiedWrongs === 1 ? '' : 's'} did not replace a written note.` : ''}
-        {saved ? ' Saved in this browser.' : ''}
+          ? '等待模式只看音高。要给抢拍和拖拍打分，请换成节奏模式。'
+          : '平均偏差为负是抢拍，为正是拖拍。分散是这些偏差散得有多开。'}
+        {summary.unplayed > 0 ? ' 没弹到的音不算错过。' : ''}
+        {summary.untiedWrongs > 0 ? ` ${summary.untiedWrongs} 个错键没有换成谱上的音。` : ''}
+        {saved ? ' 已保存在这个浏览器里。' : ''}
       </p>
     </section>
   )

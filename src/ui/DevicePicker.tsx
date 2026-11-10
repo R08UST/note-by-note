@@ -23,17 +23,17 @@ export function DevicePicker({
 }: DevicePickerProps) {
   return (
     <div className="device">
-      {!supported && <p className="device-note">Web MIDI needs Chrome or Edge on localhost.</p>}
+      {!supported && <p className="device-note">Web MIDI 需要在 Chrome 或 Edge 里打开本机页面。</p>}
       {supported && !enabled && (
         <button type="button" className="button ghost" onClick={onEnable} disabled={busy}>
-          {busy ? 'Asking…' : 'Enable MIDI'}
+          {busy ? '正在请求…' : '打开 MIDI'}
         </button>
       )}
       {enabled && (
         <label className="device-select">
-          <span>Keyboard</span>
+          <span>键盘</span>
           <select value={inputId} onChange={(event) => onSelect(event.target.value)}>
-            {inputs.length === 0 && <option value="">No device yet</option>}
+            {inputs.length === 0 && <option value="">还没有设备</option>}
             {inputs.map((input) => (
               <option key={input.id} value={input.id}>
                 {input.name}

@@ -18,9 +18,9 @@ interface ControlsProps {
 }
 
 const HANDS: { id: HandSelection; label: string }[] = [
-  { id: 'L', label: 'Left' },
-  { id: 'R', label: 'Right' },
-  { id: 'both', label: 'Both' },
+  { id: 'L', label: '左手' },
+  { id: 'R', label: '右手' },
+  { id: 'both', label: '双手' },
 ]
 
 export function Controls({
@@ -40,9 +40,9 @@ export function Controls({
   const locked = status === 'playing' || status === 'countin'
   const running = locked
   return (
-    <div className="controls">
+    <div className="controls" data-status={status}>
       <label className="field bpm">
-        <span>Quarter = {bpm}</span>
+        <span>四分音符 = {bpm}</span>
         <input
           type="range"
           min={40}
@@ -52,7 +52,7 @@ export function Controls({
           onChange={(event) => onBpm(Number(event.target.value))}
         />
       </label>
-      <div className="segmented" role="group" aria-label="Hands">
+      <div className="segmented" role="group" aria-label="哪只手">
         {HANDS.map((item) => (
           <button
             key={item.id}
@@ -65,12 +65,12 @@ export function Controls({
           </button>
         ))}
       </div>
-      <div className="segmented" role="group" aria-label="Mode">
+      <div className="segmented" role="group" aria-label="练习方式">
         <button type="button" aria-pressed={mode === 'wait'} disabled={locked} onClick={() => onMode('wait')}>
-          Wait
+          等待
         </button>
         <button type="button" aria-pressed={mode === 'rhythm'} disabled={locked} onClick={() => onMode('rhythm')}>
-          Rhythm
+          节奏
         </button>
       </div>
       <button
@@ -80,21 +80,21 @@ export function Controls({
         disabled={locked}
         onClick={() => onLoop(!loop)}
       >
-        Loop
+        循环
       </button>
       <div className="transport-buttons">
         <button type="button" className="button primary" disabled={!canStart} onClick={onStart}>
-          {status === 'finished' ? 'Start again' : 'Start'}
+          {status === 'finished' ? '再来一次' : '开始'}
         </button>
         <button type="button" className="button stop" disabled={!running} onClick={onStop}>
-          Stop
+          停止
         </button>
       </div>
       <p className="control-hint">
         {mode === 'wait'
-          ? 'Wait mode holds the cursor until the written notes are down. A wrong key is flagged, and you can try again.'
-          : 'Rhythm mode counts in, then keeps time. The window is half the shortest note, and never wider than 250 ms.'}
-        {loop ? ' Loop starts the piece again when you reach the end.' : ''}
+          ? '等待模式会停在当前音，直到你按下乐谱上的音。按错可以重试。'
+          : '节奏模式先预备，再按拍子走。判定窗口是最短音符的一半，最长不超过 250 毫秒。'}
+        {loop ? ' 走到结尾会再来一遍。' : ''}
       </p>
     </div>
   )

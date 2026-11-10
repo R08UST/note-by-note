@@ -70,7 +70,7 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
     try {
       return parseMusicXml(xml)
     } catch (err) {
-      return err instanceof Error ? err.message : 'Could not read the MusicXML.'
+      return err instanceof Error ? err.message : '读不了这份 MusicXML。'
     }
   }, [xml])
   const notes = parsed && typeof parsed !== 'string' ? parsed.notes : []
@@ -340,7 +340,7 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
       )}
       <p className="phase">{phase}</p>
       {download.total > 0 && (
-        <div className="meter" aria-label="Model download">
+        <div className="meter" aria-label="模型下载">
           <span className="meter-perfect" style={{ left: 0, width: `${Math.min(100, (download.loaded / download.total) * 100)}%` }} />
         </div>
       )}
