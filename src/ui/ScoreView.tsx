@@ -2,6 +2,7 @@ import { CursorType, OpenSheetMusicDisplay, type GraphicalNote } from 'opensheet
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import type { Hand, ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
+import { cursorIndexForBeat } from '../score/cursorBeat'
 import { mapNotesToHeads, UNDRAWN_MEASURE } from '../score/mapNotes'
 import { collectHeads } from '../score/osmdHeads'
 
@@ -57,7 +58,7 @@ function scrollFrame(cursor: HTMLElement) {
 export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote, zoom = 1, layoutKey = 0 }: ScoreViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
-  const stepsRef = useRef<number[]>([])
+  const stepsRef = useRef<(number | null)[]>([])
   const stepIndexRef = useRef(0)
   const entriesRef = useRef<Map<string, Entry>>(new Map())
   const notesRef = useRef(notes)
@@ -95,8 +96,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     const steps = stepsRef.current
     if (!osmd?.cursor || steps.length === 0) return
     beatRef.current = beat
-    let index = 0
-    while (index < steps.length - 1 && steps[index + 1] <= beat + 1e-3) index += 1
+    const index = cursorIndexForBeat(steps, beat)
     const cursor = osmd.cursor
     cursor.hide()
     cursor.reset()
@@ -190,26 +190,20 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           if (cancelled || !osmd.cursor) return
           osmd.FollowCursor = false
           osmd.cursor.CursorOptions = { type: CursorType.ThinLeft, color: '#e39b3b', alpha: 0.9, follow: false }
-          const raw: { real: number; gnotes: GraphicalNote[] }[] = []
+          const raw: GraphicalNote[][] = []
           osmd.cursor.hide()
           osmd.cursor.reset()
           let guard = 0
           while (osmd.cursor.Iterator && !osmd.cursor.Iterator.EndReached && guard < 8000) {
-            raw.push({
-              real: osmd.cursor.Iterator.currentTimeStamp?.RealValue ?? 0,
-              gnotes: osmd.cursor.GNotesUnderCursor() ?? [],
-            })
+            raw.push(osmd.cursor.GNotesUnderCursor() ?? [])
             osmd.cursor.next()
             guard += 1
           }
-          const lastReal = raw.at(-1)?.real ?? 0
-          const lastBeat = notesRef.current.at(-1)?.beat ?? 0
-          const factor = Math.abs(lastReal * 4 - lastBeat) <= Math.abs(lastReal - lastBeat) ? 4 : 1
-          stepsRef.current = raw.map((step) => step.real * factor)
           stepIndexRef.current = 0
           const collected = collectHeads(osmd.Sheet, (note) => osmd.EngravingRules.GNote(note as never))
           const mapped = mapNotesToHeads(notesRef.current, collected.heads)
           const entries = new Map<string, Entry>()
+          const beatByHead = new Map<object, number>()
           for (const [id, keys] of mapped.heads) {
             const gnotes = keys.flatMap((key) => {
               const drawn = collected.graphics.get(key)
@@ -217,9 +211,25 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             })
             if (gnotes.length === 0) continue
             const note = notesRef.current.find((item) => item.id === id)
-            entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat: note?.beat ?? 0 })
+            const beat = note?.beat ?? 0
+            entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat })
+            const primary = collected.graphics.get(keys[0])
+            if (!primary) continue
+            beatByHead.set(primary, beat)
+            const source = (primary as { sourceNote?: object }).sourceNote
+            if (source) beatByHead.set(source, beat)
           }
           entriesRef.current = entries
+          stepsRef.current = raw.map((step) => {
+            let beat: number | null = null
+            for (const gnote of step) {
+              const source = (gnote as { sourceNote?: object }).sourceNote
+              const value = beatByHead.get(gnote) ?? (source ? beatByHead.get(source) : undefined)
+              if (value == null) continue
+              beat = beat == null ? value : Math.min(beat, value)
+            }
+            return beat
+          })
           for (const [id, entry] of entries) {
             for (const gnote of entry.gnotes) {
               const element = noteElement(gnote)
