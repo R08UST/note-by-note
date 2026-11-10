@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PlayedEvent, ScoreNote } from '../judge/types'
 import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
@@ -49,6 +49,22 @@ function narrowScreen(): boolean {
   return window.matchMedia('(max-width: 860px)').matches
 }
 
+function IconButton({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <button type="button" className="button icon" title={label} aria-label={label} disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  )
+}
+
+function Glyph({ d }: { d: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function PracticeApp() {
   const [tab, setTab] = useState<TabId>(() => tabFromHash(window.location.hash))
   const [omrMounted, setOmrMounted] = useState(() => tabFromHash(window.location.hash) === 'omr')
@@ -74,6 +90,7 @@ export function PracticeApp() {
   const [scoreZoom, setScoreZoom] = useState(1)
   const [focusMode, setFocusMode] = useState(false)
   const [listenHands, setListenHands] = useState<Record<number, 'L' | 'R'>>({})
+  const [menuHost, setMenuHost] = useState<HTMLDivElement | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [mapInfo, setMapInfo] = useState({ matched: 0, total: 0 })
@@ -616,120 +633,124 @@ export function PracticeApp() {
             {piece && (
               <div className="practice-main">
                 <header className="now-playing">
-                  <div>
-                    <p className="eyebrow">当前曲目</p>
-                    <h2>{nowPlayingLine(piece)}</h2>
-                  </div>
-                  <div className="zoom-controls" role="group" aria-label="乐谱缩放">
-                    <button type="button" className="button ghost" aria-label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}>－</button>
-                    <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
-                    <button type="button" className="button ghost" aria-label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}>＋</button>
-                  </div>
-                  <button type="button" className="button ghost" onClick={() => setFocusMode(true)}>专注</button>
-                  <button type="button" className="button ghost" onClick={openPicker}>
-                    换一首
+                  <h2>{nowPlayingLine(piece)}</h2>
+                  <button type="button" className="button ghost" onClick={pickerOpen ? collapsePicker : openPicker} aria-pressed={pickerOpen}>
+                    {pickerOpen ? '收起曲库' : '曲库'}
                   </button>
                 </header>
-                <div className="passage">
-                  <div className="omr-actions">
-                    <button type="button" className="button ghost" onClick={() => stepNote(-1)}>上一个音</button>
-                    <button type="button" className="button ghost" onClick={() => stepNote(1)}>下一个音</button>
-                    <button type="button" className="button ghost" onClick={() => stepMeasure(-1)}>上一小节</button>
-                    <button type="button" className="button ghost" onClick={() => stepMeasure(1)}>下一小节</button>
-                    <button type="button" className="button ghost" onClick={() => {
+                <div className="toolbar" role="toolbar" aria-label="练习">
+                  <div className="toolbar-group">
+                    <IconButton label="上一个音" onClick={() => stepNote(-1)}><Glyph d="M10 3 L5 8 L10 13" /></IconButton>
+                    <IconButton label="下一个音" onClick={() => stepNote(1)}><Glyph d="M6 3 L11 8 L6 13" /></IconButton>
+                    <IconButton label="上一小节" onClick={() => stepMeasure(-1)}><Glyph d="M3 3 V13 M6 4 L11 8 L6 12" /></IconButton>
+                    <IconButton label="下一小节" onClick={() => stepMeasure(1)}><Glyph d="M13 3 V13 M10 4 L5 8 L10 12" /></IconButton>
+                    <IconButton label="回到开头" onClick={() => {
                       const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
                       if (!first) return
                       setCursorBeat(first.beat)
                       if (runningNow) void practice.seek({ startBeat: first.beat, endBeat })
                       else scoreRef.current?.setBeat(first.beat)
-                    }}>回到开头</button>
+                    }}><Glyph d="M4 3 V13 M6 4 L12 8 L6 12 Z" /></IconButton>
                     {mode === 'wait' && (
-                      <button type="button" className="button ghost" onClick={practice.stepBack} disabled={practice.status !== 'playing'}>
-                        退一音
-                      </button>
+                      <IconButton label="退一音" disabled={practice.status !== 'playing'} onClick={practice.stepBack}><Glyph d="M11 3 L5 8 L11 13 M5 3 V13" /></IconButton>
                     )}
                   </div>
-                  <div className="omr-actions">
-                    <label className="field">从
-                      <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => {
-                        const measure = Math.max(1, Number(event.target.value) || 1)
-                        setRangeStart(measure)
-                        const onset = firstOnsetInMeasure(groups, measure)
-                        if (onset) setCursorBeat(onset.beat)
-                      }} />
-                    </label>
-                    <label className="field">到
-                      <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => {
-                        const measure = Math.max(1, Number(event.target.value) || 1)
-                        setRangeEnd(measure)
-                        const onset = lastOnsetInMeasure(groups, measure)
-                        if (onset) setEndBeat(onset.beat)
-                      }} />
-                    </label>
-                    <label className="field">循环遍数
-                      <input type="number" min={0} max={20} value={loopLimit} onChange={(event) => setLoopLimit(Math.max(0, Number(event.target.value) || 0))} />
-                    </label>
-                    <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后 +4</label>
-                    <span className="device-note">点音符就从那个音重来。左右方向键是上一个音和下一个音，Alt+左右是小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。</span>
+                  <span className="toolbar-sep" aria-hidden="true" />
+                  <Controls
+                    embedded
+                    bpm={bpm}
+                    hands={hands}
+                    mode={mode}
+                    loop={loop}
+                    status={practice.status}
+                    canStart={canStart}
+                    onBpm={setBpm}
+                    onHands={setHands}
+                    onMode={setMode}
+                    onLoop={setLoop}
+                    onStart={() => {
+                      void import('../audio/engine').then((engine) => engine.stopDemo())
+                      void practice.start()
+                    }}
+                    onStop={practice.stop}
+                  />
+                  <span className="toolbar-sep" aria-hidden="true" />
+                  <ListenBar
+                    toolbar
+                    menuHost={menuHost}
+                    notes={notes}
+                    startBeat={cursorBeat}
+                    rangeStart={cursorBeat}
+                    rangeEnd={endBeat}
+                    bpm={bpm}
+                    onBpm={setBpm}
+                    disabled={practice.status === 'playing' || practice.status === 'countin'}
+                    showKeyboard={false}
+                    onSounding={setListenHands}
+                    onBeat={(beat) => {
+                      setCursorBeat(beat)
+                      scoreRef.current?.setBeat(beat)
+                    }}
+                    onPractice={() => void practice.start()}
+                    onNext={() => {
+                      if (!piece) return
+                      if (piece.id.startsWith('saved:')) {
+                        const index = savedScores.findIndex((score) => `saved:${score.id}` === piece.id)
+                        const next = savedScores[index + 1] ?? savedScores[0]
+                        if (next?.id != null && `saved:${next.id}` !== piece.id) void openSavedScore(next.id)
+                        return
+                      }
+                      const shelf = filterCatalog(catalog, query)
+                      const index = shelf.findIndex((item) => item.id === piece.id)
+                      const next = shelf[index + 1] ?? shelf[0]
+                      if (next && next.id !== piece.id) void openCatalogPiece(next, false)
+                    }}
+                  />
+                  <div className="toolbar-group zoom-controls" role="group" aria-label="乐谱缩放">
+                    <IconButton label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}><Glyph d="M3 8 H13" /></IconButton>
+                    <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
+                    <IconButton label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}><Glyph d="M8 3 V13 M3 8 H13" /></IconButton>
                   </div>
-                </div>
-                <Controls
-                  bpm={bpm}
-                  hands={hands}
-                  mode={mode}
-                  loop={loop}
-                  status={practice.status}
-                  canStart={canStart}
-                  onBpm={setBpm}
-                  onHands={setHands}
-                  onMode={setMode}
-                  onLoop={setLoop}
-                  onStart={() => {
-                    void import('../audio/engine').then((engine) => engine.stopDemo())
-                    void practice.start()
-                  }}
-                  onStop={practice.stop}
-                />
-                <div className="play-tools">
-                <DemoBar
-                  notes={notes}
-                  bpm={bpm}
-                  startBeat={cursorBeat}
-                  endBeat={endBeat}
-                  practiceHands={hands}
-                  loop={loop}
-                  disabled={practice.status === 'playing' || practice.status === 'countin'}
-                  onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-                />
-                <ListenBar
-                  notes={notes}
-                  startBeat={cursorBeat}
-                  rangeStart={cursorBeat}
-                  rangeEnd={endBeat}
-                  bpm={bpm}
-                  onBpm={setBpm}
-                  disabled={practice.status === 'playing' || practice.status === 'countin'}
-                  showKeyboard={false}
-                  onSounding={setListenHands}
-                  onBeat={(beat) => {
-                    setCursorBeat(beat)
-                    scoreRef.current?.setBeat(beat)
-                  }}
-                  onPractice={() => void practice.start()}
-                  onNext={() => {
-                    if (!piece) return
-                    if (piece.id.startsWith('saved:')) {
-                      const index = savedScores.findIndex((score) => `saved:${score.id}` === piece.id)
-                      const next = savedScores[index + 1] ?? savedScores[0]
-                      if (next?.id != null && `saved:${next.id}` !== piece.id) void openSavedScore(next.id)
-                      return
-                    }
-                    const shelf = filterCatalog(catalog, query)
-                    const index = shelf.findIndex((item) => item.id === piece.id)
-                    const next = shelf[index + 1] ?? shelf[0]
-                    if (next && next.id !== piece.id) void openCatalogPiece(next, false)
-                  }}
-                />
+                  <button type="button" className="button ghost" onClick={() => setFocusMode(true)}>专注</button>
+                  <details className="more-menu">
+                    <summary className="button ghost">更多</summary>
+                    <div className="more-panel">
+                      <div className="toolbar-group">
+                        <label className="field">从
+                          <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => {
+                            const measure = Math.max(1, Number(event.target.value) || 1)
+                            setRangeStart(measure)
+                            const onset = firstOnsetInMeasure(groups, measure)
+                            if (onset) setCursorBeat(onset.beat)
+                          }} />
+                        </label>
+                        <label className="field">到
+                          <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => {
+                            const measure = Math.max(1, Number(event.target.value) || 1)
+                            setRangeEnd(measure)
+                            const onset = lastOnsetInMeasure(groups, measure)
+                            if (onset) setEndBeat(onset.beat)
+                          }} />
+                        </label>
+                        <label className="field">循环遍数
+                          <input type="number" min={0} max={20} value={loopLimit} onChange={(event) => setLoopLimit(Math.max(0, Number(event.target.value) || 0))} />
+                        </label>
+                      </div>
+                      <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后速度 +4</label>
+                      <p className="device-note">点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。</p>
+                      <DemoBar
+                        notes={notes}
+                        bpm={bpm}
+                        startBeat={cursorBeat}
+                        endBeat={endBeat}
+                        practiceHands={hands}
+                        loop={loop}
+                        disabled={practice.status === 'playing' || practice.status === 'countin'}
+                        onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+                      />
+                      <div ref={setMenuHost} className="listen-menu-host" />
+                    </div>
+                  </details>
                 </div>
                 <FeedbackStrip
                   status={practice.status}
@@ -847,7 +868,7 @@ export function PracticeApp() {
                   )}
                   {scoreState === 'ready' && mapInfo.total > 0 && mapInfo.matched < mapInfo.total && (
                     <p className="score-status warn">
-                      谱面上标出了 {mapInfo.matched}/{mapInfo.total} 个音。下面的统计仍按每个音计。
+                      有 {mapInfo.total - mapInfo.matched} 个音没法在谱上标颜色，但仍然计分。
                     </p>
                   )}
                   {practice.countBeat != null && (

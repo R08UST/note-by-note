@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { ScoreNote } from '../judge/types'
 import { keyboardBounds, Keyboard } from './Keyboard'
 
@@ -19,9 +20,12 @@ interface ListenBarProps {
   /** Practice draws these on its own keyboard. Train keeps a keyboard here. */
   showKeyboard?: boolean
   onSounding?: (hands: Readonly<Record<number, 'L' | 'R'>>) => void
+  /** Practice toolbar: only the play button stays inline. Extras go into this host. */
+  toolbar?: boolean
+  menuHost?: HTMLElement | null
 }
 
-export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, onBeat, onPractice, onNext, showKeyboard = true, onSounding }: ListenBarProps) {
+export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, onBeat, onPractice, onNext, showKeyboard = true, onSounding, toolbar = false, menuHost = null }: ListenBarProps) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
   const [loop, setLoop] = useState(false)
@@ -95,25 +99,31 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
     await begin(loop)
   }
 
-  return (
-    <div className="listen-bar">
-      <button type="button" className="button primary listen-play" disabled={disabled && !playing} onClick={() => void toggle()}>
-        {playing && !paused ? '暂停' : '播放'}
-      </button>
-      <label className="field bpm">
-        <span>速度 {bpm}</span>
-        <input
-          type="range"
-          min={40}
-          max={160}
-          value={bpm}
-          onChange={(event) => {
-            const next = Number(event.target.value)
-            onBpm(next)
-            void engineRef.current?.setDemoTempo(next)
-          }}
-        />
-      </label>
+  const stop = () => {
+    engineRef.current?.stopDemo()
+    setPlaying(false)
+    setPaused(false)
+    setSounding({})
+    onSounding?.({})
+  }
+  const extras: ReactNode = (
+    <>
+      {!toolbar && (
+        <label className="field bpm">
+          <span>速度 {bpm}</span>
+          <input
+            type="range"
+            min={40}
+            max={160}
+            value={bpm}
+            onChange={(event) => {
+              const next = Number(event.target.value)
+              onBpm(next)
+              void engineRef.current?.setDemoTempo(next)
+            }}
+          />
+        </label>
+      )}
       <label className="check">
         <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
         循环选区
@@ -129,19 +139,33 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
         />
         连续播放
       </label>
+    </>
+  )
+  const offerBox = offer ? (
+    <div className="promote-offer" role="status">
+      <p>听完了。要练这一段吗？</p>
       <button
         type="button"
-        className="button ghost"
+        className="button primary"
         onClick={() => {
-          engineRef.current?.stopDemo()
-          setPlaying(false)
-          setPaused(false)
-          setSounding({})
-          onSounding?.({})
+          setOffer(false)
+          onBeat(loop ? Math.min(rangeStart, rangeEnd) : startBeat)
+          onPractice()
         }}
       >
-        停止
+        开始练习
       </button>
+      <button type="button" className="button ghost" onClick={() => setOffer(false)}>先不练</button>
+    </div>
+  ) : null
+
+  return (
+    <div className={toolbar ? 'listen-bar is-toolbar' : 'listen-bar'}>
+      <button type="button" className="button primary listen-play" title="从当前位置播放" disabled={disabled && !playing} onClick={() => void toggle()}>
+        {playing && !paused ? '暂停' : '播放'}
+      </button>
+      <button type="button" className="button ghost" title="停止播放" onClick={stop}>停止</button>
+      {toolbar && menuHost ? createPortal(<div className="listen-menu">{extras}</div>, menuHost) : extras}
       {showKeyboard && (
         <Keyboard
           low={bounds.low}
@@ -154,23 +178,7 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
           onEvent={() => {}}
         />
       )}
-      {offer && (
-        <div className="promote-offer" role="status">
-          <p>听完了。要练这一段吗？</p>
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => {
-              setOffer(false)
-              onBeat(loop ? Math.min(rangeStart, rangeEnd) : startBeat)
-              onPractice()
-            }}
-          >
-            开始练习
-          </button>
-          <button type="button" className="button ghost" onClick={() => setOffer(false)}>先不练</button>
-        </div>
-      )}
+      {offerBox}
     </div>
   )
 }

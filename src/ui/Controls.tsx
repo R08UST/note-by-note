@@ -15,6 +15,7 @@ interface ControlsProps {
   onLoop: (loop: boolean) => void
   onStart: () => void
   onStop: () => void
+  embedded?: boolean
 }
 
 const HANDS: { id: HandSelection; label: string }[] = [
@@ -36,11 +37,12 @@ export function Controls({
   onLoop,
   onStart,
   onStop,
+  embedded = false,
 }: ControlsProps) {
   const locked = status === 'playing' || status === 'countin'
   const running = locked
   return (
-    <div className="controls" data-status={status}>
+    <div className={embedded ? 'controls is-embedded' : 'controls'} data-status={status}>
       <label className="field bpm">
         <span>四分音符 = {bpm}</span>
         <input
@@ -75,7 +77,7 @@ export function Controls({
       </div>
       <button
         type="button"
-        className={loop ? 'loop is-on' : 'loop'}
+        className={loop ? 'button loop is-on' : 'button loop'}
         aria-pressed={loop}
         disabled={locked}
         onClick={() => onLoop(!loop)}

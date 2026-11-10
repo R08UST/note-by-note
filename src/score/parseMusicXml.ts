@@ -107,7 +107,9 @@ export function parseMusicXml(xml: string): ParsedScore {
       let local = 0
       let lastStart = 0
       let maxLocal = 0
-      const measureNumber = Number(measure.getAttribute('number')) || measureIndex + 1
+      const rawNumber = measure.getAttribute('number')
+      const parsedNumber = rawNumber == null ? Number.NaN : Number(rawNumber)
+      const measureNumber = Number.isFinite(parsedNumber) ? parsedNumber : measureIndex + 1
 
       for (const element of measure.children) {
         if (element.localName === 'attributes') {
@@ -180,6 +182,8 @@ export function parseMusicXml(xml: string): ParsedScore {
           duration,
           hand,
           measure: measureNumber,
+          voice,
+          localBeat: start,
         }
         notes.push(note)
         if (ties.start) openTies.set(tieKey, note)

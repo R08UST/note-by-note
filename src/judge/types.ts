@@ -10,6 +10,10 @@ export interface ScoreNote {
   duration: number
   hand: Hand
   measure: number
+  /** MusicXML voice number. Empty when the file did not say. */
+  voice?: string
+  /** Quarter notes from the start of this measure. */
+  localBeat?: number
 }
 
 export interface PlayedEvent {

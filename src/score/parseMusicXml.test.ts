@@ -31,10 +31,15 @@ function pitched(step: string, octave: number, duration: number, extra = ''): st
 }
 
 describe('parseMusicXml', () => {
+  it('keeps a measure numbered 0', () => {
+    const parsed = parseMusicXml(score(measure(0, attributes + pitched('G', 4, 1)) + measure(1, pitched('C', 4, 1))))
+    expect(parsed.notes.map((note) => note.measure)).toEqual([0, 1])
+  })
+
   it('maps middle C to MIDI 60 and keeps the measure', () => {
     const parsed = parseMusicXml(score(measure(1, attributes + pitched('C', 4, 1))))
     expect(parsed.notes).toEqual([
-      { id: 'n1', pitch: 60, beat: 0, duration: 1, hand: 'R', measure: 1 },
+      { id: 'n1', pitch: 60, beat: 0, duration: 1, hand: 'R', measure: 1, voice: '1', localBeat: 0 },
     ])
     expect(parsed.title).toBe('Fixture')
     expect(parsed.timeSignature).toEqual({ beats: 4, beatType: 4 })

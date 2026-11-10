@@ -2,7 +2,8 @@ import { CursorType, OpenSheetMusicDisplay, type GraphicalNote } from 'opensheet
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import type { Hand, ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
-import { osmdHalfToneToMidi } from '../score/osmdPitch'
+import { mapNotesToHeads } from '../score/mapNotes'
+import { collectHeads } from '../score/osmdHeads'
 
 export interface ScoreHandle {
   prepare(hands: HandSelection, beat: number): void
@@ -25,42 +26,12 @@ interface ScoreViewProps {
 }
 
 interface Entry {
-  gnote: GraphicalNote
+  gnotes: GraphicalNote[]
   hand: Hand
   beat: number
 }
 
 const INK = { applyToNoteheads: true, applyToStem: true }
-
-function midiOf(gnote: GraphicalNote): number[] {
-  const halfTone = gnote.sourceNote?.halfTone
-  if (typeof halfTone !== 'number') return []
-  return [osmdHalfToneToMidi(halfTone), halfTone]
-}
-
-function assign(steps: { beat: number; gnotes: GraphicalNote[] }[], notes: ScoreNote[]) {
-  const unused = new Set(notes.map((note) => note.id))
-  const entries = new Map<string, Entry>()
-  let matched = 0
-  for (const step of steps) {
-    const candidates = notes.filter((note) => unused.has(note.id) && Math.abs(note.beat - step.beat) < 0.03)
-    for (const gnote of step.gnotes) {
-      if (!gnote.sourceNote || gnote.sourceNote.isRest()) continue
-      const pitches = midiOf(gnote)
-      const staffId = gnote.sourceNote.ParentStaff?.Id
-      const handHint: Hand | undefined = staffId === 2 ? 'L' : staffId === 1 ? 'R' : undefined
-      const match =
-        candidates.find(
-          (note) => unused.has(note.id) && pitches.includes(note.pitch) && (handHint == null || note.hand === handHint),
-        ) ?? candidates.find((note) => unused.has(note.id) && pitches.includes(note.pitch))
-      if (!match) continue
-      unused.delete(match.id)
-      entries.set(match.id, { gnote, hand: match.hand, beat: step.beat })
-      matched += 1
-    }
-  }
-  return { entries, matched }
-}
 
 function noteElement(gnote: GraphicalNote): SVGGElement | null {
   const element = (gnote as { getSVGGElement?: () => SVGGElement | null }).getSVGGElement?.()
@@ -112,10 +83,8 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     const low = selected ? Math.min(selected.startBeat, selected.endBeat) : null
     const high = selected ? Math.max(selected.startBeat, selected.endBeat) : null
     for (const entry of entriesRef.current.values()) {
-      const element = noteElement(entry.gnote)
-      if (!element) continue
       const on = low != null && high != null && entry.beat >= low - 1e-3 && entry.beat <= high + 1e-3
-      element.classList.toggle('is-practice-note', on)
+      for (const gnote of entry.gnotes) noteElement(gnote)?.classList.toggle('is-practice-note', on)
     }
   }
 
@@ -145,7 +114,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     prepare(hands, beat) {
       for (const entry of entriesRef.current.values()) {
         const active = hands === 'both' || entry.hand === hands
-        entry.gnote.setColor(active ? '#241c16' : '#c9bba6', INK)
+        for (const gnote of entry.gnotes) gnote.setColor(active ? '#241c16' : '#c9bba6', INK)
       }
       markSpan()
       this.setBeat(beat)
@@ -156,8 +125,10 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     colorNote(noteId, color) {
       const entry = entriesRef.current.get(noteId)
       if (!entry) return
-      entry.gnote.setColor(color, INK)
-      noteElement(entry.gnote)?.classList.add('is-colored')
+      for (const gnote of entry.gnotes) {
+        gnote.setColor(color, INK)
+        noteElement(gnote)?.classList.add('is-colored')
+      }
     },
   }))
 
@@ -229,24 +200,35 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             osmd.cursor.next()
             guard += 1
           }
-          const scaled = [4, 1].map((factor) =>
-            raw.map((step) => ({ beat: step.real * factor, gnotes: step.gnotes })),
-          )
-          const attempts = scaled.map((steps) => ({ steps, ...assign(steps, notesRef.current) }))
-          attempts.sort((a, b) => b.matched - a.matched)
-          const best = attempts[0]
-          entriesRef.current = best?.entries ?? new Map()
-          stepsRef.current = (best?.steps ?? []).map((step) => step.beat)
+          const lastReal = raw.at(-1)?.real ?? 0
+          const lastBeat = notesRef.current.at(-1)?.beat ?? 0
+          const factor = Math.abs(lastReal * 4 - lastBeat) <= Math.abs(lastReal - lastBeat) ? 4 : 1
+          stepsRef.current = raw.map((step) => step.real * factor)
           stepIndexRef.current = 0
-          for (const [id, entry] of entriesRef.current) {
-            const element = noteElement(entry.gnote)
-            if (!element) continue
-            element.style.cursor = 'pointer'
-            element.addEventListener('click', (event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onNoteRef.current?.(id, event.shiftKey)
+          const collected = collectHeads(osmd.Sheet, (note) => osmd.EngravingRules.GNote(note as never))
+          const mapped = mapNotesToHeads(notesRef.current, collected.heads)
+          const entries = new Map<string, Entry>()
+          for (const [id, keys] of mapped.heads) {
+            const gnotes = keys.flatMap((key) => {
+              const drawn = collected.graphics.get(key)
+              return drawn ? [drawn] : []
             })
+            if (gnotes.length === 0) continue
+            const note = notesRef.current.find((item) => item.id === id)
+            entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat: note?.beat ?? 0 })
+          }
+          entriesRef.current = entries
+          for (const [id, entry] of entries) {
+            for (const gnote of entry.gnotes) {
+              const element = noteElement(gnote)
+              if (!element) continue
+              element.style.cursor = 'pointer'
+              element.addEventListener('click', (event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onNoteRef.current?.(id, event.shiftKey)
+              })
+            }
           }
           const measures = osmd.GraphicSheet?.MeasureList ?? []
           for (const line of measures) {
@@ -265,7 +247,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           markSpan()
           if (beatRef.current != null) seekRef.current(beatRef.current)
           else osmd.cursor.show()
-          if (!cancelled) onReadyRef.current({ matched: best?.matched ?? 0, total: notesRef.current.length })
+          if (!cancelled) onReadyRef.current({ matched: entries.size, total: notesRef.current.length })
         }
         wireRef.current = () => {
           if (cancelled) return
