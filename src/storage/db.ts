@@ -9,6 +9,8 @@ export interface SettingsRecord {
   mode: PracticeMode
   latencyOffsetMs: number
   lastLibraryId?: string
+  /** Keep serving the next item in the same level after each exercise. Default on. */
+  continuous?: boolean
 }
 
 export interface RunRecord {

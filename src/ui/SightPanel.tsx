@@ -4,10 +4,11 @@ import { pitchForCode } from '../midi/keyboardMap'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { listPitchStats, listTrainRuns, rememberPitches, saveTrainRun, type PitchStatRecord, type TrainRunRecord } from '../storage/db'
-import { PITCH_GATE, TIME_GATE, levelStars, migratedSightLevel, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
-import { bankFileName, exerciseFromBank } from '../train/bank'
+import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, migratedSightLevel, qualifyingCount, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
+import { afterExercise, bankFileName, exerciseFromBank, nextHand } from '../train/bank'
 import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '../train/sight'
 import { BankBar } from './BankBar'
+import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { HeatKeys, LevelRail, PreviewGate } from './TrainBits'
 import { ScoreView, type ScoreHandle } from './ScoreView'
@@ -20,11 +21,13 @@ interface SightPanelProps {
   onBind: (push: (event: PlayedEvent) => void) => void
   onSaved: () => void
   onCheckpoint: (pieceId: string) => void
+  continuous: boolean
+  onContinuous: (value: boolean) => void
 }
 
 const CARDS = 8
 
-export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, onSaved, onCheckpoint }: SightPanelProps) {
+export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, onSaved, onCheckpoint, continuous, onContinuous }: SightPanelProps) {
   const [level, setLevel] = useState(1)
   const [kind, setKind] = useState<'flash' | 'phrase' | 'weak'>('phrase')
   const [hand, setHand] = useState<'R' | 'L' | 'both'>('R')
@@ -43,7 +46,18 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   const [flashNote, setFlashNote] = useState('')
   const [report, setReport] = useState<RunSummary | null>(null)
   const [preview, setPreview] = useState<number | null>(null)
+  const [hold, setHold] = useState<number | null>(null)
+  const [session, setSession] = useState({ done: 0, clean: 0 })
+  const [offer, setOffer] = useState(false)
   const scoreRef = useRef<ScoreHandle>(null)
+  const declined = useRef<Set<number>>(new Set())
+  const attempted = useRef<Set<string>>(new Set())
+  const retrying = useRef(false)
+  const continuousRef = useRef(continuous)
+  continuousRef.current = continuous
+  const goNextRef = useRef<() => void>(() => {})
+  const retryRef = useRef<() => void>(() => {})
+  const holdFired = useRef(false)
   const shownAt = useRef(0)
   const lock = useRef(false)
   const weaknessRef = useRef(weaknessMap([]))
@@ -107,11 +121,18 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     onDone: (summary, judgements) => {
       setReport(summary)
       const onTime = summary.expected === 0 ? 0 : summary.perfects / summary.expected
+      const accuracy = summary.expected === 0 ? 0 : summary.hits / summary.expected
+      const itemId = phrase.itemId
+      const retry = retrying.current
+      retrying.current = false
+      const firstAttempt = Boolean(itemId) && !retry && !attempted.current.has(itemId) && !bank.marks[itemId]
+      if (itemId) attempted.current.add(itemId)
+      const clean = accuracy >= PITCH_GATE && (timing === 'wait' || onTime >= TIME_GATE)
       void saveTrainRun({
         mode: 'sight-phrase',
         level: spec.id,
         createdAt: Date.now(),
-        pitchAccuracy: summary.expected === 0 ? 0 : summary.hits / summary.expected,
+        pitchAccuracy: accuracy,
         onTimeRate: timing === 'wait' ? 1 : onTime,
         meanOffsetMs: summary.meanOffsetMs,
         spreadMs: summary.timingSpreadMs,
@@ -119,17 +140,22 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         scoredTiming: timing === 'strict',
         hand,
         seed: phrase.seed,
-        itemId: phrase.itemId || undefined,
-        firstAttempt: phrase.itemId ? !bank.marks[phrase.itemId] : true,
+        itemId: itemId || undefined,
+        firstAttempt,
         curriculum: 2,
       }).then(() => {
         reload()
         onSaved()
       })
-      if (phrase.itemId) {
-        const clean = (summary.expected === 0 ? 0 : summary.hits / summary.expected) >= PITCH_GATE && (timing === 'wait' || onTime >= TIME_GATE)
-        bank.finish(clean)
+      if (itemId) bank.finish(clean)
+      setSession((value) => ({ done: value.done + 1, clean: value.clean + (clean ? 1 : 0) }))
+      if (firstAttempt && clean && !declined.current.has(spec.id) && spec.id < SIGHT_LEVELS.length) {
+        const take: TakeScore = { level: spec.id, pitchAccuracy: accuracy, onTimeRate: timing === 'wait' ? 1 : onTime, scoredTiming: timing === 'strict', hand, itemId, firstAttempt: true }
+        const before = qualifyingCount(takes, spec.id)
+        const after = qualifyingCount([...takes, take], spec.id)
+        if (before < MASTERY_TAKES && after >= MASTERY_TAKES) setOffer(true)
       }
+      if (continuousRef.current) setHold(3)
       void rememberPitches(phrase.notes.map((note) => ({ pitch: note.pitch, hit: hitNote(note, judgements) }))).then(reload)
     },
   })
@@ -210,6 +236,76 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     void startDrill.current()
   }, [preview])
 
+  const goNext = () => {
+    setHold(null)
+    setReport(null)
+    if (!bank.current) {
+      bank.advance()
+      setPreview(30)
+      return
+    }
+    const plan = afterExercise({
+      items: bank.items,
+      seen: new Set(Object.keys(bank.marks)),
+      recent: bank.recentIds(),
+      currentId: bank.current.id,
+      retry: false,
+      level: spec.id,
+      hand,
+      cycleHands: true,
+    })
+    bank.commitRecent(plan.recent)
+    if (plan.hand !== hand) setHand(plan.hand)
+    else if (plan.itemId) bank.select(plan.itemId)
+    setPreview(30)
+  }
+  const retryItem = () => {
+    retrying.current = true
+    setHold(null)
+    setReport(null)
+    setPreview(30)
+  }
+  goNextRef.current = goNext
+  retryRef.current = retryItem
+
+  useEffect(() => {
+    setSession({ done: 0, clean: 0 })
+    setOffer(false)
+  }, [spec.id])
+
+  useEffect(() => {
+    if (hold == null) return
+    if (hold <= 0) {
+      if (holdFired.current) return
+      holdFired.current = true
+      setHold(null)
+      goNextRef.current()
+      return
+    }
+    holdFired.current = false
+    const id = window.setTimeout(() => setHold((value) => (value == null ? null : value - 1)), 1000)
+    return () => window.clearTimeout(id)
+  }, [hold])
+
+  useEffect(() => {
+    if (!active || !phraseLike) return
+    const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return
+      if (drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)) return
+      if (!report && hold == null) return
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        goNextRef.current()
+      } else if (event.code === 'KeyR') {
+        event.preventDefault()
+        retryRef.current()
+      }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [active, phraseLike, drill.status, preview, report, hold])
+
   useEffect(() => {
     if (!flashing || timerSeconds <= 0) return
     const id = window.setTimeout(() => answerRef.current(-1, shownAt.current + timerSeconds * 1000), timerSeconds * 1000)
@@ -234,7 +330,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         S{spec.id} {spec.title}。{spec.detail}
       </p>
       <p className="device-note">依据：{spec.source}</p>
-      <p className="device-note">同一级先右手、再左手、再双手。3 条不同的曲子第一次就干净通过，才算过关。先看 30 秒。</p>
+      <p className="device-note">同一级先右手、再左手、再双手。连续练习就按这个顺序换题，不自动升级。3 条不同的曲子第一次就干净通过，才算过关。先看 30 秒。</p>
       <div className="segmented" role="group" aria-label="视奏题型">
         <button type="button" aria-pressed={kind === 'flash'} onClick={() => setKind('flash')}>单音认谱</button>
         <button type="button" aria-pressed={kind === 'phrase'} onClick={() => setKind('phrase')}>短句视奏</button>
@@ -295,7 +391,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
             {flashing ? `第 ${cardIndex + 1} / ${CARDS} 张` : '开始 8 张'}
           </button>
         )}
-        <button type="button" className="button ghost" onClick={() => { setReport(null); if (phraseLike && bank.items.length > 0) bank.advance(); else setSeed((value) => value + 17) }}>换一题</button>
+        {!phraseLike && <button type="button" className="button ghost" onClick={() => setSeed((value) => value + 17)}>换一组</button>}
         {hints && hintPitch != null && <span className="note-hint">{noteName(hintPitch)}</span>}
         {flashNote && <span className="device-note">{flashNote}</span>}
       </div>
@@ -310,7 +406,34 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           onPick={(id) => { setReport(null); bank.pick(id) }}
         />
       )}
-      {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
+      {phraseLike && (
+        <ContinueBar
+          continuous={continuous}
+          onContinuous={onContinuous}
+          onRetry={retryItem}
+          onNext={goNext}
+          busy={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}
+          sessionDone={session.done}
+          sessionClean={session.clean}
+          itemId={bank.current?.id}
+          hold={hold}
+          nextHandLabel={handName(nextHand(hand), spec.together)}
+          offer={offer}
+          onAccept={() => {
+            setOffer(false)
+            setHold(null)
+            setReport(null)
+            if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
+            setLevel((value) => Math.min(SIGHT_LEVELS.length, value + 1))
+            setPreview(30)
+          }}
+          onStay={() => {
+            declined.current.add(spec.id)
+            setOffer(false)
+          }}
+        />
+      )}
+      {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
       {shown && (
         <div className="score-frame train-score">
           <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />
@@ -326,6 +449,12 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       <HeatKeys stats={stats} />
     </div>
   )
+}
+
+function handName(hand: 'R' | 'L' | 'both', together: boolean): string {
+  if (hand === 'R') return '右手'
+  if (hand === 'L') return '左手'
+  return together ? '双手' : '交替'
 }
 
 function ResultLine({ summary, timing }: { summary: RunSummary; timing: boolean }) {

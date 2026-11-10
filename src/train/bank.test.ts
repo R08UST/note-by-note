@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { RECENT_WINDOW, editSimilarity, nextItem, noteKeys, tooSimilar, type BankItem } from './bank'
+import { RECENT_WINDOW, afterExercise, editSimilarity, nextHand, nextItem, noteKeys, tooSimilar, type BankItem } from './bank'
 
 describe('question bank', () => {
   it('treats a near copy as the same item and a different bar as another', () => {
@@ -11,6 +11,64 @@ describe('question bank', () => {
     expect(editSimilarity(left.rhythm, otherRhythm.rhythm)).toBeLessThan(0.84)
     expect(tooSimilar(left, otherRhythm)).toBe(false)
     expect(tooSimilar(left, { rhythm: left.rhythm, pitches: '0,2,-2,-2,0' })).toBe(false)
+  })
+
+  it('moves to another unseen item in the same level and skips a retry', () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({ id: `S1-R-${index + 1}` }))
+    const seen = new Set(['S1-R-1'])
+    const recent = ['S1-R-3', 'S1-R-4']
+    const next = afterExercise({
+      items,
+      seen,
+      recent,
+      currentId: 'S1-R-2',
+      retry: false,
+      level: 1,
+      hand: 'R',
+      cycleHands: false,
+    })
+    expect(next.level).toBe(1)
+    expect(next.hand).toBe('R')
+    expect(next.itemId).toBe('S1-R-5')
+    expect(next.recent.includes('S1-R-2')).toBe(true)
+    expect(next.firstAttempt).toBe(true)
+    const retry = afterExercise({
+      items,
+      seen,
+      recent,
+      currentId: 'S1-R-2',
+      retry: true,
+      level: 1,
+      hand: 'R',
+      cycleHands: false,
+    })
+    expect(retry.itemId).toBe('S1-R-2')
+    expect(retry.level).toBe(1)
+    expect(retry.firstAttempt).toBe(false)
+    expect(retry.recent).toEqual(recent)
+  })
+
+  it('cycles hands inside the level and does not repeat a recent item', () => {
+    expect(nextHand('R')).toBe('L')
+    expect(nextHand('L')).toBe('both')
+    expect(nextHand('both')).toBe('R')
+    const items = Array.from({ length: 4 }, (_, index) => ({ id: `S3-R-${index + 1}` }))
+    const plan = afterExercise({
+      items,
+      seen: new Set<string>(),
+      recent: [],
+      currentId: 'S3-R-1',
+      retry: false,
+      level: 3,
+      hand: 'R',
+      cycleHands: true,
+    })
+    expect(plan.level).toBe(3)
+    expect(plan.hand).toBe('L')
+    expect(plan.itemId).toBeUndefined()
+    expect(plan.recent).toEqual(['S3-R-1'])
+    const followed = nextItem(items, new Set(['S3-R-1']), plan.recent)
+    expect(followed?.id).not.toBe('S3-R-1')
   })
 
   it('serves an unseen item and refuses the recent ones', () => {

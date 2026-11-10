@@ -4,8 +4,8 @@ import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import type { TimeSignature } from '../score/parseMusicXml'
 import { latestRun, listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
-import { PITCH_GATE, TIME_GATE, levelStars, unlockedThrough, type TakeScore } from '../train/mastery'
-import { bankFileName, exerciseFromBank } from '../train/bank'
+import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, qualifyingCount, unlockedThrough, type TakeScore } from '../train/mastery'
+import { afterExercise, bankFileName, exerciseFromBank } from '../train/bank'
 import {
   generateHandsRhythm,
   generatePulse,
@@ -20,8 +20,9 @@ import {
   worstMeasures,
   type RhythmMatch,
 } from '../train/rhythm'
-import { LevelRail } from './TrainBits'
+import { LevelRail, PreviewGate } from './TrainBits'
 import { BankBar } from './BankBar'
+import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
@@ -33,11 +34,13 @@ interface RhythmPanelProps {
   piece: { id: string; title: string; notes: ScoreNote[]; time: TimeSignature } | null
   onBind: (push: (event: PlayedEvent) => void) => void
   onSaved: () => void
+  continuous: boolean
+  onContinuous: (value: boolean) => void
 }
 
 type RhythmKind = 'line' | 'hands' | 'pulse' | 'beat' | 'piece'
 
-export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, onBind, onSaved }: RhythmPanelProps) {
+export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, onBind, onSaved, continuous, onContinuous }: RhythmPanelProps) {
   const [level, setLevel] = useState(1)
   const [kind, setKind] = useState<RhythmKind>('line')
   const [bpm, setBpm] = useState(72)
@@ -54,7 +57,19 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
   const [runs, setRuns] = useState<TrainRunRecord[]>([])
   const [report, setReport] = useState<RunSummary | null>(null)
   const [offsets, setOffsets] = useState<Judgement[]>([])
+  const [preview, setPreview] = useState<number | null>(null)
+  const [hold, setHold] = useState<number | null>(null)
+  const [session, setSession] = useState({ done: 0, clean: 0 })
+  const [offer, setOffer] = useState(false)
   const scoreRef = useRef<ScoreHandle>(null)
+  const declined = useRef<Set<number>>(new Set())
+  const attempted = useRef<Set<string>>(new Set())
+  const retrying = useRef(false)
+  const continuousRef = useRef(continuous)
+  continuousRef.current = continuous
+  const goNextRef = useRef<() => void>(() => {})
+  const retryRef = useRef<() => void>(() => {})
+  const holdFired = useRef(false)
 
   const reload = () => {
     void listTrainRuns().then(setRuns)
@@ -115,6 +130,12 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       const accuracy = pitchAccuracy(summary)
       const timing = onTimeRate(summary)
       const mode = kind === 'hands' ? 'rhythm-hands' : kind === 'pulse' ? 'pulse' : kind === 'piece' ? 'rhythm-piece' : 'rhythm'
+      const itemId = kind === 'line' ? bank.current?.id ?? '' : ''
+      const retry = retrying.current
+      retrying.current = false
+      const firstAttempt = Boolean(itemId) && !retry && !attempted.current.has(itemId) && !bank.marks[itemId]
+      if (itemId) attempted.current.add(itemId)
+      const clean = accuracy >= PITCH_GATE && timing >= TIME_GATE
       void saveTrainRun({
         mode,
         level: kind === 'line' ? spec.id : 0,
@@ -125,21 +146,108 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
         spreadMs: summary.timingSpreadMs,
         bpm,
         scoredTiming: true,
-        seed: kind === 'line' ? bankNumber(bank.current?.id ?? '') : seed,
-        itemId: kind === 'line' ? bank.current?.id : undefined,
-        firstAttempt: kind === 'line' && bank.current ? !bank.marks[bank.current.id] : undefined,
+        seed: kind === 'line' ? bankNumber(itemId) : seed,
+        itemId: itemId || undefined,
+        firstAttempt: kind === 'line' ? firstAttempt : undefined,
       }).then(() => {
         reload()
         onSaved()
       })
-      if (kind === 'line' && bank.current) bank.finish(accuracy >= PITCH_GATE && timing >= TIME_GATE)
-      if (autoTempo && accuracy >= 0.9 && timing >= 0.8) setBpm((value) => Math.min(Math.round(spec.startBpm * 1.5), value + 5))
+      if (kind === 'line' && itemId) {
+        bank.finish(clean)
+        setSession((value) => ({ done: value.done + 1, clean: value.clean + (clean ? 1 : 0) }))
+        if (firstAttempt && clean && !declined.current.has(spec.id) && spec.id < RHYTHM_LEVELS.length) {
+          const take: TakeScore = { level: spec.id, pitchAccuracy: accuracy, onTimeRate: timing, scoredTiming: true, itemId, firstAttempt: true }
+          const before = qualifyingCount(takes, spec.id)
+          const after = qualifyingCount([...takes, take], spec.id)
+          if (before < MASTERY_TAKES && after >= MASTERY_TAKES) setOffer(true)
+        }
+        if (continuousRef.current) setHold(3)
+      }
+      if (autoTempo && clean) setBpm((value) => Math.min(Math.round(spec.startBpm * 1.5), value + 5))
     },
   })
 
   useEffect(() => {
     onBind((event) => drill.push(event))
   })
+
+  const startDrill = useRef(drill.start)
+  startDrill.current = drill.start
+  useEffect(() => {
+    if (preview !== 0) return
+    setPreview(null)
+    void startDrill.current()
+  }, [preview])
+
+  const goNext = () => {
+    setHold(null)
+    setReport(null)
+    if (!bank.current) {
+      bank.advance()
+      setPreview(30)
+      return
+    }
+    const plan = afterExercise({
+      items: bank.items,
+      seen: new Set(Object.keys(bank.marks)),
+      recent: bank.recentIds(),
+      currentId: bank.current.id,
+      retry: false,
+      level: spec.id,
+      hand: 'R',
+      cycleHands: false,
+    })
+    bank.commitRecent(plan.recent)
+    if (plan.itemId) bank.select(plan.itemId)
+    setPreview(30)
+  }
+  const retryItem = () => {
+    retrying.current = true
+    setHold(null)
+    setReport(null)
+    setPreview(30)
+  }
+  goNextRef.current = goNext
+  retryRef.current = retryItem
+
+  useEffect(() => {
+    setSession({ done: 0, clean: 0 })
+    setOffer(false)
+  }, [spec.id])
+
+  useEffect(() => {
+    if (hold == null) return
+    if (hold <= 0) {
+      if (holdFired.current) return
+      holdFired.current = true
+      setHold(null)
+      goNextRef.current()
+      return
+    }
+    holdFired.current = false
+    const id = window.setTimeout(() => setHold((value) => (value == null ? null : value - 1)), 1000)
+    return () => window.clearTimeout(id)
+  }, [hold])
+
+  useEffect(() => {
+    if (!active || kind !== 'line') return
+    const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return
+      if (drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)) return
+      if (!report && hold == null) return
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        goNextRef.current()
+      } else if (event.code === 'KeyR') {
+        event.preventDefault()
+        retryRef.current()
+      }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [active, kind, drill.status, preview, report, hold])
 
   return (
     <div className="train-pane">
@@ -199,12 +307,39 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       {kind === 'piece' && !piece && <p className="score-status">先在练习里打开一首曲子，再抽它的节奏。</p>}
       {kind === 'hands' && <p className="device-note">中央 C 以上算右手，以下算左手。</p>}
       <div className="omr-actions">
-        <button type="button" className="button primary" disabled={exercise.notes.length === 0 || drill.status === 'playing' || drill.status === 'countin'} onClick={() => void drill.start()}>
-          {drill.status === 'countin' ? '预备…' : '开始'}
+        {preview != null && preview > 0 && kind === 'line' && <PreviewGate seconds={preview} onSkip={() => { setPreview(null); void drill.start() }} />}
+        <button type="button" className="button primary" disabled={exercise.notes.length === 0 || drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)} onClick={() => void drill.start()}>
+          {drill.status === 'countin' ? '预备…' : preview != null && preview > 0 ? `预习 ${preview}` : '开始'}
         </button>
         <button type="button" className="button stop" onClick={drill.stop}>停止</button>
-        <button type="button" className="button ghost" onClick={() => { setReport(null); if (kind === 'line' && bank.items.length > 0) bank.advance(); else setSeed((value) => value + 9) }}>换一题</button>
+        {kind !== 'line' && <button type="button" className="button ghost" onClick={() => { setReport(null); setSeed((value) => value + 9) }}>换一题</button>}
       </div>
+      {kind === 'line' && (
+        <ContinueBar
+          continuous={continuous}
+          onContinuous={onContinuous}
+          onRetry={retryItem}
+          onNext={goNext}
+          busy={drill.status === 'playing' || drill.status === 'countin' || (preview != null && preview > 0)}
+          sessionDone={session.done}
+          sessionClean={session.clean}
+          itemId={bank.current?.id}
+          hold={hold}
+          offer={offer}
+          onAccept={() => {
+            setOffer(false)
+            setHold(null)
+            setReport(null)
+            if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
+            setLevel((value) => Math.min(RHYTHM_LEVELS.length, value + 1))
+            setPreview(30)
+          }}
+          onStay={() => {
+            declined.current.add(spec.id)
+            setOffer(false)
+          }}
+        />
+      )}
       {kind === 'line' && (
         <BankBar
           items={bank.items}
@@ -215,7 +350,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
           onPick={(id) => { setReport(null); bank.pick(id) }}
         />
       )}
-      {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
+      {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
       {drill.countBeat != null && <div className="count-in">{drill.countBeat}</div>}
       <div className="score-frame train-score">
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />

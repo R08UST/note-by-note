@@ -63,6 +63,7 @@ export function PracticeApp() {
   const [anchor, setAnchor] = useState(1)
   const [rangeReady, setRangeReady] = useState('')
   const [latencyOffsetMs, setLatencyOffsetMs] = useState(0)
+  const [continuous, setContinuous] = useState(true)
   const [keyboardEnabled, setKeyboardEnabled] = useState(true)
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -171,6 +172,7 @@ export function PracticeApp() {
       setHands(settings.hands)
       setMode(settings.mode)
       setLatencyOffsetMs(settings.latencyOffsetMs)
+      if (settings.continuous === false) setContinuous(false)
       if (settings.lastLibraryId) setLastLibraryId(settings.lastLibraryId)
       setHydrated(true)
     })
@@ -181,8 +183,8 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!hydrated) return
-    void saveSettings({ bpm, hands, mode, latencyOffsetMs, lastLibraryId: lastLibraryId || undefined })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId])
+    void saveSettings({ bpm, hands, mode, latencyOffsetMs, lastLibraryId: lastLibraryId || undefined, continuous })
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -686,6 +688,8 @@ export function PracticeApp() {
             if (entry) void openCatalogPiece(entry)
           }}
           inputRef={trainInput}
+          continuous={continuous}
+          onContinuous={setContinuous}
         />
           </Suspense>
         </div>

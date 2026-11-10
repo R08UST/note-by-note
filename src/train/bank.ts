@@ -113,6 +113,62 @@ export function nextItem<T extends { id: string }>(items: readonly T[], seen: Re
   )
 }
 
+export type PracticeHand = 'R' | 'L' | 'both'
+
+/** Same level, in the order the curriculum already states: right, left, then both. */
+export function nextHand(hand: PracticeHand): PracticeHand {
+  if (hand === 'R') return 'L'
+  if (hand === 'L') return 'both'
+  return 'R'
+}
+
+export interface AdvancePlan {
+  level: number
+  hand: PracticeHand
+  itemId: string | undefined
+  recent: string[]
+  /** A retry is never a first attempt, so it cannot count toward mastery. */
+  firstAttempt: boolean
+}
+
+/**
+ * What to serve after an exercise.
+ * The level never changes here. A retry stays on the same item.
+ * Otherwise the current item joins the recent window and is treated as seen.
+ */
+export function afterExercise<T extends { id: string }>(options: {
+  items: readonly T[]
+  seen: ReadonlySet<string>
+  recent: readonly string[]
+  currentId: string
+  retry: boolean
+  level: number
+  hand: PracticeHand
+  cycleHands: boolean
+}): AdvancePlan {
+  if (options.retry) {
+    return {
+      level: options.level,
+      hand: options.hand,
+      itemId: options.currentId,
+      recent: [...options.recent],
+      firstAttempt: false,
+    }
+  }
+  const recent = [...options.recent, options.currentId].slice(-RECENT_WINDOW)
+  const seen = new Set(options.seen)
+  seen.add(options.currentId)
+  const hand = options.cycleHands ? nextHand(options.hand) : options.hand
+  const itemId = hand === options.hand ? nextItem(options.items, seen, recent)?.id : undefined
+  return {
+    level: options.level,
+    hand,
+    itemId,
+    recent,
+    firstAttempt: itemId != null && !options.seen.has(itemId),
+  }
+}
+
 export function exerciseFromBank(item: BankItem, title: string, hand: 'R' | 'L' | 'both'): BuiltFromBank {
   const notes: WrittenNote[] = item.notes.map((note) => ({
     pitch: note.p,

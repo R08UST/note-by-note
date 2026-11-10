@@ -13,9 +13,11 @@ interface TrainTabProps {
   onSaved: () => void
   onCheckpoint: (pieceId: string) => void
   inputRef: { current: (event: PlayedEvent) => void }
+  continuous: boolean
+  onContinuous: (value: boolean) => void
 }
 
-export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef }: TrainTabProps) {
+export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef, continuous, onContinuous }: TrainTabProps) {
   const [pane, setPane] = useState<'sight' | 'rhythm'>(() => 'sight')
   const sightPush = useRef<(event: PlayedEvent) => void>(() => {})
   const rhythmPush = useRef<(event: PlayedEvent) => void>(() => {})
@@ -43,6 +45,8 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
           }}
           onSaved={onSaved}
           onCheckpoint={onCheckpoint}
+          continuous={continuous}
+          onContinuous={onContinuous}
         />
       ) : (
         <RhythmPanel
@@ -54,6 +58,8 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
             rhythmPush.current = push
           }}
           onSaved={onSaved}
+          continuous={continuous}
+          onContinuous={onContinuous}
         />
       )}
       <Keyboard

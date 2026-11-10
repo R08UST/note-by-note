@@ -12,7 +12,9 @@ export function useQuestionBank(name: string, enabled: boolean) {
   const [open, setOpen] = useState(false)
   const [marks, setMarks] = useState<Record<string, 'done' | 'clean'>>({})
   const [ready, setReady] = useState(false)
-  const recent = useRef<string[]>([])
+  const recentByName = useRef<Map<string, string[]>>(new Map())
+  const nameRef = useRef(name)
+  nameRef.current = name
 
   const reloadMarks = () =>
     listBankMarks().then((rows) => {
@@ -31,7 +33,6 @@ export function useQuestionBank(name: string, enabled: boolean) {
     let live = true
     setItems([])
     setItemId(null)
-    recent.current = []
     void loadBank(name)
       .then((file) => {
         if (live) setItems(file.items)
@@ -46,27 +47,35 @@ export function useQuestionBank(name: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || !ready || itemId || items.length === 0) return
-    const next = nextItem(items, new Set(Object.keys(marks)), recent.current)
+    const next = nextItem(items, new Set(Object.keys(marks)), recentByName.current.get(name) ?? [])
     if (next) setItemId(next.id)
   }, [enabled, ready, itemId, items, marks])
 
   const current = items.find((item) => item.id === itemId)
 
+  const recentIds = () => [...(recentByName.current.get(nameRef.current) ?? [])]
+
+  const commitRecent = (recent: readonly string[]) => {
+    recentByName.current.set(nameRef.current, [...recent])
+  }
+
   const advance = () => {
-    if (current) recent.current = [...recent.current, current.id].slice(-RECENT_WINDOW)
-    const next = nextItem(items, new Set(Object.keys(marks)), recent.current)
+    if (current) commitRecent([...recentIds(), current.id].slice(-RECENT_WINDOW))
+    const next = nextItem(items, new Set(Object.keys(marks)), recentIds())
     setItemId(next?.id ?? null)
   }
 
   const pick = (id: string) => {
-    if (current && current.id !== id) recent.current = [...recent.current, current.id].slice(-RECENT_WINDOW)
+    if (current && current.id !== id) commitRecent([...recentIds(), current.id].slice(-RECENT_WINDOW))
     setItemId(id)
   }
+
+  const select = (id: string) => setItemId(id)
 
   const finish = (clean: boolean) => {
     if (!current) return
     void markBankItem(current.id, clean).then(() => reloadMarks())
   }
 
-  return { items, current, open, setOpen, marks, advance, pick, finish }
+  return { items, current, open, setOpen, marks, advance, pick, select, finish, recentIds, commitRecent }
 }

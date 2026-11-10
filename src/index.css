@@ -550,6 +550,19 @@ h1 {
 .bank-chip.is-current { border-color: var(--amber); }
 .bank-chip.is-clean { color: var(--amber); }
 .bank-chip.is-clean small { color: var(--amber); }
+.continue-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.result-hold { color: var(--amber); font-weight: 600; }
+.promote-offer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.promote-offer p { margin: 0; }
 .note-hint { font-family: var(--serif); font-size: 1.4rem; }
 .heat { display: flex; flex-direction: column; gap: 6px; }
 .heat-keys { display: flex; gap: 2px; align-items: flex-end; height: 42px; }
