@@ -5,6 +5,8 @@ import { listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
 import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, qualifyingCount, unlockedThrough, type TakeScore } from '../train/mastery'
 import { techLevels, type TechKind } from '../train/technique'
 import { ContinueBar } from './ContinueBar'
+import { DemoBar } from './DemoBar'
+import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { LevelRail } from './TrainBits'
 import { useDrill } from './useDrill'
@@ -240,6 +242,32 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
           setOffer(false)
         }}
       />
+      {exercise.notes.length > 0 && (
+        <DemoBar
+          notes={exercise.notes}
+          bpm={bpm}
+          startBeat={exercise.notes[0]?.beat ?? 0}
+          endBeat={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          practiceHands="both"
+          loop={loop}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+        />
+      )}
+      {exercise.notes.length > 0 && (
+        <ListenBar
+          notes={exercise.notes}
+          startBeat={exercise.notes[0]?.beat ?? 0}
+          rangeStart={exercise.notes[0]?.beat ?? 0}
+          rangeEnd={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          bpm={bpm}
+          onBpm={setBpm}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+          onPractice={() => void drill.start()}
+          onNext={() => setIndex((value) => (value + 1) % spec.items.length)}
+        />
+      )}
       <div className="score-frame train-score">
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
       </div>

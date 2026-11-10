@@ -24,6 +24,8 @@ import { LevelRail, PreviewGate } from './TrainBits'
 import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
+import { DemoBar } from './DemoBar'
+import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
@@ -352,6 +354,36 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       )}
       {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
       {drill.countBeat != null && <div className="count-in">{drill.countBeat}</div>}
+      {exercise.notes.length > 0 && (
+        <DemoBar
+          notes={exercise.notes}
+          bpm={bpm}
+          startBeat={0}
+          endBeat={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          practiceHands="R"
+          loop={false}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+        />
+      )}
+      {exercise.notes.length > 0 && (
+        <ListenBar
+          notes={exercise.notes}
+          startBeat={0}
+          rangeStart={0}
+          rangeEnd={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          bpm={bpm}
+          onBpm={setBpm}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+          onPractice={() => void drill.start()}
+          onNext={() => {
+            const index = bank.items.findIndex((item) => item.id === bank.current?.id)
+            const next = bank.items[index + 1] ?? bank.items[0]
+            if (next && next.id !== bank.current?.id) bank.pick(next.id)
+          }}
+        />
+      )}
       <div className="score-frame train-score">
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
       </div>

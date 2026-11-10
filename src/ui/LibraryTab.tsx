@@ -1,5 +1,8 @@
-import { type Ref } from 'react'
+import { lazy, Suspense, useState, type Ref } from 'react'
 import { filterCatalog, needsAttribution, pieceTitle, type CatalogPiece, type CatalogQuery } from '../score/catalog'
+import type { SavedScore, UserLevel } from '../storage/db'
+
+const ScoreImport = lazy(() => import('./ScoreImport').then((mod) => ({ default: mod.ScoreImport })))
 
 const LEVELS: CatalogPiece['level'][] = ['L1', 'L2', 'L3', 'L4', 'L5']
 
@@ -7,6 +10,8 @@ interface SavedScoreCard {
   id: number
   title: string
   createdAt: number
+  level?: UserLevel
+  tag?: string
 }
 
 interface LibraryTabProps {
@@ -20,6 +25,12 @@ interface LibraryTabProps {
   onQuery: (query: CatalogQuery) => void
   onOpen: (piece: CatalogPiece) => void
   onOpenSaved: (id: number) => void
+  onRenameSaved: (id: number, title: string) => void
+  onLevelSaved: (id: number, level: UserLevel) => void
+  onTagSaved: (id: number, tag: string) => void
+  onDeleteSaved: (id: number) => void
+  onRefreshSaved: () => void
+  savedScores: SavedScore[]
   onOpenFile: () => void
   onCollapse?: () => void
   searchRef?: Ref<HTMLInputElement>
@@ -36,10 +47,18 @@ export function LibraryTab({
   onQuery,
   onOpen,
   onOpenSaved,
+  onRenameSaved,
+  onLevelSaved,
+  onTagSaved,
+  onDeleteSaved,
+  onRefreshSaved,
+  savedScores,
   onOpenFile,
   onCollapse,
   searchRef,
 }: LibraryTabProps) {
+  const [importing, setImporting] = useState(false)
+  const [dropped, setDropped] = useState<File[]>([])
   const shown = filterCatalog(pieces, query)
   return (
     <section className="library-panel" aria-label="曲库">
@@ -111,18 +130,61 @@ export function LibraryTab({
         )}
       </section>
 
-      <section className="library-section">
+      <section
+        className="library-section"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDropped([...event.dataTransfer.files])
+          setImporting(true)
+        }}
+      >
         <h3>我的曲谱</h3>
+        <p className="device-note">只存在这台浏览器里，不会上传。可以拖入 MusicXML、MIDI、PDF 或图片。</p>
+        <button type="button" className="button ghost" onClick={() => setImporting((value) => !value)}>
+          {importing ? '收起导入' : '导入曲谱'}
+        </button>
+        {importing && (
+          <Suspense fallback={<p className="device-note">正在打开导入…</p>}>
+            <ScoreImport
+              key={dropped.map((file) => `${file.name}:${file.size}`).join('|') || 'import'}
+              scores={savedScores}
+              initialFiles={dropped}
+              onSaved={onRefreshSaved}
+              onClose={() => setImporting(false)}
+            />
+          </Suspense>
+        )}
         {saved.length === 0 ? (
-          <p className="device-note">识谱后点「用这首练习」，就会出现在这里。</p>
+          <p className="device-note">还没有自己的曲子。导入后会出现在这里，练习功能和曲库里的曲子一样。</p>
         ) : (
-          <div className="recent">
+          <ul className="saved-list">
             {saved.map((score) => (
-              <button key={score.id} type="button" onClick={() => onOpenSaved(score.id)}>
-                {score.title}
-              </button>
+              <li key={score.id}>
+                <button type="button" className="button ghost" onClick={() => onOpenSaved(score.id)}>
+                  练习
+                </button>
+                <input
+                  aria-label="曲名"
+                  value={score.title}
+                  onChange={(event) => onRenameSaved(score.id, event.target.value)}
+                />
+                <select aria-label="程度" value={score.level ?? ''} onChange={(event) => onLevelSaved(score.id, event.target.value as UserLevel)}>
+                  <option value="">程度</option>
+                  {(['L1', 'L2', 'L3', 'L4', 'L5'] as const).map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+                <input
+                  aria-label="标签"
+                  placeholder="标签"
+                  value={score.tag ?? ''}
+                  onChange={(event) => onTagSaved(score.id, event.target.value)}
+                />
+                <button type="button" className="button stop" onClick={() => onDeleteSaved(score.id)}>删除</button>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 

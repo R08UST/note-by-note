@@ -1,3 +1,5 @@
+import { audioPrefs, gainDb } from '../audio/prefs'
+
 let accent: import('tone').Synth | null = null
 let tick: import('tone').Synth | null = null
 let tone: typeof import('tone') | null = null
@@ -36,9 +38,10 @@ export async function startMetronome(bpm: number, quarterBeatsPerMeasure: number
   const perMeasure = Math.max(1, Math.round(quarterBeatsPerMeasure))
   Tone.Transport.scheduleRepeat((time) => {
     beat += 1
-    if (!audible) return
+    if (!audible || audioPrefs.muted) return
     const downbeat = (beat - 1) % perMeasure === 0
     const synth = downbeat ? accent : tick
+    if (synth) synth.volume.value = gainDb(audioPrefs.metro, false)
     synth?.triggerAttackRelease(downbeat ? 'E5' : 'C5', '32n', time)
   }, '4n')
   Tone.Transport.start()

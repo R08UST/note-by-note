@@ -5,12 +5,15 @@ import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type M
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets } from '../modes/span'
-import { type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
+import { filterCatalog, type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
 import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
-import { getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
+import { audioPrefs, setAudioPrefs } from '../audio/prefs'
+import { deleteUserScore, getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, updateUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
+import { DemoBar } from './DemoBar'
+import { ListenBar } from './ListenBar'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
 import { DevicePicker } from './DevicePicker'
@@ -65,6 +68,7 @@ export function PracticeApp() {
   const [rangeReady, setRangeReady] = useState('')
   const [latencyOffsetMs, setLatencyOffsetMs] = useState(0)
   const [continuous, setContinuous] = useState(true)
+  const [sound, setSound] = useState({ muted: false, piano: 0.8, metro: 0.7, monitor: false, accompany: false })
   const [keyboardEnabled, setKeyboardEnabled] = useState(true)
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -174,6 +178,20 @@ export function PracticeApp() {
       setLatencyOffsetMs(settings.latencyOffsetMs)
       if (settings.continuous === false) setContinuous(false)
       if (settings.lastLibraryId) setLastLibraryId(settings.lastLibraryId)
+      setAudioPrefs({
+        muted: settings.muted ?? false,
+        piano: settings.pianoVolume ?? 0.8,
+        metro: settings.metroVolume ?? 0.7,
+        monitor: settings.monitor ?? false,
+        accompany: settings.accompany ?? false,
+      })
+      setSound({
+        muted: settings.muted ?? false,
+        piano: settings.pianoVolume ?? 0.8,
+        metro: settings.metroVolume ?? 0.7,
+        monitor: settings.monitor ?? false,
+        accompany: settings.accompany ?? false,
+      })
       setHydrated(true)
     })
     return () => {
@@ -183,8 +201,20 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!hydrated) return
-    void saveSettings({ bpm, hands, mode, latencyOffsetMs, lastLibraryId: lastLibraryId || undefined, continuous })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous])
+    void saveSettings({
+      bpm,
+      hands,
+      mode,
+      latencyOffsetMs,
+      lastLibraryId: lastLibraryId || undefined,
+      continuous,
+      monitor: sound.monitor,
+      accompany: sound.accompany,
+      muted: sound.muted,
+      pianoVolume: sound.piano,
+      metroVolume: sound.metro,
+    })
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -235,11 +265,20 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!midiOn || !inputId) return
-    return attachInput(inputId, (event) => {
-      if (calibrateInput.current) calibrateInput.current(event)
-      else if (tabRef.current === 'train') trainInput.current(event)
-      else practice.handleInput(event)
-    })
+    return attachInput(
+      inputId,
+      (event) => {
+        if (audioPrefs.monitor) {
+          void import('../audio/engine').then((engine) => engine.monitorNote(event.pitch, event.velocity, event.type === 'on'))
+        }
+        if (calibrateInput.current) calibrateInput.current(event)
+        else if (tabRef.current === 'train') trainInput.current(event)
+        else practice.handleInput(event)
+      },
+      (down) => {
+        void import('../audio/engine').then((engine) => engine.monitorPedal(down))
+      },
+    )
   }, [midiOn, inputId, practice.handleInput])
 
   useEffect(() => {
@@ -534,12 +573,32 @@ export function PracticeApp() {
                   error={libraryError}
                   recent={recentPieces(catalog, runs)}
                   saved={savedScores.flatMap((score) =>
-                    score.id == null ? [] : [{ id: score.id, title: score.title, createdAt: score.createdAt }],
+                    score.id == null ? [] : [{ id: score.id, title: score.title, createdAt: score.createdAt, level: score.level, tag: score.tag }],
                   )}
+                  savedScores={savedScores}
                   query={query}
                   onQuery={setQuery}
                   onOpen={(entry) => void openCatalogPiece(entry)}
                   onOpenSaved={(id) => void openSavedScore(id)}
+                  onRenameSaved={(id, title) => {
+                    void updateUserScore(id, { title }).then(() => listUserScores().then(setSavedScores))
+                    setPiece((current) => (current?.id === `saved:${id}` ? { ...current, title } : current))
+                  }}
+                  onLevelSaved={(id, level) => {
+                    void updateUserScore(id, { level }).then(() => listUserScores().then(setSavedScores))
+                    setPiece((current) => (current?.id === `saved:${id}` ? { ...current, level: level || '我的曲谱' } : current))
+                  }}
+                  onTagSaved={(id, tag) => {
+                    void updateUserScore(id, { tag }).then(() => listUserScores().then(setSavedScores))
+                    setPiece((current) => (current?.id === `saved:${id}` ? { ...current, composer: tag || '我的曲谱' } : current))
+                  }}
+                  onDeleteSaved={(id) => {
+                    void deleteUserScore(id).then(() => listUserScores().then(setSavedScores))
+                    setPiece((current) => (current?.id === `saved:${id}` ? null : current))
+                  }}
+                  onRefreshSaved={() => {
+                    void listUserScores().then(setSavedScores)
+                  }}
                   onOpenFile={() => fileRef.current?.click()}
                   onCollapse={piece ? collapsePicker : undefined}
                   searchRef={searchRef}
@@ -611,8 +670,48 @@ export function PracticeApp() {
                   onHands={setHands}
                   onMode={setMode}
                   onLoop={setLoop}
-                  onStart={() => void practice.start()}
+                  onStart={() => {
+                    void import('../audio/engine').then((engine) => engine.stopDemo())
+                    void practice.start()
+                  }}
                   onStop={practice.stop}
+                />
+                <DemoBar
+                  notes={notes}
+                  bpm={bpm}
+                  startBeat={cursorBeat}
+                  endBeat={endBeat}
+                  practiceHands={hands}
+                  loop={loop}
+                  disabled={practice.status === 'playing' || practice.status === 'countin'}
+                  onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+                />
+                <ListenBar
+                  notes={notes}
+                  startBeat={cursorBeat}
+                  rangeStart={cursorBeat}
+                  rangeEnd={endBeat}
+                  bpm={bpm}
+                  onBpm={setBpm}
+                  disabled={practice.status === 'playing' || practice.status === 'countin'}
+                  onBeat={(beat) => {
+                    setCursorBeat(beat)
+                    scoreRef.current?.setBeat(beat)
+                  }}
+                  onPractice={() => void practice.start()}
+                  onNext={() => {
+                    if (!piece) return
+                    if (piece.id.startsWith('saved:')) {
+                      const index = savedScores.findIndex((score) => `saved:${score.id}` === piece.id)
+                      const next = savedScores[index + 1] ?? savedScores[0]
+                      if (next?.id != null && `saved:${next.id}` !== piece.id) void openSavedScore(next.id)
+                      return
+                    }
+                    const shelf = filterCatalog(catalog, query)
+                    const index = shelf.findIndex((item) => item.id === piece.id)
+                    const next = shelf[index + 1] ?? shelf[0]
+                    if (next && next.id !== piece.id) void openCatalogPiece(next, false)
+                  }}
                 />
                 <FeedbackStrip
                   status={practice.status}
@@ -842,6 +941,72 @@ export function PracticeApp() {
             />
             电脑键盘可以弹音
           </label>
+          <h3>声音</h3>
+          <p className="device-note">钢琴音色在第一次播放时才下载，存在本站，不会去外站取。键盘如果自己会响，监听保持关闭。</p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={sound.muted}
+              onChange={(event) => {
+                const muted = event.target.checked
+                setSound((current) => ({ ...current, muted }))
+                setAudioPrefs({ muted })
+              }}
+            />
+            静音
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={sound.monitor}
+              onChange={(event) => {
+                const monitor = event.target.checked
+                setSound((current) => ({ ...current, monitor }))
+                setAudioPrefs({ monitor })
+              }}
+            />
+            监听 MIDI 键盘（默认关）
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={sound.accompany}
+              onChange={(event) => {
+                const accompany = event.target.checked
+                setSound((current) => ({ ...current, accompany }))
+                setAudioPrefs({ accompany })
+              }}
+            />
+            节奏练习时播放另一只手
+          </label>
+          <label className="field latency">
+            <span>钢琴音量 {Math.round(sound.piano * 100)}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(sound.piano * 100)}
+              onChange={(event) => {
+                const piano = Number(event.target.value) / 100
+                setSound((current) => ({ ...current, piano }))
+                setAudioPrefs({ piano })
+              }}
+            />
+          </label>
+          <label className="field latency">
+            <span>节拍器音量 {Math.round(sound.metro * 100)}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(sound.metro * 100)}
+              onChange={(event) => {
+                const metro = Number(event.target.value) / 100
+                setSound((current) => ({ ...current, metro }))
+                setAudioPrefs({ metro })
+              }}
+            />
+          </label>
           <div className="key-map">
             {KEY_BINDINGS.filter((binding) => /^[A-Z]$/.test(binding.label)).map((binding) => (
               <span key={binding.code}>
@@ -913,8 +1078,8 @@ function pieceFromSaved(saved: SavedScore): LoadedPiece {
     id: `saved:${saved.id}`,
     title: saved.title,
     titleZh: null,
-    composer: '识谱',
-    level: '我的曲谱',
+    composer: saved.tag?.trim() || '我的曲谱',
+    level: saved.level || '我的曲谱',
     xml: saved.xml,
   }
 }

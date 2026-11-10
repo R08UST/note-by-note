@@ -11,6 +11,13 @@ export interface SettingsRecord {
   lastLibraryId?: string
   /** Keep serving the next item in the same level after each exercise. Default on. */
   continuous?: boolean
+  /** Piano sampler through the MIDI keyboard. Off when the keyboard has its own speaker. */
+  monitor?: boolean
+  /** Play the other hand during rhythm practice. */
+  accompany?: boolean
+  muted?: boolean
+  pianoVolume?: number
+  metroVolume?: number
 }
 
 export interface RunRecord {
@@ -24,11 +31,17 @@ export interface RunRecord {
   errorsPerMeasure?: { measure: number; errors: number; expected: number }[]
 }
 
+export type UserLevel = '' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
+
 export interface SavedScore {
   id?: number
   title: string
   xml: string
   createdAt: number
+  /** Optional shelf grade. Empty means the user has not graded it. */
+  level?: UserLevel
+  /** Free label such as 流行 or 练习. */
+  tag?: string
 }
 
 export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece' | 'scale' | 'chord'
@@ -157,6 +170,22 @@ export async function getUserScore(id: number): Promise<SavedScore | undefined> 
     return await db.savedScores.get(id)
   } catch {
     return undefined
+  }
+}
+
+export async function updateUserScore(id: number, patch: Partial<Pick<SavedScore, 'title' | 'level' | 'tag'>>): Promise<void> {
+  try {
+    await db.savedScores.update(id, patch)
+  } catch {
+    // The list stays as it was if storage is blocked.
+  }
+}
+
+export async function deleteUserScore(id: number): Promise<void> {
+  try {
+    await db.savedScores.delete(id)
+  } catch {
+    // Ignore storage failures.
   }
 }
 

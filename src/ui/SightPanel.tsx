@@ -11,6 +11,8 @@ import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { HeatKeys, LevelRail, PreviewGate } from './TrainBits'
+import { DemoBar } from './DemoBar'
+import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
@@ -434,6 +436,36 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
         />
       )}
       {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
+      {phraseLike && phrase.notes.length > 0 && (
+        <DemoBar
+          notes={phrase.notes}
+          bpm={bpm}
+          startBeat={0}
+          endBeat={Math.max(...phrase.notes.map((note) => note.beat + note.duration))}
+          practiceHands={hand}
+          loop={false}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+        />
+      )}
+      {phraseLike && phrase.notes.length > 0 && (
+        <ListenBar
+          notes={phrase.notes}
+          startBeat={0}
+          rangeStart={0}
+          rangeEnd={Math.max(...phrase.notes.map((note) => note.beat + note.duration))}
+          bpm={bpm}
+          onBpm={setBpm}
+          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+          onPractice={() => void drill.start()}
+          onNext={() => {
+            const index = bank.items.findIndex((item) => item.id === bank.current?.id)
+            const next = bank.items[index + 1] ?? bank.items[0]
+            if (next && next.id !== bank.current?.id) bank.pick(next.id)
+          }}
+        />
+      )}
       {shown && (
         <div className="score-frame train-score">
           <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />

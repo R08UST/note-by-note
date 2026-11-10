@@ -28,10 +28,12 @@ interface KeyboardProps {
   flashes: Readonly<Record<number, 'hit' | 'wrong' | 'miss' | 'extra'>>
   targets: readonly number[]
   hints: readonly number[]
+  /** Pitches currently sounding in listen mode, coloured by hand. */
+  hands?: Readonly<Record<number, 'L' | 'R'>>
   onEvent: (event: PlayedEvent) => void
 }
 
-export function Keyboard({ low, high, pressed, flashes, targets, hints, onEvent }: KeyboardProps) {
+export function Keyboard({ low, high, pressed, flashes, targets, hints, hands = {}, onEvent }: KeyboardProps) {
   const pitches: number[] = []
   for (let pitch = low; pitch <= high; pitch += 1) pitches.push(pitch)
   const whites = pitches.filter((pitch) => !isBlack(pitch))
@@ -58,6 +60,8 @@ export function Keyboard({ low, high, pressed, flashes, targets, hints, onEvent 
   const classFor = (pitch: number, black: boolean) => {
     const names = [black ? 'key black' : 'key white']
     if (pressed.has(pitch)) names.push('is-down')
+    if (hands[pitch] === 'R') names.push('is-hand-r')
+    if (hands[pitch] === 'L') names.push('is-hand-l')
     if (targetSet.has(pitch)) names.push('is-target')
     else if (hintSet.has(pitch)) names.push('is-hint')
     const flash = flashes[pitch]

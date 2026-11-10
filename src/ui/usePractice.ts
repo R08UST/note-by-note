@@ -12,6 +12,7 @@ import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
 import { latestRun, saveRun, type RunRecord } from '../storage/db'
 import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
+import { audioPrefs } from '../audio/prefs'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
 import { scoreColor } from './format'
 import { practiceTransition } from './practiceMachine'
@@ -81,6 +82,7 @@ export function usePractice({
   const judgementsRef = useRef<Judgement[]>([])
   const finishingRef = useRef(false)
   const rafRef = useRef(0)
+  const accompanyStop = useRef<(() => void) | null>(null)
   const flashTimers = useRef<number[]>([])
   const heldKeys = useRef<Set<string>>(new Set())
   const savedAtRef = useRef(0)
@@ -160,6 +162,8 @@ export function usePractice({
         reason === 'done' ? engine.advanceTo(Number.POSITIVE_INFINITY) : engine.advanceTo(Math.max(0, now))
       remember(flushed)
     }
+    accompanyStop.current?.()
+    accompanyStop.current = null
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = 0
@@ -299,6 +303,8 @@ export function usePractice({
     engineRef.current = null
     judgementsRef.current = []
     finishingRef.current = false
+    accompanyStop.current?.()
+    accompanyStop.current = null
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     setStatus('idle')
@@ -314,8 +320,10 @@ export function usePractice({
 
   useEffect(() => {
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      stopMetronome()
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    accompanyStop.current?.()
+    accompanyStop.current = null
+    stopMetronome()
       for (const timer of flashTimers.current) window.clearTimeout(timer)
     }
   }, [])
@@ -377,6 +385,14 @@ export function usePractice({
       setRunStatus(nextStatus === 'countin' ? 'countin' : nextStatus)
       setCountBeat(1)
       await startMetronome(options.bpm, countInBeats)
+      accompanyStop.current?.()
+      accompanyStop.current = null
+      if (audioPrefs.accompany && options.hands !== 'both') {
+        const other = options.hands === 'R' ? 'L' : 'R'
+        const backing = notesInBeats(options.notes, options.span).filter((note) => note.hand === other)
+        const engine = await import('../audio/engine')
+        accompanyStop.current = await engine.scheduleAccompaniment(backing, options.bpm, countInBeats, runRef.current.originBeat)
+      }
       if (runIdRef.current !== runId || statusRef.current !== 'countin') return
       const loop = () => {
         if (runIdRef.current !== runId) return

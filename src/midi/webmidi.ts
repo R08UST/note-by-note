@@ -40,7 +40,11 @@ function velocityOf(raw: number | undefined, normalized: number | undefined): nu
   return Math.round((normalized ?? 0.8) * 127)
 }
 
-export function attachInput(id: string, onEvent: (event: PlayedEvent) => void): () => void {
+export function attachInput(
+  id: string,
+  onEvent: (event: PlayedEvent) => void,
+  onSustain?: (down: boolean) => void,
+): () => void {
   const input: Input | undefined = WebMidi.inputs.find((item) => item.id === id)
   if (!input) return () => {}
 
@@ -63,10 +67,16 @@ export function attachInput(id: string, onEvent: (event: PlayedEvent) => void): 
     })
   }
 
+  const sustain = (event: { controller: { number: number }; rawValue?: number }) => {
+    if (event.controller.number !== 64) return
+    onSustain?.((event.rawValue ?? 0) >= 64)
+  }
   input.addListener('noteon', noteOn)
   input.addListener('noteoff', noteOff)
+  if (onSustain) input.addListener('controlchange', sustain)
   return () => {
     input.removeListener('noteon', noteOn)
     input.removeListener('noteoff', noteOff)
+    if (onSustain) input.removeListener('controlchange', sustain)
   }
 }
