@@ -58,6 +58,9 @@ export interface PracticeRangeRecord {
   end: number
   loops: number
   ramp: boolean
+  /** Onset the passage starts on. Missing on ranges saved before note-level selection. */
+  startBeat?: number
+  endBeat?: number
 }
 
 export interface BankMarkRecord {

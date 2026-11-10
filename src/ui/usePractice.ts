@@ -5,7 +5,7 @@ import { selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { RhythmMode } from '../modes/rhythmMode'
 import { WaitMode } from '../modes/waitMode'
-import { notesInRange, rangeOriginBeat, shiftNotes, type MeasureRange } from '../modes/span'
+import { entryClock, notesInBeats, shiftNotes, type BeatSpan } from '../modes/span'
 import { summarize, type RunSummary } from '../report/summary'
 import type { TimeSignature } from '../score/parseMusicXml'
 import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
@@ -29,9 +29,8 @@ interface PracticeOptions {
   timeSignature: TimeSignature
   scoreRef: RefObject<ScoreHandle | null>
   loop: boolean
-  range: MeasureRange
-  /** Measure the next start begins at, inside `range`. */
-  anchor: number
+  /** Inclusive onset span. Both hands at one beat are one step. */
+  span: BeatSpan
   /** 0 keeps looping until Stop. */
   loopLimit: number
   ramp: boolean
@@ -59,8 +58,7 @@ export function usePractice({
   timeSignature,
   scoreRef,
   loop,
-  range,
-  anchor,
+  span,
   loopLimit,
   ramp,
   onRamp,
@@ -94,6 +92,7 @@ export function usePractice({
     pieceId,
     perfectMs: 80,
     originBeat: 0,
+    entryBeat: 0,
   })
   const passesRef = useRef<RunSummary[]>([])
   const [passes, setPasses] = useState<RunSummary[]>([])
@@ -108,13 +107,12 @@ export function usePractice({
     latencyOffsetMs,
     timeSignature,
     loop,
-    range,
-    anchor,
+    span,
     loopLimit,
     ramp,
     onRamp,
   })
-  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, range, anchor, loopLimit, ramp, onRamp }
+  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, span, loopLimit, ramp, onRamp }
   const startRef = useRef<(keepPasses?: boolean) => Promise<void>>(async () => {})
 
   const setRunStatus = (next: RunStatus) => {
@@ -330,17 +328,10 @@ export function usePractice({
     const startingFrom = statusRef.current
     if (startingFrom === 'playing' || startingFrom === 'countin') return
     const options = optionsRef.current
-    const selected = notesInRange(selectHands(options.notes, options.hands), {
-      start: Math.max(options.range.start, options.anchor),
-      end: options.range.end,
-    })
+    const selected = notesInBeats(selectHands(options.notes, options.hands), options.span)
     if (selected.length === 0) return
-    const origin = rangeOriginBeat(
-      options.notes,
-      { start: Math.max(options.range.start, options.anchor), end: options.range.end },
-      quarterBeatsPerMeasure(options.timeSignature),
-    )
-    const active = shiftNotes(selected, origin)
+    const clock = entryClock(Math.min(options.span.startBeat, options.span.endBeat), quarterBeatsPerMeasure(options.timeSignature))
+    const active = shiftNotes(selected, clock.downbeat)
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     for (const timer of flashTimers.current) window.clearTimeout(timer)
@@ -360,7 +351,8 @@ export function usePractice({
       notes: active,
       pieceId: options.pieceId,
       perfectMs: windows.perfectMs,
-      originBeat: origin,
+      originBeat: clock.downbeat,
+      entryBeat: Math.min(options.span.startBeat, options.span.endBeat),
     }
     const engine: Engine =
       options.mode === 'wait'
@@ -372,8 +364,7 @@ export function usePractice({
             lateMs: windows.lateMs,
           })
     engineRef.current = engine
-    const beat = (engine.cursorBeat() ?? 0) + origin
-    scoreRef.current?.prepare(options.hands, beat)
+    scoreRef.current?.prepare(options.hands, runRef.current.entryBeat)
     setCurrent(engine.currentNotes())
 
     if (options.mode === 'rhythm') {
@@ -388,7 +379,7 @@ export function usePractice({
           const beatMs = 60_000 / runRef.current.bpm
           const elapsed = scoreMs + runRef.current.countInBeats * beatMs
           setCountBeat(Math.min(runRef.current.countInBeats, Math.floor(elapsed / beatMs) + 1))
-          scoreRef.current?.setBeat(runRef.current.originBeat)
+          scoreRef.current?.setBeat(runRef.current.entryBeat)
         } else {
           if (statusRef.current === 'countin') {
             setRunStatus('playing')
@@ -397,7 +388,8 @@ export function usePractice({
           const live = engineRef.current
           if (live) {
             rememberRef.current(live.advanceTo(scoreMs - MISS_CUSHION_MS))
-            scoreRef.current?.setBeat(runRef.current.originBeat + scoreMs / (60_000 / runRef.current.bpm))
+            const absolute = runRef.current.originBeat + scoreMs / (60_000 / runRef.current.bpm)
+            scoreRef.current?.setBeat(Math.max(runRef.current.entryBeat, absolute))
             const lastBeat = runRef.current.notes.reduce((max, note) => Math.max(max, note.beat), 0)
             const endMs = (lastBeat * 60_000) / runRef.current.bpm + 250 + MISS_CUSHION_MS + 120
             if (scoreMs > endMs || live.done()) {
@@ -424,14 +416,22 @@ export function usePractice({
   }
 
   const stepBack = () => {
+    stepOnset(-1)
+  }
+
+  const stepOnset = (direction: -1 | 1): boolean => {
     const engine = engineRef.current
-    if (!(engine instanceof WaitMode) || statusRef.current !== 'playing') return
-    engine.retreat()
+    if (!(engine instanceof WaitMode) || statusRef.current !== 'playing') return false
+    if (direction < 0) engine.retreat()
+    else engine.advance()
     judgementsRef.current = [...engine.judgements]
     setJudgements(judgementsRef.current)
     const beat = engine.cursorBeat()
     if (beat != null) scoreRef.current?.setBeat(runRef.current.originBeat + beat)
-    setCurrent(engine.currentNotes())
+    const showing = engine.currentNotes()
+    for (const note of showing) scoreRef.current?.colorNote(note.id, '#241c16')
+    setCurrent(showing)
+    return true
   }
 
   return {
@@ -449,5 +449,6 @@ export function usePractice({
     start,
     stop,
     stepBack,
+    stepOnset,
   }
 }

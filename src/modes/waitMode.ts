@@ -68,6 +68,11 @@ export class WaitMode {
     return []
   }
 
+  /** Skip ahead one attack without marking the current one missed. */
+  advance(): void {
+    if (this.index < this.groups.length - 1) this.index += 1
+  }
+
   /** Move to the previous attack. Hits on the attack you leave are dropped, so the report only keeps what you replay. */
   retreat(): void {
     if (this.index > 0 && this.groups[this.index]?.every((note) => !this.hit.has(note.id))) {

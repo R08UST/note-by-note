@@ -4,7 +4,7 @@ import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
-import { notesInRange } from '../modes/span'
+import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets } from '../modes/span'
 import { type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
@@ -60,7 +60,8 @@ export function PracticeApp() {
   const [ramp, setRamp] = useState(false)
   const [rangeStart, setRangeStart] = useState(1)
   const [rangeEnd, setRangeEnd] = useState(1)
-  const [anchor, setAnchor] = useState(1)
+  const [cursorBeat, setCursorBeat] = useState(0)
+  const [endBeat, setEndBeat] = useState(0)
   const [rangeReady, setRangeReady] = useState('')
   const [latencyOffsetMs, setLatencyOffsetMs] = useState(0)
   const [continuous, setContinuous] = useState(true)
@@ -120,8 +121,7 @@ export function PracticeApp() {
     timeSignature: parsed.score?.timeSignature ?? { beats: 4, beatType: 4 },
     scoreRef,
     loop,
-    range: { start: rangeStart, end: rangeEnd },
-    anchor,
+    span: { startBeat: cursorBeat, endBeat },
     loopLimit,
     ramp,
     onRamp: () => setBpm((value) => Math.min(160, value + 4)),
@@ -223,9 +223,15 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (scoreState !== 'ready' || practice.status !== 'idle') return
-    const beat = firstOnset(selectHands(notes, hands))[0]?.beat ?? 0
-    scoreRef.current?.prepare(hands, beat)
-  }, [scoreState, practice.status, hands, notes, piece?.id])
+    scoreRef.current?.prepare(hands, cursorBeat)
+    // Recoloring on every cursor move is what flashed the page. Only the hand filter repaints noteheads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scoreState, hands, piece?.id, practice.status])
+
+  useEffect(() => {
+    if (scoreState !== 'ready' || practice.status === 'playing' || practice.status === 'countin') return
+    scoreRef.current?.setBeat(cursorBeat)
+  }, [cursorBeat, scoreState, practice.status])
 
   useEffect(() => {
     if (!midiOn || !inputId) return
@@ -371,16 +377,23 @@ export function PracticeApp() {
     let cancel = false
     void loadPracticeRange(piece.id).then((saved) => {
       if (cancel) return
+      const groups = onsets(notes)
+      const wholeStart = groups[0]?.beat ?? 0
+      const wholeEnd = groups[groups.length - 1]?.beat ?? 0
       if (saved) {
-        setRangeStart(Math.max(1, Math.min(saved.start, last)))
-        setRangeEnd(Math.max(1, Math.min(saved.end, last)))
-        setAnchor(Math.max(1, Math.min(saved.start, last)))
+        const startMeasure = Math.max(1, Math.min(saved.start, last))
+        const endMeasure = Math.max(1, Math.min(saved.end, last))
+        setRangeStart(startMeasure)
+        setRangeEnd(endMeasure)
+        setCursorBeat(saved.startBeat ?? firstOnsetInMeasure(groups, startMeasure)?.beat ?? wholeStart)
+        setEndBeat(saved.endBeat ?? lastOnsetInMeasure(groups, endMeasure)?.beat ?? wholeEnd)
         setLoopLimit(saved.loops)
         setRamp(saved.ramp)
       } else {
         setRangeStart(1)
         setRangeEnd(last)
-        setAnchor(1)
+        setCursorBeat(wholeStart)
+        setEndBeat(wholeEnd)
       }
       setRangeReady(piece.id)
     })
@@ -391,48 +404,71 @@ export function PracticeApp() {
 
   useEffect(() => {
     if (!piece || rangeReady !== piece.id) return
-    void savePracticeRange({ pieceId: piece.id, start: rangeStart, end: rangeEnd, loops: loopLimit, ramp })
-  }, [piece?.id, rangeStart, rangeEnd, loopLimit, ramp, rangeReady])
+    void savePracticeRange({ pieceId: piece.id, start: rangeStart, end: rangeEnd, loops: loopLimit, ramp, startBeat: cursorBeat, endBeat })
+  }, [piece?.id, rangeStart, rangeEnd, loopLimit, ramp, rangeReady, cursorBeat, endBeat])
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (!event.altKey || tab !== 'practice') return
-      if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault()
-        jumpTo(anchor - 1, true)
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault()
-        jumpTo(anchor + 1, true)
-      } else if (event.key === 'Home') {
-        event.preventDefault()
-        jumpTo(rangeStart, true)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
   const lastMeasure = Math.max(1, ...notes.map((note) => note.measure))
+  const groups = onsets(active)
   const counts = countHands(notes)
-  const jumpTo = (measure: number, restart: boolean) => {
-    const next = Math.min(rangeEnd, Math.max(rangeStart, measure))
-    setAnchor(next)
-    if (!restart) {
-      const beat = notes.filter((note) => note.measure === next).reduce((min, note) => Math.min(min, note.beat), Number.POSITIVE_INFINITY)
-      if (Number.isFinite(beat)) scoreRef.current?.setBeat(beat)
-      return
-    }
+  const restart = () => {
     if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
     window.setTimeout(() => void practice.start(), 70)
   }
-  const hintNotes = practice.status === 'idle' ? firstOnset(notesInRange(active, { start: Math.max(rangeStart, anchor), end: rangeEnd })) : []
+  const stepNote = (direction: -1 | 1) => {
+    if (practice.stepOnset(direction)) return
+    const next = neighborOnset(groups, cursorBeat, direction)
+    if (!next || next.beat > endBeat + 1e-3) return
+    if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
+    setCursorBeat(next.beat)
+    setRangeStart(next.measure)
+    scoreRef.current?.setBeat(next.beat)
+  }
+  const stepMeasure = (direction: -1 | 1) => {
+    let measure = rangeStart
+    for (const group of groups) if (group.beat <= cursorBeat + 1e-3) measure = group.measure
+    const target = firstOnsetInMeasure(groups, measure + direction)
+    if (!target || target.beat > endBeat + 1e-3) return
+    setCursorBeat(target.beat)
+    setRangeStart(target.measure)
+    restart()
+  }
+  const hintNotes = practice.status === 'idle' ? firstOnset(notesInBeats(active, { startBeat: cursorBeat, endBeat })) : []
   const targetNotes = practice.status === 'playing' || practice.status === 'countin' ? practice.current : []
   const hits = practice.judgements.filter((item) => item.result === 'hit').length
   const wrongs = practice.judgements.filter((item) => item.result === 'wrong').length
   const misses = practice.judgements.filter((item) => item.result === 'miss').length
   const extras = practice.judgements.filter((item) => item.result === 'extra').length
   const running = practice.status === 'playing' || practice.status === 'countin'
-  const canStart = !running && notesInRange(active, { start: Math.max(rangeStart, anchor), end: rangeEnd }).length > 0 && scoreState !== 'loading'
+  const canStart = !running && notesInBeats(active, { startBeat: cursorBeat, endBeat }).length > 0 && scoreState !== 'loading'
+
+  useEffect(() => {
+    if (tab !== 'practice') return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return
+      if (event.altKey && event.key === 'ArrowLeft') {
+        event.preventDefault()
+        stepMeasure(-1)
+      } else if (event.altKey && event.key === 'ArrowRight') {
+        event.preventDefault()
+        stepMeasure(1)
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        stepNote(-1)
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        stepNote(1)
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
+        if (!first) return
+        setCursorBeat(first.beat)
+        scoreRef.current?.setBeat(first.beat)
+        restart()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   return (
     <div className="app">
@@ -525,9 +561,17 @@ export function PracticeApp() {
                 </header>
                 <div className="passage">
                   <div className="omr-actions">
-                    <button type="button" className="button ghost" onClick={() => jumpTo(anchor - 1, true)}>上一小节</button>
-                    <button type="button" className="button ghost" onClick={() => jumpTo(anchor + 1, true)}>下一小节</button>
-                    <button type="button" className="button ghost" onClick={() => jumpTo(rangeStart, true)}>回到开头</button>
+                    <button type="button" className="button ghost" onClick={() => stepNote(-1)}>上一个音</button>
+                    <button type="button" className="button ghost" onClick={() => stepNote(1)}>下一个音</button>
+                    <button type="button" className="button ghost" onClick={() => stepMeasure(-1)}>上一小节</button>
+                    <button type="button" className="button ghost" onClick={() => stepMeasure(1)}>下一小节</button>
+                    <button type="button" className="button ghost" onClick={() => {
+                      const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
+                      if (!first) return
+                      setCursorBeat(first.beat)
+                      scoreRef.current?.setBeat(first.beat)
+                      restart()
+                    }}>回到开头</button>
                     {mode === 'wait' && (
                       <button type="button" className="button ghost" onClick={practice.stepBack} disabled={practice.status !== 'playing'}>
                         退一音
@@ -536,16 +580,26 @@ export function PracticeApp() {
                   </div>
                   <div className="omr-actions">
                     <label className="field">从
-                      <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => setRangeStart(Math.max(1, Number(event.target.value) || 1))} />
+                      <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => {
+                        const measure = Math.max(1, Number(event.target.value) || 1)
+                        setRangeStart(measure)
+                        const onset = firstOnsetInMeasure(groups, measure)
+                        if (onset) setCursorBeat(onset.beat)
+                      }} />
                     </label>
                     <label className="field">到
-                      <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => setRangeEnd(Math.max(1, Number(event.target.value) || 1))} />
+                      <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => {
+                        const measure = Math.max(1, Number(event.target.value) || 1)
+                        setRangeEnd(measure)
+                        const onset = lastOnsetInMeasure(groups, measure)
+                        if (onset) setEndBeat(onset.beat)
+                      }} />
                     </label>
                     <label className="field">循环遍数
                       <input type="number" min={0} max={20} value={loopLimit} onChange={(event) => setLoopLimit(Math.max(0, Number(event.target.value) || 0))} />
                     </label>
                     <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后 +4</label>
-                    <span className="device-note">点小节就从那里重来。按住 Shift 再点，扩选范围。Alt+左右是上一小节和下一小节。循环遍数 0 表示一直循环。</span>
+                    <span className="device-note">点音符就从那个音重来。左右方向键是上一个音和下一个音，Alt+左右是小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。</span>
                   </div>
                 </div>
                 <Controls
@@ -578,13 +632,23 @@ export function PracticeApp() {
                     summary={practice.passes.length > 1 ? (practice.passes[practice.passes.length - 1] ?? practice.summary) : practice.summary}
                     passes={practice.passes}
                     saved={practice.judgements.length > 0}
-                    onJump={(measure) => jumpTo(measure, true)}
+                    onJump={(measure) => {
+                      const target = firstOnsetInMeasure(groups, measure)
+                      if (!target) return
+                      setCursorBeat(target.beat)
+                      setRangeStart(target.measure)
+                      if (target.beat > endBeat) setEndBeat(target.beat)
+                      restart()
+                    }}
                     onPracticeAround={(measure) => {
                       const start = Math.max(1, measure - 1)
                       const end = Math.min(lastMeasure, measure + 1)
+                      const from = firstOnsetInMeasure(groups, start)
+                      const to = lastOnsetInMeasure(groups, end)
                       setRangeStart(start)
                       setRangeEnd(end)
-                      setAnchor(start)
+                      if (from) setCursorBeat(from.beat)
+                      if (to) setEndBeat(to.beat)
                       setLoop(true)
                       window.setTimeout(() => void practice.start(), 70)
                     }}
@@ -612,15 +676,43 @@ export function PracticeApp() {
                       <ScoreView
                         xml={piece.xml}
                         notes={notes}
-                        range={{ start: rangeStart, end: rangeEnd }}
+                        span={{ startBeat: cursorBeat, endBeat }}
                         ref={scoreRef}
-                        onMeasure={(measure, shift) => {
+                        onNote={(id, shift) => {
+                          const note = notes.find((item) => item.id === id)
+                          if (!note) return
                           if (shift) {
+                            const low = Math.min(cursorBeat, note.beat)
+                            const high = Math.max(cursorBeat, note.beat)
+                            setCursorBeat(low)
+                            setEndBeat(high)
+                            const from = active.find((item) => Math.abs(item.beat - low) < 1e-3)
+                            const to = [...active].reverse().find((item) => Math.abs(item.beat - high) < 1e-3)
+                            if (from) setRangeStart(from.measure)
+                            if (to) setRangeEnd(to.measure)
+                            return
+                          }
+                          setCursorBeat(note.beat)
+                          setRangeStart(note.measure)
+                          if (note.beat > endBeat) setEndBeat(note.beat)
+                          restart()
+                        }}
+                        onMeasure={(measure, shift) => {
+                          const target = shift ? lastOnsetInMeasure(groups, measure) : firstOnsetInMeasure(groups, measure)
+                          if (!target) return
+                          if (shift) {
+                            const low = Math.min(cursorBeat, target.beat)
+                            const high = Math.max(cursorBeat, target.beat)
+                            setCursorBeat(low)
+                            setEndBeat(high)
                             setRangeStart((start) => Math.min(start, measure))
                             setRangeEnd((end) => Math.max(end, measure))
                             return
                           }
-                          jumpTo(measure, true)
+                          setCursorBeat(target.beat)
+                          setRangeStart(target.measure)
+                          if (target.beat > endBeat) setEndBeat(target.beat)
+                          restart()
                         }}
                         onReady={(info) => {
                           setMapInfo(info)

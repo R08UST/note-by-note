@@ -24,6 +24,70 @@ export function rangeOriginBeat(notes: readonly ScoreNote[], range: MeasureRange
   return (range.start - 1) * beatsPerMeasure
 }
 
+export interface BeatSpan {
+  startBeat: number
+  endBeat: number
+}
+
+/** Notes whose onset is inside the span, inclusive. A chord shares one beat. */
+export function notesInBeats(notes: readonly ScoreNote[], span: BeatSpan): ScoreNote[] {
+  const low = Math.min(span.startBeat, span.endBeat)
+  const high = Math.max(span.startBeat, span.endBeat)
+  return notes.filter((note) => note.beat >= low - 1e-3 && note.beat <= high + 1e-3)
+}
+
+/**
+ * Where a mid-measure entry sits in the bar.
+ * Count-in is still one full bar; playback time 0 is this downbeat, so the note
+ * sounds `offset` quarter-beats later, on its written beat.
+ */
+export function entryClock(startBeat: number, beatsPerMeasure: number): { downbeat: number; offset: number } {
+  const per = Math.max(1, beatsPerMeasure)
+  const within = ((startBeat % per) + per) % per
+  const offset = within < 0.02 ? 0 : within
+  return { downbeat: startBeat - offset, offset }
+}
+
+export interface Onset {
+  beat: number
+  measure: number
+  ids: string[]
+}
+
+/** One step per sounding time. Both hands at that time are the same step. */
+export function onsets(notes: readonly ScoreNote[]): Onset[] {
+  const sorted = [...notes].sort((a, b) => a.beat - b.beat || a.pitch - b.pitch || a.id.localeCompare(b.id))
+  const groups: Onset[] = []
+  for (const note of sorted) {
+    const last = groups[groups.length - 1]
+    if (!last || Math.abs(last.beat - note.beat) > 1e-3) {
+      groups.push({ beat: note.beat, measure: note.measure, ids: [note.id] })
+    } else {
+      last.ids.push(note.id)
+    }
+  }
+  return groups
+}
+
+export function neighborOnset(groups: readonly Onset[], beat: number, direction: -1 | 1): Onset | undefined {
+  if (groups.length === 0) return undefined
+  let index = 0
+  for (let i = 0; i < groups.length; i += 1) {
+    if (groups[i].beat <= beat + 1e-3) index = i
+  }
+  return groups[index + direction]
+}
+
+export function firstOnsetInMeasure(groups: readonly Onset[], measure: number): Onset | undefined {
+  return groups.find((group) => group.measure === measure)
+}
+
+export function lastOnsetInMeasure(groups: readonly Onset[], measure: number): Onset | undefined {
+  let found: Onset | undefined
+  for (const group of groups) if (group.measure === measure) found = group
+  return found
+}
+
 /** Copy notes so the range begins at beat 0. Ids stay the same. */
 export function shiftNotes(notes: readonly ScoreNote[], originBeat: number): ScoreNote[] {
   return notes.map((note) => ({ ...note, beat: note.beat - originBeat }))
