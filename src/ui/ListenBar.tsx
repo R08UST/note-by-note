@@ -16,9 +16,12 @@ interface ListenBarProps {
   onPractice: () => void
   /** Next item in the shelf. Continuous play calls this when a piece ends. */
   onNext?: () => void
+  /** Practice draws these on its own keyboard. Train keeps a keyboard here. */
+  showKeyboard?: boolean
+  onSounding?: (hands: Readonly<Record<number, 'L' | 'R'>>) => void
 }
 
-export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, onBeat, onPractice, onNext }: ListenBarProps) {
+export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, onBeat, onPractice, onNext, showKeyboard = true, onSounding }: ListenBarProps) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
   const [loop, setLoop] = useState(false)
@@ -54,11 +57,13 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
         const next: Record<number, 'L' | 'R'> = {}
         for (const note of active) next[note.pitch] = note.hand
         setSounding(next)
+        onSounding?.(next)
       },
       onEnded: () => {
         setPlaying(false)
         setPaused(false)
         setSounding({})
+        onSounding?.({})
         if (continuousRef.current && onNext) {
           armNext.current = true
           onNext()
@@ -132,20 +137,23 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
           setPlaying(false)
           setPaused(false)
           setSounding({})
+          onSounding?.({})
         }}
       >
         停止
       </button>
-      <Keyboard
-        low={bounds.low}
-        high={bounds.high}
-        pressed={new Set()}
-        flashes={{}}
-        targets={[]}
-        hints={[]}
-        hands={sounding}
-        onEvent={() => {}}
-      />
+      {showKeyboard && (
+        <Keyboard
+          low={bounds.low}
+          high={bounds.high}
+          pressed={new Set()}
+          flashes={{}}
+          targets={[]}
+          hints={[]}
+          hands={sounding}
+          onEvent={() => {}}
+        />
+      )}
       {offer && (
         <div className="promote-offer" role="status">
           <p>听完了。要练这一段吗？</p>

@@ -53,7 +53,7 @@ export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, d
   }
 
   return (
-    <div className="omr-actions">
+    <div className="omr-actions demo-bar">
       <div className="segmented" role="group" aria-label="示范声部">
         {([
           ['L', '左手'],

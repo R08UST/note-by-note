@@ -18,6 +18,10 @@ export interface SettingsRecord {
   muted?: boolean
   pianoVolume?: number
   metroVolume?: number
+  /** On-screen keyboard stays open. Collapsed when omitted. */
+  keyboardOpen?: boolean
+  /** 1 fits the score to the width. */
+  scoreZoom?: number
 }
 
 export interface RunRecord {

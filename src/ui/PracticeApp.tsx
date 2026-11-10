@@ -70,6 +70,10 @@ export function PracticeApp() {
   const [continuous, setContinuous] = useState(true)
   const [sound, setSound] = useState({ muted: false, piano: 0.8, metro: 0.7, monitor: false, accompany: false })
   const [keyboardEnabled, setKeyboardEnabled] = useState(true)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [scoreZoom, setScoreZoom] = useState(1)
+  const [focusMode, setFocusMode] = useState(false)
+  const [listenHands, setListenHands] = useState<Record<number, 'L' | 'R'>>({})
   const [hydrated, setHydrated] = useState(false)
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [mapInfo, setMapInfo] = useState({ matched: 0, total: 0 })
@@ -192,6 +196,8 @@ export function PracticeApp() {
         monitor: settings.monitor ?? false,
         accompany: settings.accompany ?? false,
       })
+      setKeyboardOpen(settings.keyboardOpen === true)
+      if (typeof settings.scoreZoom === 'number' && settings.scoreZoom >= 0.6 && settings.scoreZoom <= 2.2) setScoreZoom(settings.scoreZoom)
       setHydrated(true)
     })
     return () => {
@@ -213,8 +219,10 @@ export function PracticeApp() {
       muted: sound.muted,
       pianoVolume: sound.piano,
       metroVolume: sound.metro,
+      keyboardOpen,
+      scoreZoom,
     })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound])
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -508,7 +516,7 @@ export function PracticeApp() {
   })
 
   return (
-    <div className="app">
+    <div className={`app${tab === 'practice' && piece ? ' is-practicing' : ''}${focusMode ? ' is-focus' : ''}`}>
       <header className="topbar">
         <div>
           <p className="eyebrow">练习台</p>
@@ -612,6 +620,12 @@ export function PracticeApp() {
                     <p className="eyebrow">当前曲目</p>
                     <h2>{nowPlayingLine(piece)}</h2>
                   </div>
+                  <div className="zoom-controls" role="group" aria-label="乐谱缩放">
+                    <button type="button" className="button ghost" aria-label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}>－</button>
+                    <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
+                    <button type="button" className="button ghost" aria-label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}>＋</button>
+                  </div>
+                  <button type="button" className="button ghost" onClick={() => setFocusMode(true)}>专注</button>
                   <button type="button" className="button ghost" onClick={openPicker}>
                     换一首
                   </button>
@@ -676,6 +690,7 @@ export function PracticeApp() {
                   }}
                   onStop={practice.stop}
                 />
+                <div className="play-tools">
                 <DemoBar
                   notes={notes}
                   bpm={bpm}
@@ -694,6 +709,8 @@ export function PracticeApp() {
                   bpm={bpm}
                   onBpm={setBpm}
                   disabled={practice.status === 'playing' || practice.status === 'countin'}
+                  showKeyboard={false}
+                  onSounding={setListenHands}
                   onBeat={(beat) => {
                     setCursorBeat(beat)
                     scoreRef.current?.setBeat(beat)
@@ -713,6 +730,7 @@ export function PracticeApp() {
                     if (next && next.id !== piece.id) void openCatalogPiece(next, false)
                   }}
                 />
+                </div>
                 <FeedbackStrip
                   status={practice.status}
                   modeLabel={mode === 'wait' ? '等待' : '节奏'}
@@ -777,6 +795,7 @@ export function PracticeApp() {
                         notes={notes}
                         span={{ startBeat: cursorBeat, endBeat }}
                         ref={scoreRef}
+                        zoom={scoreZoom}
                         onNote={(id, shift) => {
                           const note = notes.find((item) => item.id === id)
                           if (!note) return
@@ -837,24 +856,46 @@ export function PracticeApp() {
                     </div>
                   )}
                 </section>
-                <section className="keyboard-panel" aria-label="钢琴键盘">
-                  <div className="keyboard-caption">
-                    <p>
-                      {keyboardEnabled
-                        ? '点键，或用电脑键盘。键位在设置里。'
-                        : '电脑键盘已关闭。点屏幕上的键，或到设置里重新打开。'}
-                    </p>
-                  </div>
-                  <Keyboard
-                    low={bounds.low}
-                    high={bounds.high}
-                    pressed={practice.pressed}
-                    flashes={practice.flashes}
-                    targets={targetNotes.map((note) => note.pitch)}
-                    hints={hintNotes.map((note) => note.pitch)}
-                    onEvent={practice.handleInput}
-                  />
+                <section className={keyboardOpen ? 'keyboard-panel is-open' : 'keyboard-panel is-collapsed'} aria-label="钢琴键盘">
+                  <button
+                    type="button"
+                    className="keyboard-strip"
+                    aria-expanded={keyboardOpen}
+                    onClick={() => setKeyboardOpen((open) => !open)}
+                  >
+                    {keyboardOpen ? '收起键盘' : '键盘'}
+                    <span>右手 · 左手 · 当前音 · 下一音</span>
+                  </button>
+                  {keyboardOpen && (
+                    <Keyboard
+                      low={bounds.low}
+                      high={bounds.high}
+                      pressed={practice.pressed}
+                      flashes={practice.flashes}
+                      targets={targetNotes.map((note) => note.pitch)}
+                      hints={hintNotes.map((note) => note.pitch)}
+                      hands={listenHands}
+                      onEvent={practice.handleInput}
+                    />
+                  )}
                 </section>
+                <div className="focus-dock">
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={() => {
+                      if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
+                      else void practice.start()
+                    }}
+                  >
+                    {practice.status === 'playing' || practice.status === 'countin' ? '停止' : '开始'}
+                  </button>
+                  <button type="button" className="button ghost" aria-label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}>－</button>
+                  <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
+                  <button type="button" className="button ghost" aria-label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}>＋</button>
+                  <button type="button" className="button ghost" onClick={() => setKeyboardOpen((open) => !open)}>{keyboardOpen ? '收起键盘' : '键盘'}</button>
+                  <button type="button" className="button ghost" onClick={() => setFocusMode(false)}>退出专注</button>
+                </div>
               </div>
             )}
           </div>

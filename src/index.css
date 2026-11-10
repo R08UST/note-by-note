@@ -252,6 +252,27 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.focus-dock { display: none; }
+.keyboard-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #14110e;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.keyboard-panel.is-collapsed { padding: 0; background: transparent; border: 0; }
+.keyboard-panel.is-open .keybed { height: 78px; }
+.keyboard-panel.is-open .key .key-name,
+.keyboard-panel.is-open .key kbd { display: none; }
+.zoom-controls { display: flex; gap: 6px; align-items: center; }
+
 .score-meta {
   display: flex;
   gap: 14px;
@@ -263,7 +284,7 @@ h1 {
 }
 
 .score-host { min-height: 200px; padding: 0 8px 12px; }
-.score-host svg { width: 100%; height: auto; }
+.score-host svg { width: auto; max-width: none; height: auto; }
 .score-host .is-practice-note { outline: 2px solid rgba(227, 155, 59, 0.9); outline-offset: 1px; }
 .score-skeleton { min-height: 220px; border-radius: 12px; background: repeating-linear-gradient(-45deg, #efe6d6, #efe6d6 12px, #e7dcc8 12px, #e7dcc8 24px); }
 
@@ -622,6 +643,93 @@ h1 {
 .page-thumbs img { width: 120px; background: white; border-radius: 8px; display: block; }
 .page-thumbs label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 0.78rem; }
 .page-times { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.app.is-practicing {
+  width: calc(100% - 12px);
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 6px 0;
+  gap: 6px;
+  overflow: hidden;
+}
+.app.is-practicing .topbar { display: none; }
+.app.is-practicing .tabs { gap: 4px; }
+.app.is-practicing .tabs a { min-width: 0; padding: 3px 8px; border-radius: 8px; }
+.app.is-practicing .tabs a small { display: none; }
+.app.is-practicing .tabs a strong { font-size: 0.88rem; }
+.app.is-practicing .tab-panel:not(.is-stashed) { flex: 1; min-height: 0; gap: 6px; }
+.app.is-practicing .practice-layout.has-piece { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.app.is-practicing .practice-main, .app.is-practicing .score-frame { width: 100%; }
+.play-tools { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.app.is-practicing .practice-layout.has-piece.picker-open {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+.app.is-practicing .library-slot { max-height: 100%; padding: 8px; }
+.app.is-practicing .library-card { min-height: 0; padding: 8px; }
+.app.is-practicing .practice-main { height: 100%; min-height: 0; gap: 6px; }
+.app.is-practicing .now-playing { padding: 4px 8px; border-radius: 10px; }
+.app.is-practicing .now-playing h2 { font-size: 0.98rem; }
+.app.is-practicing .now-playing .eyebrow { display: none; }
+.app.is-practicing .passage .device-note { display: none; }
+.app.is-practicing .controls { padding: 4px 8px; border-radius: 10px; gap: 6px; }
+.app.is-practicing .control-hint { display: none; }
+.app.is-practicing .score-meta { padding: 4px 10px 0; }
+.app.is-practicing .button { padding: 4px 10px; }
+.app.is-practicing .listen-play { min-width: 0; font-size: 0.95rem; padding: 6px 14px; }
+.app.is-practicing .feedback { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; background: transparent; border: 0; }
+.app.is-practicing .passage { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.app.is-practicing .play-tools { order: 4; }
+.app.is-practicing .field input[type="number"] { padding: 2px 6px; min-width: 4.5rem; }
+body:has(.app.is-practicing) { height: 100dvh; overflow: hidden; }
+.app.is-practicing .feedback-meter,
+.app.is-practicing .history,
+.app.is-practicing .tally,
+.app.is-practicing .feedback-kicker { display: none; }
+.app.is-practicing .feedback-headline,
+.app.is-practicing .feedback-last { margin: 0; font-size: 0.85rem; }
+.app.is-practicing .score-frame {
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  border-radius: 12px;
+}
+.app.is-practicing .summary { order: 3; }
+.app.is-practicing .demo-bar,
+.app.is-practicing .listen-bar { order: 0; }
+.app.is-practicing .keyboard-panel { order: 5; flex: 0 0 auto; }
+.app.is-focus { width: 100%; padding: 0; gap: 0; }
+.app.is-focus .topbar,
+.app.is-focus .tabs,
+.app.is-focus .library-slot,
+.app.is-focus .now-playing,
+.app.is-focus .passage,
+.app.is-focus .controls,
+.app.is-focus .demo-bar,
+.app.is-focus .feedback,
+.app.is-focus .summary,
+.app.is-focus .score-meta,
+.app.is-focus .listen-bar .field,
+.app.is-focus .listen-bar .check { display: none; }
+.app.is-focus .practice-main { padding-bottom: 56px; }
+.app.is-focus .focus-dock,
+.app.is-focus .listen-bar {
+  display: flex;
+  position: fixed;
+  bottom: 8px;
+  z-index: 6;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(20, 17, 14, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.app.is-focus .focus-dock { left: 10px; gap: 6px; align-items: center; }
+.app.is-focus .listen-bar { right: 10px; left: auto; }
 
 @media (max-width: 860px) {
   .topbar, .keyboard-caption, .feedback, .summary, .now-playing { display: flex; flex-direction: column; align-items: stretch; }

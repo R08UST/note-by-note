@@ -20,6 +20,8 @@ interface ScoreViewProps {
   onError: (message: string) => void
   onMeasure?: (measure: number, shiftKey: boolean) => void
   onNote?: (noteId: string, shiftKey: boolean) => void
+  /** 1 fits the sheet to the frame width. Larger values zoom in from that fit. */
+  zoom?: number
 }
 
 interface Entry {
@@ -79,7 +81,7 @@ function scrollFrame(cursor: HTMLElement) {
   frame.scrollTop += box.top - view.top - 24
 }
 
-export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote }: ScoreViewProps) {
+export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote, zoom = 1 }: ScoreViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
   const stepsRef = useRef<number[]>([])
@@ -92,7 +94,13 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
   const onNoteRef = useRef(onNote)
   const spanRef = useRef(span)
   const beatRef = useRef<number | null>(null)
+  const zoomRef = useRef(zoom)
+  const fitRef = useRef(1)
+  const naturalRef = useRef(0)
+  const readyRef = useRef(false)
+  const wireRef = useRef<() => void>(() => {})
   notesRef.current = notes
+  zoomRef.current = zoom
   onReadyRef.current = onReady
   onErrorRef.current = onError
   onMeasureRef.current = onMeasure
@@ -157,6 +165,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     const host = hostRef.current
     if (!host) return
     let cancelled = false
+    let resize: ResizeObserver | null = null
     const osmd = new OpenSheetMusicDisplay(host, {
       autoResize: false,
       backend: 'svg',
@@ -188,63 +197,94 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
       try {
         await osmd.load(xml)
         if (cancelled) return
-        const width = host.clientWidth
-        osmd.Zoom = width < 720 ? 0.62 : 0.82
+        osmd.Zoom = 1
         osmd.render()
+        const drawn = host.querySelector('svg')
+        const natural = drawn ? Number.parseFloat(drawn.getAttribute('width') || '') || drawn.getBoundingClientRect().width : 0
+        if (natural > 8) {
+          naturalRef.current = natural
+          fitRef.current = Math.max(0.35, (host.clientWidth - 12) / natural)
+          osmd.Zoom = fitRef.current * zoomRef.current
+          osmd.render()
+        } else {
+          const width = host.clientWidth
+          fitRef.current = width < 720 ? 0.62 : 0.82
+          naturalRef.current = 0
+          osmd.Zoom = fitRef.current * zoomRef.current
+        }
         if (cancelled || !osmd.cursor) return
-        osmd.FollowCursor = false
-        osmd.cursor.CursorOptions = { type: CursorType.ThinLeft, color: '#e39b3b', alpha: 0.9, follow: false }
-        host.dataset.osmdLoads = String((Number(host.dataset.osmdLoads) || 0) + 1)
-        const raw: { real: number; gnotes: GraphicalNote[] }[] = []
-        osmd.cursor.hide()
-        osmd.cursor.reset()
-        let guard = 0
-        while (osmd.cursor.Iterator && !osmd.cursor.Iterator.EndReached && guard < 8000) {
-          raw.push({
-            real: osmd.cursor.Iterator.currentTimeStamp?.RealValue ?? 0,
-            gnotes: osmd.cursor.GNotesUnderCursor() ?? [],
-          })
-          osmd.cursor.next()
-          guard += 1
-        }
-        const scaled = [4, 1].map((factor) =>
-          raw.map((step) => ({ beat: step.real * factor, gnotes: step.gnotes })),
-        )
-        const attempts = scaled.map((steps) => ({ steps, ...assign(steps, notesRef.current) }))
-        attempts.sort((a, b) => b.matched - a.matched)
-        const best = attempts[0]
-        entriesRef.current = best?.entries ?? new Map()
-        stepsRef.current = (best?.steps ?? []).map((step) => step.beat)
-        stepIndexRef.current = 0
-        for (const [id, entry] of entriesRef.current) {
-          const element = noteElement(entry.gnote)
-          if (!element) continue
-          element.style.cursor = 'pointer'
-          element.addEventListener('click', (event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            onNoteRef.current?.(id, event.shiftKey)
-          })
-        }
-        const measures = osmd.GraphicSheet?.MeasureList ?? []
-        for (const line of measures) {
-          for (const measure of line ?? []) {
-            const number = measure?.MeasureNumber
-            const svg = measure?.getSVGGElement?.()
-            if (!svg || number == null || number < 1) continue
-            svg.dataset.measure = String(number)
-            svg.style.cursor = 'pointer'
-            svg.addEventListener('click', (event) => {
+        const engage = () => {
+          if (cancelled || !osmd.cursor) return
+          osmd.FollowCursor = false
+          osmd.cursor.CursorOptions = { type: CursorType.ThinLeft, color: '#e39b3b', alpha: 0.9, follow: false }
+          const raw: { real: number; gnotes: GraphicalNote[] }[] = []
+          osmd.cursor.hide()
+          osmd.cursor.reset()
+          let guard = 0
+          while (osmd.cursor.Iterator && !osmd.cursor.Iterator.EndReached && guard < 8000) {
+            raw.push({
+              real: osmd.cursor.Iterator.currentTimeStamp?.RealValue ?? 0,
+              gnotes: osmd.cursor.GNotesUnderCursor() ?? [],
+            })
+            osmd.cursor.next()
+            guard += 1
+          }
+          const scaled = [4, 1].map((factor) =>
+            raw.map((step) => ({ beat: step.real * factor, gnotes: step.gnotes })),
+          )
+          const attempts = scaled.map((steps) => ({ steps, ...assign(steps, notesRef.current) }))
+          attempts.sort((a, b) => b.matched - a.matched)
+          const best = attempts[0]
+          entriesRef.current = best?.entries ?? new Map()
+          stepsRef.current = (best?.steps ?? []).map((step) => step.beat)
+          stepIndexRef.current = 0
+          for (const [id, entry] of entriesRef.current) {
+            const element = noteElement(entry.gnote)
+            if (!element) continue
+            element.style.cursor = 'pointer'
+            element.addEventListener('click', (event) => {
               event.preventDefault()
-              onMeasureRef.current?.(number, event.shiftKey)
+              event.stopPropagation()
+              onNoteRef.current?.(id, event.shiftKey)
             })
           }
+          const measures = osmd.GraphicSheet?.MeasureList ?? []
+          for (const line of measures) {
+            for (const measure of line ?? []) {
+              const number = measure?.MeasureNumber
+              const svg = measure?.getSVGGElement?.()
+              if (!svg || number == null || number < 1) continue
+              svg.dataset.measure = String(number)
+              svg.style.cursor = 'pointer'
+              svg.addEventListener('click', (event) => {
+                event.preventDefault()
+                onMeasureRef.current?.(number, event.shiftKey)
+              })
+            }
+          }
+          markSpan()
+          if (beatRef.current != null) seekRef.current(beatRef.current)
+          else osmd.cursor.show()
+          if (!cancelled) onReadyRef.current({ matched: best?.matched ?? 0, total: notesRef.current.length })
         }
-        markSpan()
-        if (beatRef.current != null) seekRef.current(beatRef.current)
-        else osmd.cursor.show()
-        if (!cancelled) {
-          onReadyRef.current({ matched: best?.matched ?? 0, total: notesRef.current.length })
+        wireRef.current = () => {
+          if (cancelled) return
+          osmd.Zoom = fitRef.current * zoomRef.current
+          osmd.render()
+          engage()
+        }
+        host.dataset.osmdLoads = String((Number(host.dataset.osmdLoads) || 0) + 1)
+        engage()
+        readyRef.current = true
+        if (naturalRef.current > 8) {
+          resize = new ResizeObserver(() => {
+            if (cancelled || naturalRef.current < 8) return
+            const next = Math.max(0.35, (host.clientWidth - 12) / naturalRef.current)
+            if (Math.abs(next - fitRef.current) < 0.04) return
+            fitRef.current = next
+            wireRef.current()
+          })
+          resize.observe(host)
         }
       } catch (error) {
         if (!cancelled) {
@@ -256,6 +296,8 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     void paint()
     return () => {
       cancelled = true
+      readyRef.current = false
+      resize?.disconnect()
       osmdRef.current = null
       entriesRef.current = new Map()
       stepsRef.current = []
@@ -271,6 +313,11 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
   useEffect(() => {
     markSpan()
   }, [span?.startBeat, span?.endBeat, xml])
+
+  useEffect(() => {
+    if (!readyRef.current) return
+    wireRef.current()
+  }, [zoom])
 
   return <div className="score-host" ref={hostRef} />
 }
