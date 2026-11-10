@@ -15,6 +15,10 @@ export interface WrittenNote {
   /** Eighth-note triplet. Three of these fill one quarter. */
   triplet?: 'start' | 'mid' | 'stop'
   tie?: 'start' | 'stop'
+  /** Printed fingering. 1 is the thumb. */
+  finger?: number
+  /** Spelling override, so a raised leading tone stays a sharp in a flat key. */
+  spelling?: { step: string; alter: number }
 }
 
 export interface WrittenScore {
@@ -85,9 +89,11 @@ function noteXml(note: WrittenNote, fifths: number, staff: number | null): strin
     note.pitch == null
       ? '<rest/>'
       : (() => {
-          const spelled = spellPitch(note.pitch, fifths)
+          const fallback = spellPitch(note.pitch, fifths)
+          const spelled = note.spelling ?? fallback
+          const octave = note.spelling ? Math.floor(note.pitch / 12) - 1 : fallback.octave
           const alter = spelled.alter === 0 ? '' : `<alter>${spelled.alter}</alter>`
-          return `<pitch><step>${spelled.step}</step>${alter}<octave>${spelled.octave}</octave></pitch>`
+          return `<pitch><step>${spelled.step}</step>${alter}<octave>${octave}</octave></pitch>`
         })()
   const chord = note.chord ? '<chord/>' : ''
   const triplet =
@@ -99,6 +105,7 @@ function noteXml(note: WrittenNote, fifths: number, staff: number | null): strin
   if (note.tie) notations.push(`<tied type="${note.tie}"/>`)
   if (note.triplet === 'start') notations.push('<tuplet type="start" bracket="yes"/>')
   if (note.triplet === 'stop') notations.push('<tuplet type="stop"/>')
+  if (note.finger != null && note.pitch != null) notations.push(`<technical><fingering>${note.finger}</fingering></technical>`)
   const notationXml = notations.length > 0 ? `<notations>${notations.join('')}</notations>` : ''
   const staffXml = staff == null ? '' : `<staff>${staff}</staff>`
   const voice = staff === 2 ? 2 : 1
@@ -170,7 +177,7 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
     }
     if (score.staves === 1) {
       const only = score.clef === 'bass' ? left.length > 0 ? left : right : right.length > 0 ? right : left
-      const hand: Hand = 'R'
+      const hand: Hand = only[0]?.hand ?? 'R'
       writeStaff(only, null, hand)
     } else {
       writeStaff(right, 1, 'R')

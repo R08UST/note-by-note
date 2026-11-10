@@ -507,7 +507,7 @@ h1 {
 .now-playing h2 { margin: 2px 0 0; font-family: var(--serif); font-size: 1.25rem; font-weight: 560; }
 
 .train-pane { display: flex; flex-direction: column; gap: 12px; }
-.train-switch { align-self: flex-start; }
+.train-switch { align-self: flex-start; flex-wrap: wrap; overflow: visible; }
 .level-rail { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .level-chip {
   min-width: 64px;

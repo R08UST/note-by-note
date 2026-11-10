@@ -31,7 +31,7 @@ export interface SavedScore {
   createdAt: number
 }
 
-export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece'
+export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece' | 'scale' | 'chord'
 
 export interface TrainRunRecord {
   id?: number
