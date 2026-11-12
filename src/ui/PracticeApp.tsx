@@ -4,7 +4,7 @@ import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
-import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets } from '../modes/span'
+import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
 import { filterCatalog, type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
 import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
@@ -681,6 +681,24 @@ export function PracticeApp() {
                     )}
                   </div>
                   <span className="toolbar-sep" aria-hidden="true" />
+                  <label className="field start-measure" title="播放和练习都从这一小节开始">
+                    <span>起点</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={lastMeasure}
+                      value={measureAtCursor(groups, cursorBeat)}
+                      onChange={(event) => {
+                        const measure = Math.max(1, Math.min(lastMeasure, Number(event.target.value) || 1))
+                        const target = firstOnsetInMeasure(groups, measure)
+                        if (!target) return
+                        setCursorBeat(target.beat)
+                        setRangeStart(target.measure)
+                        if (runningNow) void practice.seek({ startBeat: target.beat, endBeat })
+                        else scoreRef.current?.setBeat(target.beat)
+                      }}
+                    />
+                  </label>
                   <Controls
                     embedded
                     bpm={bpm}
@@ -1204,4 +1222,11 @@ function countHands(notes: ScoreNote[]): { L: number; R: number } {
     L: notes.filter((note) => note.hand === 'L').length,
     R: notes.filter((note) => note.hand === 'R').length,
   }
+}
+
+/** The measure containing the current cursor, from the sorted onset list. */
+function measureAtCursor(groups: readonly Onset[], beat: number): number {
+  let measure = groups[0]?.measure ?? 1
+  for (const group of groups) if (group.beat <= beat + 1e-3) measure = group.measure
+  return measure
 }
