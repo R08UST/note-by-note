@@ -77,6 +77,7 @@ export function PracticeApp() {
   const [loop, setLoop] = useState(false)
   const [loopLimit, setLoopLimit] = useState(0)
   const [ramp, setRamp] = useState(false)
+  const [resetOnError, setResetOnError] = useState(true)
   const [rangeStart, setRangeStart] = useState(1)
   const [rangeEnd, setRangeEnd] = useState(1)
   const [cursorBeat, setCursorBeat] = useState(0)
@@ -162,6 +163,7 @@ export function PracticeApp() {
     onRamp: () => setBpm((value) => Math.min(160, value + 4)),
     keyboardEnabled,
     listenKeyboard: tab === 'practice',
+    resetOnError,
   })
 
   useEffect(() => {
@@ -214,6 +216,7 @@ export function PracticeApp() {
       setMode(settings.mode)
       setLatencyOffsetMs(settings.latencyOffsetMs)
       if (settings.continuous === false) setContinuous(false)
+      if (settings.resetOnError === false) setResetOnError(false)
       if (settings.lastLibraryId) setLastLibraryId(settings.lastLibraryId)
       setAudioPrefs({
         muted: settings.muted ?? false,
@@ -254,8 +257,9 @@ export function PracticeApp() {
       metroVolume: sound.metro,
       keyboardOpen,
       scoreZoom,
+      resetOnError,
     })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom])
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom, resetOnError])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -761,6 +765,12 @@ export function PracticeApp() {
                         </label>
                       </div>
                       <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后速度 +4</label>
+                      {mode === 'wait' && (
+                        <label className="check">
+                          <input type="checkbox" checked={resetOnError} onChange={(event) => setResetOnError(event.target.checked)} />
+                          弹错就回到这一小节开头
+                        </label>
+                      )}
                       <p className="device-note">点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。</p>
                       <DemoBar
                         notes={notes}

@@ -11,6 +11,27 @@ function groupByOnset(notes: ScoreNote[]): ScoreNote[][] {
   return groups
 }
 
+/** For each attack, the index of the first attack in the same measure. */
+function measureStarts(groups: readonly ScoreNote[][]): number[] {
+  const starts: number[] = []
+  let start = 0
+  let measure = groups[0]?.[0]?.measure ?? Number.NaN
+  for (let index = 0; index < groups.length; index += 1) {
+    const current = groups[index][0]?.measure ?? Number.NaN
+    if (current !== measure) {
+      measure = current
+      start = index
+    }
+    starts.push(start)
+  }
+  return starts
+}
+
+export interface WaitModeOptions {
+  /** On a wrong pitch, drop the current measure's hits and rewind to its first attack. */
+  resetOnError?: boolean
+}
+
 /**
  * Wait mode: the cursor holds on the current attack until every pitch is played.
  * A wrong pitch is flagged and does not consume the written note, so the player
@@ -18,16 +39,29 @@ function groupByOnset(notes: ScoreNote[]): ScoreNote[][] {
  */
 export class WaitMode {
   private readonly groups: ScoreNote[][]
+  private readonly resetOnError: boolean
+  private readonly measureStart: number[]
   private index = 0
   private readonly hit = new Set<string>()
   private readonly _judgements: Judgement[] = []
+  /** Note ids whose hit was dropped by the last error reset, so the view can uncolor them. */
+  private resetIds: string[] = []
 
-  constructor(notes: ScoreNote[]) {
+  constructor(notes: ScoreNote[], options: WaitModeOptions = {}) {
     this.groups = groupByOnset(notes)
+    this.resetOnError = options.resetOnError ?? false
+    this.measureStart = measureStarts(this.groups)
   }
 
   get judgements(): readonly Judgement[] {
     return this._judgements
+  }
+
+  /** Ids un-hit by the most recent error reset. Cleared once read. */
+  consumeReset(): string[] {
+    const ids = this.resetIds
+    this.resetIds = []
+    return ids
   }
 
   done(): boolean {
@@ -61,6 +95,7 @@ export class WaitMode {
     }
     const wrong: Judgement = { pitch: event.pitch, result: 'wrong' }
     this._judgements.push(wrong)
+    if (this.resetOnError) this.rewindToMeasureStart()
     return [wrong]
   }
 
@@ -86,5 +121,27 @@ export class WaitMode {
       const item = this._judgements[index]
       if (item?.noteId && ids.has(item.noteId)) this._judgements.splice(index, 1)
     }
+  }
+
+  /**
+   * Rewind to the first attack of the current measure. Hits made in the measure
+   * are dropped so the player replays it. The wrong pitch itself stays recorded.
+   */
+  private rewindToMeasureStart(): void {
+    const start = this.measureStart[this.index]
+    if (start == null) return
+    const ids = new Set<string>()
+    for (let group = start; group <= this.index; group += 1) {
+      for (const note of this.groups[group]) {
+        if (this.hit.delete(note.id)) ids.add(note.id)
+      }
+    }
+    if (ids.size === 0 && start === this.index) return
+    for (let index = this._judgements.length - 1; index >= 0; index -= 1) {
+      const item = this._judgements[index]
+      if (item?.noteId && ids.has(item.noteId)) this._judgements.splice(index, 1)
+    }
+    this.index = start
+    for (const id of ids) this.resetIds.push(id)
   }
 }

@@ -22,6 +22,8 @@ export interface SettingsRecord {
   keyboardOpen?: boolean
   /** 1 fits the score to the width. */
   scoreZoom?: number
+  /** Wait mode: a wrong pitch rewinds to the first note of the measure. Default on. */
+  resetOnError?: boolean
 }
 
 export interface RunRecord {

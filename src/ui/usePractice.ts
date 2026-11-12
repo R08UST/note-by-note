@@ -39,6 +39,8 @@ interface PracticeOptions {
   onRamp: () => void
   keyboardEnabled: boolean
   listenKeyboard?: boolean
+  /** Wait mode: a wrong pitch rewinds to the first note of the measure. */
+  resetOnError?: boolean
 }
 
 type Engine = WaitMode | RhythmMode
@@ -66,6 +68,7 @@ export function usePractice({
   onRamp,
   keyboardEnabled,
   listenKeyboard = true,
+  resetOnError = false,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -114,8 +117,9 @@ export function usePractice({
     loopLimit,
     ramp,
     onRamp,
+    resetOnError,
   })
-  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, span, loopLimit, ramp, onRamp }
+  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, span, loopLimit, ramp, onRamp, resetOnError }
   const startRef = useRef<(keepPasses?: boolean) => Promise<void>>(async () => {})
   const launchRef = useRef<(keepPasses: boolean, seamless: boolean) => Promise<void>>(async () => {})
   const runIdRef = useRef(0)
@@ -130,6 +134,32 @@ export function usePractice({
     judgementsRef.current = [...judgementsRef.current, ...items]
     setJudgements(judgementsRef.current)
     setLast(items[items.length - 1] ?? null)
+    // A wait-mode error may have rewound the current measure: drop the colored
+    // hits inside it so the player sees them as unplayed again.
+    const engine = engineRef.current
+    if (engine instanceof WaitMode) {
+      const resetIds = engine.consumeReset()
+      // Prune the hook's own record so the report matches what the player replays.
+      if (resetIds.length > 0) {
+        const dropped = new Set(resetIds)
+        judgementsRef.current = judgementsRef.current.filter((item) => !(item.noteId && dropped.has(item.noteId)))
+        setJudgements(judgementsRef.current)
+      }
+      const active = runRef.current.notes
+      for (const id of resetIds) {
+        scoreRef.current?.colorNote(id, '#241c16')
+        const note = active.find((item) => item.id === id)
+        if (note) {
+          // Drop the hit flash from the replayed notes, but keep a wrong flash.
+          setFlashes((prev) => {
+            if (prev[note.pitch] === 'wrong') return prev
+            const next = { ...prev }
+            delete next[note.pitch]
+            return next
+          })
+        }
+      }
+    }
     for (const item of items) {
       if (item.noteId) scoreRef.current?.colorNote(item.noteId, scoreColor(item))
       setFlashes((prev) => ({ ...prev, [item.pitch]: item.result }))
@@ -143,7 +173,6 @@ export function usePractice({
       }, 700)
       flashTimers.current.push(timer)
     }
-    const engine = engineRef.current
     if (runRef.current.mode === 'wait' && engine) {
       const beat = engine.cursorBeat()
       if (beat != null) scoreRef.current?.setBeat(runRef.current.originBeat + beat)
@@ -370,7 +399,7 @@ export function usePractice({
     }
     const engine: Engine =
       options.mode === 'wait'
-        ? new WaitMode(active)
+        ? new WaitMode(active, { resetOnError: options.resetOnError })
         : new RhythmMode(active, {
             bpm: options.bpm,
             latencyOffsetMs: options.latencyOffsetMs,
