@@ -305,7 +305,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     shownAt.current = performance.now()
   }
 
-  const hintPitch = phraseLike ? drill.current[0]?.pitch : shown?.notes[0]?.pitch
+  const hintPitches = phraseLike ? drill.current.map((note) => note.pitch) : shown?.notes?.map((note) => note.pitch) ?? []
 
   return (
     <div className="train-pane">
@@ -375,7 +375,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           </button>
         )}
         {!phraseLike && <button type="button" className="button ghost" onClick={() => setSeed((value) => value + 17)}>换一组</button>}
-        {hints && hintPitch != null && <span className="note-hint">{noteName(hintPitch)}</span>}
+        {hints && hintPitches.length > 0 && <span className="note-hint">{hintPitches.map(noteName).join(' + ')}</span>}
         {flashNote && <span className="device-note">{flashNote}</span>}
       </div>
       {drill.countBeat != null && phraseLike && <div className="count-in">{drill.countBeat}</div>}
