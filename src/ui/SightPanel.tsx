@@ -12,6 +12,7 @@ import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { HeatKeys, LevelRail } from './TrainBits'
 import { DemoBar } from './DemoBar'
+import { describeNotes } from './format'
 import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
@@ -305,7 +306,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     shownAt.current = performance.now()
   }
 
-  const hintPitches = phraseLike ? drill.current.map((note) => note.pitch) : shown?.notes?.map((note) => note.pitch) ?? []
+  const hintList = phraseLike ? drill.current : shown?.notes ?? []
 
   return (
     <div className="train-pane">
@@ -375,7 +376,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           </button>
         )}
         {!phraseLike && <button type="button" className="button ghost" onClick={() => setSeed((value) => value + 17)}>换一组</button>}
-        {hints && hintPitches.length > 0 && <span className="note-hint">{hintPitches.map(noteName).join(' + ')}</span>}
+        {hints && hintList.length > 0 && <span className="note-hint">{describeNotes(hintList)}</span>}
         {flashNote && <span className="device-note">{flashNote}</span>}
       </div>
       {drill.countBeat != null && phraseLike && <div className="count-in">{drill.countBeat}</div>}

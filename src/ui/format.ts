@@ -1,6 +1,20 @@
 import { isOnTime } from '../judge/judge'
 import { BEGINNER_TOLERANCE, type Judgement } from '../judge/types'
+import type { ScoreNote } from '../judge/types'
 import { noteName } from '../score/pitch'
+
+/**
+ * Note names of every tone with the hand that plays it, e.g. "右·C4 + 左·E4".
+ * Right hand tones come first, each hand low-to-high.
+ */
+export function describeNotes(notes: readonly ScoreNote[]): string {
+  if (notes.length === 0) return ''
+  const order = { R: 0, L: 1 } as const
+  return [...notes]
+    .sort((a, b) => order[a.hand] - order[b.hand] || a.pitch - b.pitch)
+    .map((note) => `${note.hand === 'R' ? '右' : '左'}·${noteName(note.pitch)}`)
+    .join(' + ')
+}
 
 export function formatOffset(offsetMs: number): string {
   const rounded = Math.round(offsetMs)

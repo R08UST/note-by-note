@@ -9,6 +9,13 @@ describe('listen playback timing', () => {
     expect(musicalTime(4.5)).toBe('1:0:2')
   })
 
+  it('keeps subdivisions finer than a sixteenth instead of snapping them', () => {
+    // An eighth triplet sits a third of a beat in; a 32nd sits an eighth in.
+    expect(musicalTime(1 / 3)).toBe('0:0:1.333')
+    expect(musicalTime(1 / 8)).toBe('0:0:0.5')
+    expect(musicalTime(1 + 1 / 6)).toBe('0:1:0.667')
+  })
+
   it('keeps left and right notes that are sounding at a beat', () => {
     const notes = [
       { pitch: 60, beat: 0, duration: 1, hand: 'R' as const },

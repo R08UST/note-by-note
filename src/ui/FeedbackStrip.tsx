@@ -1,6 +1,6 @@
 import type { Judgement, ScoreNote } from '../judge/types'
 import { noteName } from '../score/pitch'
-import { PERFECT_BAND, describeJudgement, judgementTone, meterPercent } from './format'
+import { PERFECT_BAND, describeJudgement, describeNotes, judgementTone, meterPercent } from './format'
 import type { RunStatus } from './usePractice'
 
 interface FeedbackStripProps {
@@ -26,7 +26,7 @@ export function FeedbackStrip({
   misses,
   extras,
 }: FeedbackStripProps) {
-  const waiting = current.length > 0 ? current.map((note) => noteName(note.pitch)).join(' + ') : null
+  const waiting = current.length > 0 ? describeNotes(current) : null
   const measure = current[0]?.measure
   const tone = last ? judgementTone(last) : 'idle'
   const showMeter = last?.result === 'hit' && typeof last.offsetMs === 'number'

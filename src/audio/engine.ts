@@ -101,13 +101,14 @@ export function notesSounding(notes: readonly DemoNote[], beat: number): DemoNot
   return notes.filter((note) => beat >= note.beat - 1e-3 && beat < note.beat + note.duration - 1e-3)
 }
 
-/** Quarter-note offset as Tone transport time in 4/4 (bar:beat:sixteenth), so the tempo slider stays musical. */
+/** Quarter-note offset as Tone transport time in bar:beat:sixteenth, keeping fractions so notes between sixteenths (triplets, 32nds) don't get snapped. */
 export function musicalTime(quarters: number): string {
-  const sixteenths = Math.max(0, Math.round(quarters * 4))
+  const sixteenths = Math.max(0, quarters * 4)
   const bars = Math.floor(sixteenths / 16)
   const beats = Math.floor((sixteenths % 16) / 4)
   const six = sixteenths % 4
-  return `${bars}:${beats}:${six}`
+  const sixString = Number.isInteger(six) ? String(six) : String(Math.round(six * 1000) / 1000)
+  return `${bars}:${beats}:${sixString}`
 }
 
 export async function startDemo(options: {
@@ -171,7 +172,7 @@ export async function startDemo(options: {
     const clamped = Math.min(end, Math.max(start, beat))
     options.onBeat(clamped)
     options.onSounding?.(notesSounding(options.notes, clamped))
-  }, '16n')
+  }, '32n')
   const endId = Tone.Transport.scheduleOnce(() => {
     if (!options.loop) {
       options.onBeat(end)
