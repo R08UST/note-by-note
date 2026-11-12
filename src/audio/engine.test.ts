@@ -16,6 +16,15 @@ describe('listen playback timing', () => {
     expect(musicalTime(1 + 1 / 6)).toBe('0:1:0.667')
   })
 
+  it('keeps 32nds and 64ths on their own grid', () => {
+    // 32nd = 1/8 beat = half a sixteenth.
+    expect(musicalTime(1.25)).toBe('0:1:1')
+    expect(musicalTime(3.75)).toBe('0:3:3')
+    // A 64th is a quarter of a sixteenth.
+    expect(musicalTime(0.0625)).toBe('0:0:0.25')
+    expect(musicalTime(2 + 1 / 16)).toBe('0:2:0.25')
+  })
+
   it('keeps left and right notes that are sounding at a beat', () => {
     const notes = [
       { pitch: 60, beat: 0, duration: 1, hand: 'R' as const },
