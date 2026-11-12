@@ -68,11 +68,76 @@ function readTitle(root: Element): string {
   return movement ?? 'Untitled'
 }
 
+interface MeasureShape {
+  /** End of written content within the bar, in quarter-note beats. */
+  contentEnd: number
+  /** Signature length of the bar, in quarter-note beats. */
+  signatureBeats: number
+  implicit: boolean
+}
+
+/**
+ * Measure lengths of one part: how far its written content reaches, and how
+ * long its time signature says the bar is.
+ */
+function measureShapes(part: Element): MeasureShape[] {
+  let divisions = 1
+  let signature: TimeSignature = { beats: 4, beatType: 4 }
+  const measures = [...part.children].filter((element) => element.localName === 'measure')
+  return measures.map((measure) => {
+    let cursor = 0
+    let contentEnd = 0
+    for (const element of measure.children) {
+      if (element.localName === 'attributes') {
+        const divisionText = directText(element, 'divisions')
+        if (divisionText) divisions = Number(divisionText) || 1
+        const time = findChild(element, 'time')
+        if (time) {
+          signature = {
+            beats: Number(directText(time, 'beats') ?? 4) || 4,
+            beatType: Number(directText(time, 'beat-type') ?? 4) || 4,
+          }
+        }
+        continue
+      }
+      // A backup rewinds to the start of the measure, so the next voice's notes
+      // advance the same cursor. The measure's content end is the furthest any
+      // voice reaches, not the sum of every voice.
+      if (element.localName === 'backup') {
+        cursor -= Number(directText(element, 'duration') ?? 0) / divisions
+        if (cursor < 0) cursor = 0
+        continue
+      }
+      if (element.localName === 'forward') {
+        cursor += Number(directText(element, 'duration') ?? 0) / divisions
+        contentEnd = Math.max(contentEnd, cursor)
+        continue
+      }
+      if (element.localName !== 'note') continue
+      if (hasChild(element, 'grace')) continue
+      if (hasChild(element, 'chord')) continue
+      cursor += Number(directText(element, 'duration') ?? 0) / divisions
+      contentEnd = Math.max(contentEnd, cursor)
+    }
+    return {
+      contentEnd,
+      signatureBeats: signature.beats * (4 / signature.beatType),
+      implicit: measure.getAttribute('implicit') === 'yes',
+    }
+  })
+}
+
 /**
  * Partwise MusicXML → note model.
  * Rests are skipped, tied continuations extend the first note, staff 1 is the
  * right hand and staff 2 is the left. This is the only MusicXML reader; OSMD
  * is used later just to draw the page.
+ *
+ * OSMD engraves every part on one shared measure timeline: a bar is as long as
+ * the longest part's bar. The parser mirrors that so a part whose bar content
+ * differs (a pickup, an overfull bar) cannot drift its beats away from the
+ * cursor's clock. Drift is what made eighth-note onsets land on the previous
+ * beat in scores where the hands disagreed about a bar.
  */
 export function parseMusicXml(xml: string): ParsedScore {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
@@ -95,10 +160,22 @@ export function parseMusicXml(xml: string): ParsedScore {
   let totalBeats = 0
 
   const parts = [...root.children].filter((element) => element.localName === 'part')
+  const shapesByPart = parts.map((part) => measureShapes(part))
+
+  // Shared bar starts: each bar is as long as the longest part's bar, and a bar
+  // any part marks implicit is treated as a pickup (its written content only).
+  const barCount = shapesByPart.reduce((max, list) => Math.max(max, list.length), 0)
+  const barLengths: number[] = []
+  const sharedStarts: number[] = []
+  for (let index = 0; index < barCount; index += 1) {
+    barLengths.push(barLength(shapesByPart, index))
+    sharedStarts.push(index === 0 ? 0 : sharedStarts[index - 1] + barLengths[index - 1])
+  }
+  totalBeats = barCount === 0 ? 0 : sharedStarts[barCount - 1] + barLengths[barCount - 1]
+
   parts.forEach((part, partIndex) => {
     let divisions = 1
     let partStaves = 1
-    let measureStart = 0
     let signature: TimeSignature = { beats: 4, beatType: 4 }
     const openTies = new Map<string, ScoreNote>()
     const measures = [...part.children].filter((element) => element.localName === 'measure')
@@ -109,11 +186,11 @@ export function parseMusicXml(xml: string): ParsedScore {
     measures.forEach((measure, measureIndex) => {
       let local = 0
       let lastStart = 0
-      let maxLocal = 0
       const rawNumber = measure.getAttribute('number')
       const parsedNumber = rawNumber == null ? Number.NaN : Number(rawNumber)
       // "X1" is an alternate ending. OSMD numbers that bar by its position, not by a printed number.
       const measureNumber = Number.isFinite(parsedNumber) ? parsedNumber : measureIndex + endingOffset
+      const measureStart = sharedStarts[measureIndex] ?? 0
 
       for (const element of measure.children) {
         if (element.localName === 'attributes') {
@@ -143,7 +220,6 @@ export function parseMusicXml(xml: string): ParsedScore {
 
         if (element.localName === 'forward') {
           local += Number(directText(element, 'duration') ?? 0) / divisions
-          maxLocal = Math.max(maxLocal, local)
           continue
         }
 
@@ -156,7 +232,6 @@ export function parseMusicXml(xml: string): ParsedScore {
         if (!chord) {
           lastStart = local
           local += duration
-          maxLocal = Math.max(maxLocal, local)
         }
 
         if (hasChild(element, 'rest') || hasChild(element, 'unpitched') || hasChild(element, 'cue')) {
@@ -200,17 +275,25 @@ export function parseMusicXml(xml: string): ParsedScore {
         notes.push(note)
         if (ties.start) openTies.set(tieKey, note)
       }
-
-      const signatureBeats = signature.beats * (4 / signature.beatType)
-      const implicit = measure.getAttribute('implicit') === 'yes'
-      const length = implicit ? maxLocal : Math.max(maxLocal, signatureBeats)
-      measureStart += length
     })
-
-    totalBeats = Math.max(totalBeats, measureStart)
   })
 
   return { title, notes, timeSignature, totalBeats }
+}
+
+/** Length of the shared bar `index`, in quarter-note beats. */
+function barLength(shapesByPart: MeasureShape[][], index: number): number {
+  let content = 0
+  let signature = 0
+  let implicit = false
+  for (const list of shapesByPart) {
+    const shape = list[index]
+    if (!shape) continue
+    content = Math.max(content, shape.contentEnd)
+    signature = Math.max(signature, shape.signatureBeats)
+    implicit = implicit || shape.implicit
+  }
+  return implicit ? content : Math.max(content, signature)
 }
 
 export function quarterBeatsPerMeasure(time: TimeSignature): number {

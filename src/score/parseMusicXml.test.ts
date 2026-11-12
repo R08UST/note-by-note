@@ -121,6 +121,36 @@ describe('parseMusicXml', () => {
     ])
   })
 
+  it('gives every part the longest bar when the parts disagree', () => {
+    // The left hand's first bar is overfull by a quarter. OSMD engraves that bar
+    // one quarter longer for both hands, so the right hand's second bar starts a
+    // quarter late too. Beats must follow that shared clock, or eighth notes land
+    // on the previous beat once the hands drift apart.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Right</part-name></score-part>
+    <score-part id="P2"><part-name>Left</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">${attributes}${pitched('C', 4, 4)}</measure>
+    <measure number="2">${pitched('D', 4, 4)}</measure>
+  </part>
+  <part id="P2">
+    <measure number="1">${attributes}${pitched('C', 3, 4)}${pitched('E', 3, 1)}</measure>
+    <measure number="2">${pitched('F', 3, 4)}</measure>
+  </part>
+</score-partwise>`
+    const parsed = parseMusicXml(xml)
+    const byPitch = new Map(parsed.notes.map((note) => [note.pitch, note.beat]))
+    expect(byPitch.get(60)).toBe(0)    // C4, right hand bar 1
+    expect(byPitch.get(62)).toBe(5)    // D4, right hand bar 2: the shared first bar is 5 beats
+    expect(byPitch.get(48)).toBe(0)    // C3, left hand bar 1
+    expect(byPitch.get(52)).toBe(4)    // E3, left hand bar 1, the overfull extra quarter
+    expect(byPitch.get(53)).toBe(5)    // F3, left hand bar 2: both hands share the same clock
+    expect(parsed.totalBeats).toBe(9)  // 5 + 4
+  })
+
   it('honours divisions and an implicit pickup measure', () => {
     const div = `<attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>`
     const quarter = `<note><pitch><step>D</step><octave>4</octave></pitch><duration>2</duration><type>quarter</type></note>`
