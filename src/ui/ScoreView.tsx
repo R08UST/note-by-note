@@ -6,6 +6,7 @@ import { cursorIndexForBeat, foldRepeats } from '../score/cursorBeat'
 import { mapNotesToHeads, UNDRAWN_MEASURE } from '../score/mapNotes'
 import { collectHeads } from '../score/osmdHeads'
 import { normalizeForOsmd } from '../score/mxl'
+import { scrollCursorIntoView } from './scoreScroll'
 
 export interface ScoreHandle {
   prepare(hands: HandSelection, beat: number): void
@@ -42,18 +43,9 @@ function noteElement(gnote: GraphicalNote): SVGGElement | null {
   return element ?? null
 }
 
+/** Keeps the cursor line clear of the sticky bars that cover the top of the frame. */
 function scrollFrame(cursor: HTMLElement) {
-  let frame = cursor.parentElement
-  while (frame) {
-    const style = getComputedStyle(frame)
-    if (/(auto|scroll)/.test(style.overflowY) && frame.scrollHeight > frame.clientHeight + 8) break
-    frame = frame.parentElement
-  }
-  if (!frame) return
-  const box = cursor.getBoundingClientRect()
-  const view = frame.getBoundingClientRect()
-  if (box.top >= view.top + 8 && box.bottom <= view.bottom - 8) return
-  frame.scrollTop += box.top - view.top - 24
+  scrollCursorIntoView(cursor)
 }
 
 export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, onNote, zoom = 1, layoutKey = 0 }: ScoreViewProps) {
