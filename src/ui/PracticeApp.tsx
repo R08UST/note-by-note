@@ -6,7 +6,7 @@ import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
 import { filterCatalog, type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
-import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
+import { parseMusicXml, quarterBeatsPerMeasureAt, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
 import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
@@ -169,6 +169,7 @@ export function PracticeApp() {
     mode,
     latencyOffsetMs,
     timeSignature: parsed.score?.timeSignature ?? { beats: 4, beatType: 4 },
+    timeSignatures: parsed.score?.timeSignatures ?? [],
     scoreRef,
     loop,
     span: { startBeat: cursorBeat, endBeat },
@@ -833,6 +834,11 @@ export function PracticeApp() {
                         practiceHands={hands}
                         loop={loop}
                         expression={expression}
+                        countInBeats={quarterBeatsPerMeasureAt(
+                          parsed.score?.timeSignatures ?? [],
+                          cursorBeat,
+                          parsed.score?.timeSignature ?? { beats: 4, beatType: 4 },
+                        )}
                         disabled={practice.status === 'playing' || practice.status === 'countin'}
                         onBeat={(beat) => scoreRef.current?.setBeat(beat)}
                       />

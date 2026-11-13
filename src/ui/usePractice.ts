@@ -7,8 +7,8 @@ import { RhythmMode } from '../modes/rhythmMode'
 import { WaitMode } from '../modes/waitMode'
 import { entryClock, notesInBeats, shiftNotes, type BeatSpan } from '../modes/span'
 import { summarize, type RunSummary } from '../report/summary'
-import type { TimeSignature } from '../score/parseMusicXml'
-import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
+import type { TimeSignature, TimeSignatureChange } from '../score/parseMusicXml'
+import { quarterBeatsPerMeasureAt } from '../score/parseMusicXml'
 import { latestRun, saveRun, type RunRecord } from '../storage/db'
 import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
@@ -30,6 +30,8 @@ interface PracticeOptions {
   mode: PracticeMode
   latencyOffsetMs: number
   timeSignature: TimeSignature
+  /** Every printed metre change, so the count-in and the click follow the piece. */
+  timeSignatures?: readonly TimeSignatureChange[]
   scoreRef: RefObject<ScoreHandle | null>
   loop: boolean
   /** Inclusive onset span. Both hands at one beat are one step. */
@@ -63,6 +65,7 @@ export function usePractice({
   mode,
   latencyOffsetMs,
   timeSignature,
+  timeSignatures = [],
   scoreRef,
   loop,
   span,
@@ -116,6 +119,7 @@ export function usePractice({
     mode,
     latencyOffsetMs,
     timeSignature,
+    timeSignatures,
     loop,
     span,
     loopLimit,
@@ -123,7 +127,7 @@ export function usePractice({
     onRamp,
     resetOnError,
   })
-  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, loop, span, loopLimit, ramp, onRamp, resetOnError }
+  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, timeSignatures, loop, span, loopLimit, ramp, onRamp, resetOnError }
   const startRef = useRef<(keepPasses?: boolean) => Promise<void>>(async () => {})
   const launchRef = useRef<(keepPasses: boolean, seamless: boolean) => Promise<void>>(async () => {})
   const runIdRef = useRef(0)
@@ -376,7 +380,9 @@ export function usePractice({
     const options = optionsRef.current
     const selected = notesInBeats(selectHands(options.notes, options.hands), options.span)
     if (selected.length === 0) return
-    const clock = entryClock(Math.min(options.span.startBeat, options.span.endBeat), quarterBeatsPerMeasure(options.timeSignature))
+    const entry = Math.min(options.span.startBeat, options.span.endBeat)
+    const perBar = quarterBeatsPerMeasureAt(options.timeSignatures, entry, options.timeSignature)
+    const clock = entryClock(entry, perBar)
     const active = shiftNotes(selected, clock.downbeat)
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -389,7 +395,7 @@ export function usePractice({
     setLast(null)
     finishingRef.current = false
     const runId = (runIdRef.current += 1)
-    const countInBeats = quarterBeatsPerMeasure(options.timeSignature)
+    const countInBeats = quarterBeatsPerMeasureAt(options.timeSignatures, clock.downbeat, options.timeSignature)
     const windows = timingForExercise(active, options.bpm, 1)
     runRef.current = {
       bpm: options.bpm,
@@ -417,7 +423,14 @@ export function usePractice({
     if (options.mode === 'rhythm') {
       setRunStatus(nextStatus === 'countin' ? 'countin' : nextStatus)
       setCountBeat(1)
-      await startMetronome(options.bpm, countInBeats)
+      await startMetronome(options.bpm, countInBeats, true, {
+        changes: (options.timeSignatures ?? []).map((change) => ({
+          beat: change.beat,
+          quarterBeats: quarterBeatsPerMeasureAt(options.timeSignatures ?? [], change.beat, change),
+        })),
+        originBeat: clock.downbeat,
+        countInBeats,
+      })
       accompanyStop.current?.()
       accompanyStop.current = null
       if (audioPrefs.accompany && options.hands !== 'both') {

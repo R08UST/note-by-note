@@ -36,6 +36,10 @@ describe('library expression', () => {
     let withFermata = 0
     let withGraces = 0
     let withOrnament = 0
+    let withTremolo = 0
+    let withArpeggio = 0
+    let withBreath = 0
+    let withNoteDynamics = 0
     const problems: string[] = []
 
     for (const name of names) {
@@ -49,6 +53,10 @@ describe('library expression', () => {
       if (parsed.notes.some((note) => note.fermata)) withFermata += 1
       if (parsed.notes.some((note) => note.graces)) withGraces += 1
       if (parsed.notes.some((note) => note.ornament)) withOrnament += 1
+      if (parsed.notes.some((note) => note.tremolo)) withTremolo += 1
+      if (parsed.notes.some((note) => note.arpeggio)) withArpeggio += 1
+      if (parsed.notes.some((note) => note.breath)) withBreath += 1
+      if (parsed.notes.some((note) => note.dynamics != null)) withNoteDynamics += 1
 
       const performed = compilePerformance(parsed.notes, {
         dynamics: parsed.dynamics,
@@ -60,12 +68,25 @@ describe('library expression', () => {
         if (!(note.velocity > 0 && note.velocity <= 1)) problems.push(`${name}: velocity ${note.velocity}`)
         if (!(note.gate > 0)) problems.push(`${name}: gate ${note.gate}`)
         if (!Number.isFinite(note.beat)) problems.push(`${name}: beat ${note.beat}`)
+        if (note.offset != null && !(note.offset >= 0 && note.offset < 0.5)) {
+          problems.push(`${name}: arpeggio offset ${note.offset}`)
+        }
       }
-      // Every printed ornament and grace note has to come out as real attacks.
-      const decorated = parsed.notes.filter((note) => note.ornament || note.graces?.length)
+      // Every printed ornament, tremolo and grace note has to come out as real attacks.
+      // The second half of a two-note tremolo is the exception: the first half's shake
+      // already strikes it, so it is marked silent instead of carrying extras.
+      const decorated = parsed.notes.filter(
+        (note) =>
+          note.ornament ||
+          (note.tremolo && note.tremolo.role !== 'answer') ||
+          note.graces?.length,
+      )
       const playedOut = performed.filter((note) => note.extras?.length)
       if (playedOut.length !== decorated.length) {
         problems.push(`${name}: ${decorated.length} decorated notes but ${playedOut.length} played out`)
+      }
+      for (const note of performed) {
+        if (note.silent && note.extras?.length) problems.push(`${name}: silent note still has attacks`)
       }
       for (const played of playedOut) {
         for (const extra of played.extras ?? []) {
@@ -83,9 +104,29 @@ describe('library expression', () => {
           problems.push(`${name}: pedal lifts before it presses`)
         }
       }
+      for (let index = 1; index < parsed.timeSignatures.length; index += 1) {
+        if (parsed.timeSignatures[index].beat < parsed.timeSignatures[index - 1].beat) {
+          problems.push(`${name}: time signature change out of order`)
+        }
+      }
     }
 
-    console.log({ total: names.length, withDynamics, withWedges, withPedals, withTempos, withArticulation, withSlur, withFermata, withGraces, withOrnament })
+    console.log({
+      total: names.length,
+      withDynamics,
+      withWedges,
+      withPedals,
+      withTempos,
+      withArticulation,
+      withSlur,
+      withFermata,
+      withGraces,
+      withOrnament,
+      withTremolo,
+      withArpeggio,
+      withBreath,
+      withNoteDynamics,
+    })
     expect(problems).toEqual([])
     // A sample of the library, not the whole of it: just enough to prove that the
     // real engravers' marks survive the parser and the performance compiler.
@@ -95,5 +136,7 @@ describe('library expression', () => {
     expect(withArticulation).toBeGreaterThan(5)
     expect(withSlur).toBeGreaterThan(10)
     expect(withOrnament).toBeGreaterThan(3)
+    expect(withTremolo).toBeGreaterThan(0)
+    expect(withArpeggio).toBeGreaterThan(0)
   }, 60_000)
 })

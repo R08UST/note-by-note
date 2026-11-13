@@ -901,3 +901,135 @@ input[type="range"] {
   .app { width: min(100% - 16px, 1180px); }
   .piece { min-width: calc(50% - 8px); flex: 1; }
 }
+
+.touch-tips {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.touch-tips li + li {
+  margin-top: 0.15rem;
+}
+
+/* ---------- UI polish (2026-11) ---------- */
+
+/* Header: title and section tabs share one row, freeing vertical space for the score. */
+.app {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+}
+.app > .tab-panel { grid-column: 1 / -1; grid-row: 2; }
+.topbar { grid-column: 1; grid-row: 1; }
+.tabs {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.tabs a {
+  flex: 0 0 auto;
+  min-width: 64px;
+  height: calc(var(--control-h) - 4px);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 0 16px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.tabs a strong { color: var(--muted); font-weight: 600; }
+.tabs a:hover strong { color: var(--ink); }
+.tabs a.is-selected strong { color: var(--amber-ink); }
+.app.is-focus { display: flex; }
+
+/* Gentle hover feedback on the shared controls. */
+.button, .segmented button, .level-chip, .bank-chip, .library-card-main, .recent button, .piece {
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.button:not(:disabled):not(.primary):hover { border-color: #5a4c3f; background: #342b23; }
+.button.ghost:not(:disabled):hover { background: rgba(255, 255, 255, 0.04); }
+.button.primary:not(:disabled):hover { background: #eeab52; border-color: #eeab52; }
+.segmented button:not(:disabled):not([aria-pressed="true"]):not([aria-selected="true"]):hover { color: var(--ink); background: rgba(255, 255, 255, 0.05); }
+.library-card:hover, .recent button:hover, .piece:not(.is-selected):hover { border-color: #5a4c3f; }
+
+/* Long help text stays readable on wide screens. */
+.panel p, .lede, .device-note, .control-hint { max-width: 72ch; }
+.lede { color: var(--muted); font-size: var(--font-md); }
+
+/* Selected span on the score: a light frame instead of a heavy orange box round every note. */
+.score-host .is-practice-note { outline: 1.5px solid rgba(227, 155, 59, 0.45); outline-offset: 2px; }
+
+/* ---------- Library ---------- */
+.library-filters { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.library-filters .segmented,
+.library-filters .field {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.library-filters .segmented[aria-label]::before {
+  content: attr(aria-label);
+  flex: 0 0 3.5em;
+  color: var(--muted);
+  font-size: var(--font-xs);
+  letter-spacing: 0.04em;
+}
+.library-filters .segmented button { padding: 0 12px; background: var(--bg-sunken); }
+.library-filters .segmented button[aria-pressed="true"] { border-color: var(--amber); background: var(--amber); color: var(--amber-ink); }
+.library-filters .segmented .segmented-label { display: none; }
+.library-filters .field.search { order: -1; flex-wrap: nowrap; font-size: 0; }
+.library-filters .field.search input { font-size: var(--font-md); height: 36px; padding: 0 12px; }
+.library-section h3, .recent span { letter-spacing: 0.04em; }
+.empty-hint { font-size: 1.5rem; }
+
+/* ---------- Train ---------- */
+.panel.train { gap: var(--space-2); }
+.panel.train > h2 { margin: 0; }
+.panel.train > .lede { margin: 0; font-size: var(--font-sm); }
+/* Children of the scrolling pane must keep their own height (the level rail was shrinking to 2px). */
+.train-pane > * { flex-shrink: 0; }
+.train-pane { gap: 10px; padding-right: 4px; }
+.train-pane > .device-note:first-of-type { color: var(--ink); font-size: var(--font-md); }
+.level-chip:disabled { opacity: 0.4; }
+.train-pane > .segmented { align-self: flex-start; }
+/* One scroll area, not a scroller inside a scroller: the exercise score shows at full height. */
+.train-score {
+  min-height: 0;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--radius);
+}
+.train-score .score-host { min-height: 0; }
+.train > .keybed { margin-top: var(--space-1); }
+
+/* ---------- Settings ---------- */
+.panel.settings { width: 100%; max-width: 860px; align-self: center; }
+.panel.settings h3 {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  width: 100%;
+  font-family: var(--serif);
+  font-weight: 560;
+  font-size: var(--font-lg);
+}
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
+  .tabs { grid-column: 1; grid-row: 2; justify-self: stretch; }
+  .tabs a { flex: 1 0 auto; }
+  .app > .tab-panel { grid-row: 3; }
+}

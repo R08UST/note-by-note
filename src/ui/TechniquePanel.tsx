@@ -3,7 +3,9 @@ import type { Judgement, PlayedEvent } from '../judge/types'
 import { noteName } from '../score/pitch'
 import { listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
 import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, qualifyingCount, unlockedThrough, type TakeScore } from '../train/mastery'
+import { EMPTY_STREAK, LADDER_RUN, LADDER_STEP, bestCleanBpm, nextBpm, startBpm, type LadderStreak } from '../train/ladder'
 import { techLevels, type TechKind } from '../train/technique'
+import { analyzeTouch, touchLine, type TouchReport } from '../train/touch'
 import { ContinueBar } from './ContinueBar'
 import { DemoBar } from './DemoBar'
 import { ListenBar } from './ListenBar'
@@ -36,6 +38,15 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
   const [hold, setHold] = useState<number | null>(null)
   const [offer, setOffer] = useState(false)
   const [session, setSession] = useState({ done: 0, clean: 0 })
+  const [ladder, setLadder] = useState(true)
+  const [touch, setTouch] = useState<TouchReport | null>(null)
+  const [ladderNote, setLadderNote] = useState('')
+  const streak = useRef<LadderStreak>(EMPTY_STREAK)
+  const runsRef = useRef<TrainRunRecord[]>([])
+  const loadedRef = useRef(false)
+  const exerciseIdRef = useRef<string | undefined>(undefined)
+  const ladderRef = useRef(ladder)
+  ladderRef.current = ladder
   const scoreRef = useRef<ScoreHandle>(null)
   const attempted = useRef<Set<string>>(new Set())
   const retrying = useRef(false)
@@ -48,7 +59,18 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
   const retryRef = useRef<() => void>(() => {})
 
   const reload = () => {
-    void listTrainRuns().then(setRuns)
+    void listTrainRuns().then((rows) => {
+      const first = !loadedRef.current
+      loadedRef.current = true
+      runsRef.current = rows
+      setRuns(rows)
+      // The first item on screen was chosen before the history arrived.
+      const id = exerciseIdRef.current
+      if (first && ladderRef.current && id) {
+        const known = bestCleanBpm(rows.filter((run) => run.mode === kind), id)
+        if (known != null) setBpm(startBpm(known, 66))
+      }
+    })
   }
   useEffect(reload, [])
 
@@ -66,6 +88,20 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
   const spec = levels[Math.min(level, unlocked) - 1] ?? levels[0]
   const item = spec?.items[index] ?? spec?.items[0]
   const exercise = useMemo(() => item, [item])
+  const kindRuns = runs.filter((run) => run.mode === kind)
+  const best = bestCleanBpm(kindRuns, exercise?.id)
+
+  exerciseIdRef.current = exercise?.id
+
+  // Each item picks up a little under its own fastest clean tempo.
+  useEffect(() => {
+    streak.current = EMPTY_STREAK
+    setLadderNote('')
+    setTouch(null)
+    if (!ladderRef.current || !exercise) return
+    const known = bestCleanBpm(runsRef.current.filter((run) => run.mode === kind), exercise.id)
+    if (known != null) setBpm(startBpm(known, 66))
+  }, [exercise?.id, kind])
 
   useEffect(() => {
     if (!exercise) return
@@ -85,8 +121,10 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
     countInBars: 1,
     scoreRef,
     match: (played) => played,
-    onDone: (summary, judgements) => {
+    onDone: (summary, judgements, touches) => {
       if (!exercise || !spec) return
+      const feel = analyzeTouch(exercise.notes, touches)
+      setTouch(feel)
       const onTime = summary.expected === 0 ? 0 : summary.perfects / summary.expected
       const accuracy = summary.expected === 0 ? 0 : summary.hits / summary.expected
       const retry = retrying.current
@@ -107,12 +145,24 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
         itemId: exercise.id,
         firstAttempt,
         curriculum: 2,
+        unevenPct: feel.unevenPct,
+        velocitySpread: feel.velocitySpread,
       }).then(() => {
         reload()
         onSaved()
       })
       setSession((value) => ({ done: value.done + 1, clean: value.clean + (clean ? 1 : 0) }))
       setReport(resultLine(summary, judgements, timing === 'strict'))
+      if (ladderRef.current && timing === 'strict') {
+        const step = nextBpm(bpm, streak.current, clean)
+        streak.current = step.streak
+        if (step.change > 0) setLadderNote(`连续 ${LADDER_RUN} 遍干净，速度升到 ${step.bpm}。`)
+        else if (step.change < 0) setLadderNote(`连续 ${LADDER_RUN} 遍没过，速度降到 ${step.bpm}。`)
+        else setLadderNote(clean ? `干净。再干净一遍就加 ${LADDER_STEP}。` : `没过。再没过一遍就减 ${LADDER_STEP}。`)
+        if (step.change !== 0) setBpm(step.bpm)
+      } else {
+        setLadderNote('')
+      }
       if (firstAttempt && clean && !declined.current.has(spec.id) && spec.id < levels.length) {
         const take: TakeScore = { level: spec.id, pitchAccuracy: accuracy, onTimeRate: timing === 'wait' ? 1 : onTime, scoredTiming: timing === 'strict', itemId: exercise.id, firstAttempt: true }
         if (qualifyingCount(takes, spec.id) < MASTERY_TAKES && qualifyingCount([...takes, take], spec.id) >= MASTERY_TAKES) setOffer(true)
@@ -199,6 +249,8 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
         </label>
         <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
         <label className="check"><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />循环</label>
+        <label className="check" title={`节奏模式下连续 ${LADDER_RUN} 遍干净加 ${LADDER_STEP}，连续 ${LADDER_RUN} 遍没过减 ${LADDER_STEP}`}><input type="checkbox" checked={ladder} onChange={(event) => setLadder(event.target.checked)} />自动加速</label>
+        <span className="device-note">{best == null ? '这一条还没有干净的节奏记录' : `这一条最快干净 ${best}`}</span>
         <div className="segmented" role="group" aria-label="判定">
           <button type="button" aria-pressed={timing === 'wait'} onClick={() => setTiming('wait')}>等待</button>
           <button type="button" aria-pressed={timing === 'strict'} onClick={() => setTiming('strict')}>节奏</button>
@@ -256,6 +308,7 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
       )}
       {exercise.notes.length > 0 && (
         <ListenBar
+          showKeyboard={false}
           notes={exercise.notes}
           startBeat={exercise.notes[0]?.beat ?? 0}
           rangeStart={exercise.notes[0]?.beat ?? 0}
@@ -272,6 +325,13 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
       </div>
       {report && <p className="device-note">{report}</p>}
+      {report && touch && touchLine(touch) && <p className="device-note">{touchLine(touch)}</p>}
+      {report && touch && touch.tips.length > 0 && (
+        <ul className="device-note touch-tips">
+          {touch.tips.map((tip) => <li key={tip}>{tip}</li>)}
+        </ul>
+      )}
+      {report && ladderNote && <p className="device-note">{ladderNote}</p>}
     </div>
   )
 }
@@ -283,7 +343,7 @@ function resultLine(summary: { hits: number; expected: number; perfects: number;
   const extra = judgements.filter((item) => item.result === 'extra' || item.result === 'wrong').map((item) => noteName(item.pitch))
   const parts = [`音高 ${accuracy}%`]
   if (timing) parts.push(`准时 ${onTime}%`)
-  if (summary.timingSpreadMs != null) parts.push(`均匀度 分散 ${Math.round(summary.timingSpreadMs)} ms`)
+  if (summary.timingSpreadMs != null) parts.push(`与节拍的偏差分散 ${Math.round(summary.timingSpreadMs)} ms`)
   if (missing.length > 0) parts.push(`缺音 ${missing.join('、')}`)
   if (extra.length > 0) parts.push(`多音或错音 ${extra.join('、')}`)
   if (summary.misses === 0 && summary.extras === 0 && summary.wrongs === 0 && missing.length === 0) parts.push('没有缺音，也没有多出来的音')

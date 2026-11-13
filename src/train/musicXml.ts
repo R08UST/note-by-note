@@ -164,6 +164,7 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
             hand,
             measure: number,
           }
+          if (note.finger != null) attack.finger = note.finger
           attacks.push(attack)
           open = note.tie === 'start' ? attack : null
         } else if (note.tie === 'stop' && open && note.pitch === open.pitch) {

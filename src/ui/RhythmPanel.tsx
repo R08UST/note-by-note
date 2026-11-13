@@ -354,6 +354,7 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       )}
       {exercise.notes.length > 0 && (
         <ListenBar
+          showKeyboard={false}
           notes={exercise.notes}
           startBeat={0}
           rangeStart={0}

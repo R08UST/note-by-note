@@ -169,6 +169,90 @@ describe('compilePerformance', () => {
     expect((performed.extras ?? []).map((extra) => extra.pitch)).toEqual([62, 60, 59])
   })
 
+  it('plays a schleifer as lower neighbour then the written note', () => {
+    const [performed] = compilePerformance([
+      note({ pitch: 60, ornament: { kind: 'schleifer', upper: 62, lower: 59 } }),
+    ])
+    expect((performed.extras ?? []).map((extra) => extra.pitch)).toEqual([59, 60])
+  })
+
+  it('keeps a trill going past its note when a wavy line continues it', () => {
+    const short = compilePerformance([note({ pitch: 60, duration: 1, ornament: { kind: 'trill', upper: 62, lower: 59 } })])
+    const long = compilePerformance([
+      note({ pitch: 60, duration: 1, ornament: { kind: 'trill', upper: 62, lower: 59, span: 4 } }),
+    ])
+    const shortSpan = Math.max(...(short[0].extras ?? []).map((extra) => extra.offset))
+    const longSpan = Math.max(...(long[0].extras ?? []).map((extra) => extra.offset))
+    expect(longSpan).toBeGreaterThan(shortSpan)
+  })
+
+  it('shakes a single-note tremolo on its own pitch', () => {
+    const [performed] = compilePerformance([
+      note({ pitch: 60, duration: 1, tremolo: { strokes: 2, kind: 'single' } }),
+    ])
+    const extras = performed.extras ?? []
+    expect(extras.length).toBeGreaterThan(2)
+    expect(extras.every((extra) => extra.pitch === 60)).toBe(true)
+    expect(extras.every((extra) => extra.offset > 0)).toBe(true)
+  })
+
+  it('shakes a two-note tremolo between both written pitches', () => {
+    const performed = compilePerformance([
+      note({ pitch: 60, duration: 1, tremolo: { strokes: 3, kind: 'between', partner: 67, span: 2, role: 'primary' } }),
+      note({ pitch: 67, beat: 1, duration: 1, tremolo: { strokes: 3, kind: 'between', partner: 60, span: 2, role: 'answer' } }),
+    ])
+    const extras = performed[0].extras ?? []
+    expect(new Set(extras.map((extra) => extra.pitch))).toEqual(new Set([60, 67]))
+    // The partner's own written attack would strike it twice, so it stays silent.
+    expect(performed[1].silent).toBe(true)
+    expect(performed[1].extras).toBeUndefined()
+  })
+
+  it('rolls a chord instead of striking every tone at once', () => {
+    const performed = compilePerformance([
+      note({ pitch: 48, beat: 0, arpeggio: { index: 0, count: 3, direction: 'up' } }),
+      note({ pitch: 55, beat: 0, arpeggio: { index: 1, count: 3, direction: 'up' } }),
+      note({ pitch: 64, beat: 0, arpeggio: { index: 2, count: 3, direction: 'up' } }),
+    ])
+    const offsets = performed.map((entry) => entry.offset ?? 0)
+    expect(offsets[0]).toBe(0)
+    expect(offsets[1]).toBeGreaterThan(offsets[0])
+    expect(offsets[2]).toBeGreaterThan(offsets[1])
+    // The score highlight stays on the written beat, so only the strike is spread.
+    expect(performed.map((entry) => entry.beat)).toEqual([0, 0, 0])
+    expect(offsets[2]).toBeLessThan(0.5)
+  })
+
+  it('lifts the key early on a printed breath mark', () => {
+    const [plain] = compilePerformance([note({ duration: 2 })])
+    const [breathed] = compilePerformance([note({ duration: 2, breath: true })])
+    expect(breathed.gate).toBeLessThan(plain.gate)
+    expect(breathed.gate).toBeGreaterThan(0)
+  })
+
+  it('lets a dynamic printed on one note outrank the dynamic in force', () => {
+    const dynamics = [{ beat: 0, velocity: 49 }]
+    const [printed] = compilePerformance([note({ dynamics: 112 })], { dynamics })
+    const [inherited] = compilePerformance([note()], { dynamics })
+    expect(printed.midi).toBe(112)
+    expect(inherited.midi).toBe(49)
+  })
+
+  it('keeps a staccatissimo shorter than a staccato', () => {
+    const [short] = compilePerformance([note({ articulation: 'staccatissimo' })])
+    const [staccato] = compilePerformance([note({ articulation: 'staccato' })])
+    expect(short.gate).toBeLessThan(staccato.gate)
+    expect(short.midi).toBeLessThan(staccato.midi)
+  })
+
+  it('keeps the pedal of one staff off the other', () => {
+    const pedals = [{ downBeat: 0, upBeat: 4, staff: 2 }]
+    const [right] = compilePerformance([note({ pitch: 72, staff: 1, duration: 1 })], { pedals })
+    const [left] = compilePerformance([note({ pitch: 48, staff: 2, duration: 1 })], { pedals })
+    // The pedal is printed under the left hand, so only that hand is held.
+    expect(left.gate).toBeGreaterThan(right.gate)
+  })
+
   it('leaves a plain note without extras', () => {
     const [performed] = compilePerformance([note()])
     expect(performed.extras).toBeUndefined()

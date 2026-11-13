@@ -431,6 +431,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       )}
       {phraseLike && phrase.notes.length > 0 && (
         <ListenBar
+          showKeyboard={false}
           notes={phrase.notes}
           startBeat={0}
           rangeStart={0}

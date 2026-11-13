@@ -6,6 +6,12 @@ export interface TimeSignature {
   beatType: number
 }
 
+/** A printed time signature, and where it takes over. */
+export interface TimeSignatureChange extends TimeSignature {
+  /** Quarter-note beats from the start of the piece. */
+  beat: number
+}
+
 /** One printed dynamic, in quarter-note beats from the start of the piece. */
 export interface DynamicMark {
   beat: number
@@ -28,6 +34,8 @@ export interface Wedge {
 export interface PedalSpan {
   downBeat: number
   upBeat: number | null
+  /** Staff the pedal mark is printed under. Absent means it applies to every staff. */
+  staff?: number
 }
 
 /** A printed tempo change, in quarter notes per minute. */
@@ -40,6 +48,8 @@ export interface ParsedScore {
   title: string
   notes: ScoreNote[]
   timeSignature: TimeSignature
+  /** Every printed time signature in order, so the count-in and the click can follow a change. */
+  timeSignatures: TimeSignatureChange[]
   /** Length of the piece in quarter-note beats. */
   totalBeats: number
   dynamics: DynamicMark[]
@@ -137,6 +147,7 @@ const ORNAMENTS: Record<string, OrnamentKind> = {
   mordent: 'mordent',
   'inverted-mordent': 'inverted-mordent',
   turn: 'turn',
+  schleifer: 'schleifer',
 }
 
 /** Printed ornament on one note, if any. */
@@ -149,6 +160,55 @@ function readOrnament(note: Element, pitch: number, fifths: number): Ornament | 
     const kind = ORNAMENTS[child.localName]
     if (!kind) continue
     return { kind, upper: stepFrom(pitch, fifths, 1), lower: stepFrom(pitch, fifths, -1) }
+  }
+  return undefined
+}
+
+/** Number of slashes on a tremolo, which is also its speed. */
+function tremoloStrokes(element: Element): number {
+  const text = element.textContent?.trim()
+  const parsed = Number(text)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(4, Math.round(parsed)) : 3
+}
+
+/**
+ * A tremolo printed on one note. `single` shakes the note against itself; `start`
+ * and `stop` bracket the two written notes that take turns.
+ */
+function readTremolo(note: Element): { strokes: number; type: string } | undefined {
+  const notations = findChild(note, 'notations')
+  if (!notations) return undefined
+  const group = findChild(notations, 'ornaments')
+  if (!group) return undefined
+  const tremolo = findChild(group, 'tremolo')
+  if (!tremolo) return undefined
+  return { strokes: tremoloStrokes(tremolo), type: tremolo.getAttribute('type') ?? 'single' }
+}
+
+/**
+ * A wavy line that continues an ornament. A line that starts on this note runs to
+ * wherever its `stop` lands, so the note needs the length of the whole line.
+ */
+function readWavyStart(note: Element): string | undefined {
+  const notations = findChild(note, 'notations')
+  if (!notations) return undefined
+  const group = findChild(notations, 'ornaments')
+  if (!group) return undefined
+  for (const child of group.children) {
+    if (child.localName !== 'wavy-line') continue
+    if (child.getAttribute('type') === 'start') return child.getAttribute('number') ?? '1'
+  }
+  return undefined
+}
+
+function readWavyStop(note: Element): string | undefined {
+  const notations = findChild(note, 'notations')
+  if (!notations) return undefined
+  const group = findChild(notations, 'ornaments')
+  if (!group) return undefined
+  for (const child of group.children) {
+    if (child.localName !== 'wavy-line') continue
+    if (child.getAttribute('type') === 'stop') return child.getAttribute('number') ?? '1'
   }
   return undefined
 }
@@ -188,11 +248,31 @@ const DYNAMIC_VELOCITY: Record<string, number> = {
 
 const ARTICULATIONS: Record<string, Articulation> = {
   staccato: 'staccato',
-  staccatissimo: 'staccato',
+  staccatissimo: 'staccatissimo',
   tenuto: 'tenuto',
   accent: 'accent',
+  // MusicXML spells these with a hyphen; older exporters dropped it, so keep both.
+  'strong-accent': 'marcato',
   strongaccent: 'marcato',
+  'detached-legato': 'portato',
   detachedlegato: 'portato',
+  'soft-accent': 'soft-accent',
+  softaccent: 'soft-accent',
+}
+
+/**
+ * Which articulation wins when an engraver stacks two. A stack of staccato and
+ * tenuto is the printed form of portato, and an accent on top of a length mark
+ * keeps the accent because that is the part a listener hears.
+ */
+const ARTICULATION_RANK: Record<Articulation, number> = {
+  marcato: 6,
+  accent: 5,
+  'soft-accent': 4,
+  staccatissimo: 3,
+  staccato: 3,
+  portato: 2,
+  tenuto: 1,
 }
 
 /** Printed articulation on one note, from `<notations><articulations>`. */
@@ -201,11 +281,46 @@ function readArticulation(note: Element): Articulation | undefined {
   if (!notations) return undefined
   const group = findChild(notations, 'articulations')
   if (!group) return undefined
+  const found = new Set<Articulation>()
   for (const child of group.children) {
     const kind = ARTICULATIONS[child.localName]
-    if (kind) return kind
+    if (kind) found.add(kind)
   }
-  return undefined
+  if (found.size === 0) return undefined
+  // Staccato and tenuto printed together is the dot-and-line of portato.
+  if (found.has('staccato') && found.has('tenuto')) return 'portato'
+  let best: Articulation | undefined
+  for (const kind of found) {
+    if (!best || ARTICULATION_RANK[kind] > ARTICULATION_RANK[best]) best = kind
+  }
+  return best
+}
+
+/** A printed breath mark or caesura: the player lifts the key a hair early. */
+function readBreath(note: Element): boolean {
+  const notations = findChild(note, 'notations')
+  if (!notations) return false
+  for (const child of notations.children) {
+    if (child.localName === 'breath-mark' || child.localName === 'caesura') return true
+  }
+  const group = findChild(notations, 'articulations')
+  if (!group) return false
+  for (const child of group.children) {
+    if (child.localName === 'breath-mark' || child.localName === 'caesura') return true
+  }
+  return false
+}
+
+/**
+ * Which position this note takes in a rolled chord. `<arpeggiate>` sits on every
+ * chord tone, and the roll climbs from the lowest written pitch upward.
+ */
+function readArpeggio(note: Element): 'up' | 'down' | undefined {
+  const notations = findChild(note, 'notations')
+  if (!notations) return undefined
+  const arpeggiate = findChild(notations, 'arpeggiate')
+  if (!arpeggiate) return undefined
+  return arpeggiate.getAttribute('direction') === 'down' ? 'down' : 'up'
 }
 
 function readFermata(note: Element): boolean {
@@ -235,25 +350,30 @@ function slurEvents(note: Element): { starts: string[]; stops: string[] } {
 
 /**
  * Read one `<direction>`. A direction sits at the current cursor without
- * advancing it, so its beat is the measure start plus whatever is written so far.
+ * advancing it, so its beat is the measure start plus whatever is written so far,
+ * nudged by the printed `<offset>` when the engraver wanted it later or earlier.
  */
 function readDirection(
   direction: Element,
   beat: number,
+  divisions: number,
   sink: { dynamics: DynamicMark[]; wedges: Wedge[]; pedals: PedalSpan[]; tempos: TempoMark[] },
   openWedges: Map<string, Wedge>,
   openPedals: Map<string, PedalSpan>,
 ): void {
+  const offsetText = directText(direction, 'offset')
+  const offset = offsetText ? (Number(offsetText) || 0) / divisions : 0
+  const at = beat + offset
   const staffText = directText(direction, 'staff')
   const staff = staffText ? Number(staffText) : undefined
 
   for (const sound of direction.getElementsByTagName('sound')) {
     const tempo = Number(sound.getAttribute('tempo'))
-    if (Number.isFinite(tempo) && tempo > 0) sink.tempos.push({ beat, bpm: tempo })
+    if (Number.isFinite(tempo) && tempo > 0) sink.tempos.push({ beat: at, bpm: tempo })
     const dyn = Number(sound.getAttribute('dynamics'))
     // MusicXML measures sound dynamics against 90 = mf, which is velocity 80.
     if (Number.isFinite(dyn) && dyn > 0) {
-      sink.dynamics.push({ beat, velocity: Math.round((dyn / 90) * 80), staff })
+      sink.dynamics.push({ beat: at, velocity: Math.round((dyn / 90) * 80), staff })
     }
   }
 
@@ -263,13 +383,13 @@ function readDirection(
     if (!Number.isFinite(perMinute) || perMinute <= 0) continue
     // Convert to quarter notes per minute so the transport can use it directly.
     const factor = unit === 'half' ? 2 : unit === 'whole' ? 4 : unit === 'eighth' ? 0.5 : unit === '16th' ? 0.25 : 1
-    sink.tempos.push({ beat, bpm: perMinute * factor })
+    sink.tempos.push({ beat: at, bpm: perMinute * factor })
   }
 
   for (const dynamics of direction.getElementsByTagName('dynamics')) {
     for (const child of dynamics.children) {
       const velocity = DYNAMIC_VELOCITY[child.localName]
-      if (velocity != null) sink.dynamics.push({ beat, velocity, staff })
+      if (velocity != null) sink.dynamics.push({ beat: at, velocity, staff })
     }
   }
 
@@ -280,16 +400,16 @@ function readDirection(
       // Two hairpins can overlap on one staff (one per hand, or a printed pair). A new
       // start closes whatever was still open, at this beat, rather than leaving it dangling.
       const previous = openWedges.get(key)
-      if (previous && beat >= previous.startBeat) previous.endBeat = beat
-      const span: Wedge = { startBeat: beat, endBeat: null, direction: type, staff }
+      if (previous && at >= previous.startBeat) previous.endBeat = at
+      const span: Wedge = { startBeat: at, endBeat: null, direction: type, staff }
       sink.wedges.push(span)
       openWedges.set(key, span)
     } else if (type === 'stop') {
       const open = openWedges.get(key)
       // Some engravers place the stop a hair before the start when two hairpins share a bar,
       // or write a stray stop. A stop can never end a hairpin that has not begun.
-      if (open && beat >= open.startBeat) {
-        open.endBeat = beat
+      if (open && at >= open.startBeat) {
+        open.endBeat = at
         openWedges.delete(key)
       }
     }
@@ -302,16 +422,17 @@ function readDirection(
       // A change lifts the old pedal and presses again on the same beat.
       const open = openPedals.get(key)
       if (open) {
-        open.upBeat = beat
+        open.upBeat = at
         openPedals.delete(key)
       }
-      const span: PedalSpan = { downBeat: beat, upBeat: null }
+      const span: PedalSpan = { downBeat: at, upBeat: null }
+      if (staff != null) span.staff = staff
       sink.pedals.push(span)
       openPedals.set(key, span)
     } else if (type === 'stop') {
       const open = openPedals.get(key)
       if (open) {
-        open.upBeat = beat
+        open.upBeat = at
         openPedals.delete(key)
       }
     }
@@ -418,6 +539,7 @@ export function parseMusicXml(xml: string): ParsedScore {
   const tempos: TempoMark[] = []
   let nextId = 1
   let timeSignature: TimeSignature = { beats: 4, beatType: 4 }
+  const timeSignatures: TimeSignatureChange[] = []
   let sawTime = false
   let totalBeats = 0
   let nextSlur = 1
@@ -457,7 +579,15 @@ export function parseMusicXml(xml: string): ParsedScore {
     openByPart.push({ wedges: openWedges, pedals: openPedals })
     /** Grace pitches waiting for the next real note, keyed by staff and voice. */
     const pendingGraces = new Map<string, number[]>()
+    /** Tremolo marks waiting to be paired with the note on the other side of the shake. */
+    const tremoloMarks: { note: ScoreNote; strokes: number; type: string }[] = []
+    /** Notes a `<arpeggiate>` printed on, grouped into rolls once the part is read. */
+    const arpeggioMarks: { note: ScoreNote; direction: 'up' | 'down' }[] = []
+    /** Wavy lines still running, keyed by staff, voice and line number. */
+    const openWavy = new Map<string, { note: ScoreNote; beat: number }>()
     const measures = [...part.children].filter((element) => element.localName === 'measure')
+    /** Where this part's notes begin in the shared list, so rolls only gather this part's notes. */
+    const partNoteStart = notes.length
     const firstRaw = measures[0]?.getAttribute('number')
     const firstNumber = firstRaw == null ? Number.NaN : Number(firstRaw)
     const endingOffset = Number.isFinite(firstNumber) && firstNumber === 0 ? 0 : 1
@@ -496,12 +626,25 @@ export function parseMusicXml(xml: string): ParsedScore {
               timeSignature = signature
               sawTime = true
             }
+            // A metre change is printed where it takes over, so the click and the
+            // count-in can follow the piece instead of assuming one metre throughout.
+            if (partIndex === 0) {
+              const previous = timeSignatures[timeSignatures.length - 1]
+              if (
+                !previous ||
+                previous.beats !== signature.beats ||
+                previous.beatType !== signature.beatType ||
+                previous.beat < measureStart - 1e-6
+              ) {
+                timeSignatures.push({ ...signature, beat: measureStart })
+              }
+            }
           }
           continue
         }
 
         if (element.localName === 'direction') {
-          readDirection(element, measureStart + local, sink, openWedges, openPedals)
+          readDirection(element, measureStart + local, divisions, sink, openWedges, openPedals)
           continue
         }
 
@@ -614,13 +757,47 @@ export function parseMusicXml(xml: string): ParsedScore {
         if (articulation) note.articulation = articulation
         if (slurId != null) note.slur = slurId
         if (readFermata(element)) note.fermata = true
+        if (readBreath(element)) note.breath = true
         if (graces && graces.length > 0 && !chord) note.graces = [...graces]
         const ornament = readOrnament(element, pitch, fifths)
         if (ornament) note.ornament = ornament
+        // A single note can carry its own loudness, which outranks the dynamic in force.
+        const noteDynamics = Number(element.getAttribute('dynamics'))
+        if (Number.isFinite(noteDynamics) && noteDynamics > 0) {
+          // MusicXML measures a printed dynamics value against 90 = mf, which is velocity 80.
+          note.dynamics = Math.min(127, Math.max(1, Math.round((noteDynamics / 90) * 80)))
+        }
+        const tremolo = readTremolo(element)
         notes.push(note)
+        if (tremolo) tremoloMarks.push({ note, ...tremolo })
+        const arpeggio = readArpeggio(element)
+        if (arpeggio) arpeggioMarks.push({ note, direction: arpeggio })
+        const wavyStart = readWavyStart(element)
+        if (wavyStart) openWavy.set(`${staffKey}|${voice}|${wavyStart}`, { note, beat: measureStart + start })
+        const wavyStop = readWavyStop(element)
+        if (wavyStop) {
+          const key = `${staffKey}|${voice}|${wavyStop}`
+          const open = openWavy.get(key)
+          if (open) {
+            const length = measureStart + start - open.beat
+            // A wavy line on its own note is the same as no line at all.
+            if (length > 1e-3 && open.note.ornament) open.note.ornament.span = length
+            openWavy.delete(key)
+          }
+        }
         if (ties.start) openTies.set(tieKey, [...(openTies.get(tieKey) ?? []), note])
       }
     })
+
+    // A wavy line that never printed its stop runs to the end of the part.
+    for (const open of openWavy.values()) {
+      const length = totalBeats - open.beat
+      if (length > 1e-3 && open.note.ornament) open.note.ornament.span = length
+    }
+    openWavy.clear()
+
+    pairTremolos(tremoloMarks)
+    assignArpeggios(arpeggioMarks, notes.slice(partNoteStart))
   })
 
   // A hairpin or pedal still open at the end holds to the last written beat.
@@ -634,7 +811,81 @@ export function parseMusicXml(xml: string): ParsedScore {
   pedals.sort((a, b) => a.downBeat - b.downBeat)
   tempos.sort((a, b) => a.beat - b.beat)
 
-  return { title, notes, timeSignature, totalBeats, dynamics, wedges, pedals, tempos }
+  return { title, notes, timeSignature, timeSignatures, totalBeats, dynamics, wedges, pedals, tempos }
+}
+
+/**
+ * Pair the two halves of a two-note tremolo. `<tremolo type="start">` sits on the
+ * first written note and `type="stop"` on the second; the pair shakes for the sum
+ * of their written lengths, and only the first one plays the shake.
+ */
+function pairTremolos(marks: { note: ScoreNote; strokes: number; type: string }[]): void {
+  // Several tremolos with the same stroke count can be open at once, so each start
+  // waits in a queue and a stop closes the earliest one.
+  const open = new Map<number, { note: ScoreNote; strokes: number; type: string }[]>()
+  for (const mark of marks) {
+    if (mark.type === 'single') {
+      mark.note.tremolo = { strokes: mark.strokes, kind: 'single' }
+      continue
+    }
+    if (mark.type === 'start') {
+      const queue = open.get(mark.strokes)
+      if (queue) queue.push(mark)
+      else open.set(mark.strokes, [mark])
+      continue
+    }
+    if (mark.type !== 'stop') continue
+    const queue = open.get(mark.strokes)
+    const start = queue?.shift()
+    if (!start) continue
+    if (queue && queue.length === 0) open.delete(mark.strokes)
+    const first = start.note
+    const second = mark.note
+    const span = Math.max(first.duration, second.beat + second.duration - first.beat)
+    first.tremolo = {
+      strokes: mark.strokes,
+      kind: 'between',
+      partner: second.pitch,
+      span,
+      role: 'primary',
+    }
+    // The partner's written attack is already one of the alternations, so it is not
+    // a note of its own any more: the first note's shake covers it.
+    second.tremolo = { strokes: mark.strokes, kind: 'between', partner: first.pitch, span, role: 'answer' }
+  }
+  // A start with no stop is still a shake; treat it as shaking its own pitch.
+  for (const queue of open.values()) {
+    for (const mark of queue) mark.note.tremolo = { strokes: mark.strokes, kind: 'single' }
+  }
+}
+
+/**
+ * Number the tones of each rolled chord. `<arpeggiate>` is usually printed on the
+ * chord's first note only, so the roll is the run of notes that share its beat.
+ */
+function assignArpeggios(
+  marks: { note: ScoreNote; direction: 'up' | 'down' }[],
+  partNotes: readonly ScoreNote[],
+): void {
+  const byBeat = new Map<string, ScoreNote[]>()
+  for (const note of partNotes) {
+    const key = `${note.beat}|${note.staff ?? 0}|${note.voice ?? ''}`
+    const list = byBeat.get(key)
+    if (list) list.push(note)
+    else byBeat.set(key, [note])
+  }
+  for (const mark of marks) {
+    const key = `${mark.note.beat}|${mark.note.staff ?? 0}|${mark.note.voice ?? ''}`
+    const group = byBeat.get(key) ?? [mark.note]
+    // A mark on a single note is a stray: a roll needs at least two tones.
+    if (group.length < 2) continue
+    const ordered = [...group].sort((a, b) =>
+      mark.direction === 'up' ? a.pitch - b.pitch : b.pitch - a.pitch,
+    )
+    ordered.forEach((note, index) => {
+      note.arpeggio = { index, count: ordered.length, direction: mark.direction }
+    })
+  }
 }
 
 /** Length of the shared bar `index`, in quarter-note beats. */
@@ -654,4 +905,18 @@ function barLength(shapesByPart: MeasureShape[][], index: number): number {
 
 export function quarterBeatsPerMeasure(time: TimeSignature): number {
   return time.beats * (4 / time.beatType)
+}
+
+/** Length of one bar at `beat`, following any printed metre change before it. */
+export function quarterBeatsPerMeasureAt(
+  changes: readonly TimeSignatureChange[],
+  beat: number,
+  fallback: TimeSignature,
+): number {
+  let found: TimeSignature = fallback
+  for (const change of changes) {
+    if (change.beat > beat + 1e-6) break
+    found = change
+  }
+  return quarterBeatsPerMeasure(found)
 }

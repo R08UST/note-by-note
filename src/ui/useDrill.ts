@@ -9,6 +9,7 @@ import { quarterBeatsPerMeasure } from '../score/parseMusicXml'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
 import { timingForExercise } from '../train/timing'
+import type { Touch } from '../train/touch'
 import type { ScoreHandle } from './ScoreView'
 
 type Engine = WaitMode | RhythmMode
@@ -28,7 +29,8 @@ interface DrillOptions {
   scoreRef: RefObject<ScoreHandle | null>
   /** Rewrite a played pitch before the judge sees it. Rhythm drills use this so any key can count. */
   match: (played: number, upcoming: ScoreNote[]) => number
-  onDone: (summary: RunSummary, judgements: Judgement[]) => void
+  /** `touches` holds one press per hit note: when, how hard, and when it came up. */
+  onDone: (summary: RunSummary, judgements: Judgement[], touches: Touch[]) => void
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -61,6 +63,8 @@ export function useDrill({
   const statusRef = useRef(status)
   const engineRef = useRef<Engine | null>(null)
   const judgementsRef = useRef<Judgement[]>([])
+  const touchesRef = useRef<Touch[]>([])
+  const downRef = useRef<Map<number, Touch>>(new Map())
   const rafRef = useRef(0)
   const held = useRef<Set<string>>(new Set())
   const perfectRef = useRef(80)
@@ -87,7 +91,7 @@ export function useDrill({
     setCountBeat(null)
     engineRef.current = null
     setRunStatus('finished')
-    if (reason === 'done') onDoneRef.current(report, judgementsRef.current)
+    if (reason === 'done') onDoneRef.current(report, judgementsRef.current, touchesRef.current)
   }
 
   const finishRef = useRef(finish)
@@ -102,7 +106,13 @@ export function useDrill({
       else next.delete(event.pitch)
       return next
     })
-    if (event.type !== 'on' || statusRef.current !== 'playing') return
+    if (event.type === 'off') {
+      const touch = downRef.current.get(event.pitch)
+      if (touch && touch.offMs == null) touch.offMs = event.timeMs
+      downRef.current.delete(event.pitch)
+      return
+    }
+    if (statusRef.current !== 'playing') return
     const engine = engineRef.current
     if (!engine) return
     let timeMs = 0
@@ -118,6 +128,12 @@ export function useDrill({
     const pitch = matchRef.current(event.pitch, engine.currentNotes())
     const produced = engine.push({ ...event, pitch, timeMs })
     if (produced.length === 0) return
+    const hit = produced.find((item) => item.result === 'hit' && item.noteId)
+    if (hit?.noteId) {
+      const touch: Touch = { noteId: hit.noteId, onMs: event.timeMs, velocity: event.velocity }
+      touchesRef.current = [...touchesRef.current, touch]
+      downRef.current.set(event.pitch, touch)
+    }
     judgementsRef.current = [...judgementsRef.current, ...produced]
     setJudgements(judgementsRef.current)
     setCurrent(engine.currentNotes())
@@ -176,6 +192,8 @@ export function useDrill({
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     judgementsRef.current = []
+    touchesRef.current = []
+    downRef.current = new Map()
     setJudgements([])
     setSummary(null)
     const windows = timingForExercise(notes, bpm, level)

@@ -164,8 +164,12 @@ export interface DemoNote {
   midi?: number
   /** How long the key is held, in beats. Absent holds the written value. */
   gate?: number
+  /** Beats to delay the strike, so a rolled chord climbs instead of landing flat. */
+  offset?: number
   /** Grace notes and played-out ornaments, each offset in beats from the attack. */
   extras?: readonly ExtraAttack[]
+  /** Another note's attacks already sound this pitch, so do not strike it again. */
+  silent?: boolean
 }
 
 export function notesSounding(notes: readonly DemoNote[], beat: number): DemoNote[] {
@@ -254,7 +258,8 @@ export async function startDemo(options: {
     synth.triggerAttackRelease(downbeat ? 'E5' : 'C5', '32n', time)
   }
   for (let beat = 0; beat < countIn; beat += 1) {
-    const downbeat = beat % 4 === 0
+    // The count-in is exactly one bar, so the click's accent falls on its first beat.
+    const downbeat = beat === 0
     Tone.Transport.schedule((time) => click(downbeat, time), musicalTime(beat))
   }
   // Extras are measured in beats; the sampler wants seconds, and the transport
@@ -284,10 +289,15 @@ export async function startDemo(options: {
     // tempo change in the middle of a note still lands the release correctly.
     // The release is pulled back to the end of the span so nothing is left hanging
     // when the transport loops or stops.
-    const releaseAt = Math.min(note.beat + gate, end)
+    if (note.silent) continue
+    // A rolled chord's tones sit a hair apart, but the release stays on the written
+    // beat axis so the chord still ends together. A roll that starts after the written
+    // gate would otherwise never let go, so the release follows its own strike.
+    const strikeAt = note.beat + (note.offset ?? 0)
+    const releaseAt = Math.max(strikeAt + 0.02, Math.min(note.beat + gate, end))
     Tone.Transport.schedule((time) => {
       piano?.attack(note.pitch, time, midi, loudness)
-    }, musicalTime(Math.max(0, at(note.beat))))
+    }, musicalTime(Math.max(0, at(strikeAt))))
     Tone.Transport.schedule((time) => {
       piano?.release(note.pitch, time)
     }, musicalTime(Math.max(0, at(releaseAt))))
@@ -363,10 +373,12 @@ export async function scheduleAccompaniment(
   for (const note of notes) {
     const loudness = Math.min(1, Math.max(0.02, note.velocity ?? NEUTRAL_VELOCITY))
     const midi = midiOf(note)
+    if (note.silent) continue
+    const strikeAt = countInBeats + note.beat + (note.offset ?? 0) - startBeat
     ids.push(
       Tone.Transport.schedule((time) => {
         piano?.attackRelease(note.pitch, Math.max(0.05, (note.gate ?? note.duration) * quarter), time, midi, loudness)
-      }, Math.max(0, (countInBeats + note.beat - startBeat) * quarter)),
+      }, Math.max(0, strikeAt * quarter)),
     )
     // Grace notes and ornaments belong to the hand that plays the written note,
     // so the accompaniment carries them too.

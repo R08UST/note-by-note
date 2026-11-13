@@ -1,9 +1,16 @@
 export type Hand = 'L' | 'R'
 
 /** A printed articulation. Accent and marcato also raise the loudness. */
-export type Articulation = 'staccato' | 'tenuto' | 'accent' | 'marcato' | 'portato'
+export type Articulation =
+  | 'staccato'
+  | 'staccatissimo'
+  | 'tenuto'
+  | 'accent'
+  | 'marcato'
+  | 'portato'
+  | 'soft-accent'
 
-export type OrnamentKind = 'trill' | 'mordent' | 'inverted-mordent' | 'turn'
+export type OrnamentKind = 'trill' | 'mordent' | 'inverted-mordent' | 'turn' | 'schleifer'
 
 /** A printed ornament, with the neighbours the key signature makes diatonic. */
 export interface Ornament {
@@ -12,6 +19,30 @@ export interface Ornament {
   upper: number
   /** Scale step below the written pitch. */
   lower: number
+  /**
+   * Beats the ornament keeps going after its own note, when a wavy line
+   * continues it. Absent means it stops with the written note.
+   */
+  span?: number
+}
+
+/**
+ * A printed tremolo. `single` shakes one written pitch against itself; `between`
+ * shakes two written notes against each other.
+ */
+export interface Tremolo {
+  /** Slashes on the stem: 1 is eighths, 2 sixteenths, 3 thirty-seconds, 4 sixty-fourths. */
+  strokes: number
+  kind: 'single' | 'between'
+  /** The other written pitch of a `between` tremolo. */
+  partner?: number
+  /** Beats the shake lasts, from this note's beat. Absent means this note's own length. */
+  span?: number
+  /**
+   * `answer` is the second written note of a two-note tremolo. The first note's shake
+   * already strikes it, so it lights up the score without sounding a second time.
+   */
+  role?: 'primary' | 'answer'
 }
 
 /** A note the player is expected to strike. Time is in quarter-note beats from the start. */
@@ -40,6 +71,19 @@ export interface ScoreNote {
   graces?: number[]
   /** Printed ornament. The demo plays it out; judging ignores it. */
   ornament?: Ornament
+  /** Printed tremolo. The demo shakes it; judging ignores it. */
+  tremolo?: Tremolo
+  /**
+   * The chord this note belongs to is rolled, and this is the position it takes
+   * in the roll: 0 is the lowest, and it climbs by one per chord tone.
+   */
+  arpeggio?: { index: number; count: number; direction: 'up' | 'down' }
+  /** Printed breath mark or caesura. The demo lifts the key a hair before it. */
+  breath?: boolean
+  /** Loudness printed on this single note, as MIDI velocity. Overrides the dynamic in force. */
+  dynamics?: number
+  /** Printed fingering, 1 is the thumb. Technique drills use it to find thumb crossings. */
+  finger?: number
 }
 
 export interface PlayedEvent {

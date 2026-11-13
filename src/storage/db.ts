@@ -69,6 +69,10 @@ export interface TrainRunRecord {
   curriculum?: number
   /** Stable 题库 id, so a redo is not a new piece. */
   itemId?: string
+  /** Technique drills: spread of neighbour intervals around the player's pulse, in percent. */
+  unevenPct?: number | null
+  /** Technique drills: standard deviation of key velocity. Null without velocity data. */
+  velocitySpread?: number | null
 }
 
 export interface PracticeRangeRecord {

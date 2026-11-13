@@ -1,4 +1,4 @@
-import type { Articulation, Ornament, ScoreNote } from '../judge/types'
+import type { Articulation, Ornament, ScoreNote, Tremolo } from '../judge/types'
 import type { DynamicMark, PedalSpan, TempoMark, Wedge } from '../score/parseMusicXml'
 
 /** Printed expression that turns written notes into something a pianist would play. */
@@ -31,8 +31,19 @@ export interface PerformedNote {
   midi: number
   /** How long the key stays down, in quarter-note beats. */
   gate: number
+  /**
+   * Beats to delay the strike, so a rolled chord climbs instead of landing flat.
+   * The note's own `beat` is unchanged, which keeps the score highlight on the beat.
+   */
+  offset?: number
   /** Grace notes and played-out ornaments, in beat order. */
   extras?: ExtraAttack[]
+  /**
+   * The written note is already sounded by another note's attacks: the second half
+   * of a two-note tremolo. It still highlights the score, but the sampler must not
+   * strike it a second time.
+   */
+  silent?: boolean
 }
 
 /** Where a plain `mf` sits, used when the score prints no dynamic at all. */
@@ -43,20 +54,27 @@ const WEDGE_FALLBACK = 28
 
 const ARTICULATION_VELOCITY: Record<Articulation, number> = {
   staccato: -6,
+  staccatissimo: -10,
   tenuto: 0,
   accent: 12,
   marcato: 18,
   portato: -2,
+  'soft-accent': 6,
 }
 
 /** Share of the written value the key is held, before slurs and pedal. */
 const ARTICULATION_GATE: Record<Articulation, number> = {
   staccato: 0.45,
+  staccatissimo: 0.25,
   portato: 0.7,
   tenuto: 1,
   accent: 0.9,
   marcato: 0.85,
+  'soft-accent': 0.92,
 }
+
+/** Articulations short enough that the sustain pedal must not smear them together. */
+const LIFTED: ReadonlySet<Articulation> = new Set(['staccato', 'staccatissimo', 'marcato'])
 
 const DEFAULT_GATE = 0.95
 /** A printed fermata holds roughly this much longer than written. */
@@ -69,6 +87,14 @@ const GRACE_LEAD = 0.09
 const TRILL_STEP = 0.25
 /** Fast ornaments (mordent, turn) sit this far apart. */
 const ORNAMENT_STEP = 0.1
+/** A rolled chord spreads its tones over this much time per tone. */
+const ARPEGGIO_STEP = 0.055
+/** A rolled chord never takes longer than this, however many tones it has. */
+const ARPEGGIO_MAX = 0.22
+/** A breath mark lifts the key this share of the note early. */
+const BREATH_LIFT = 0.35
+/** How many alternations of a two-note tremolo fit into one beat, per printed slash. */
+const TREMOLO_PER_BEAT: Record<number, number> = { 1: 2, 2: 4, 3: 8, 4: 16 }
 
 /**
  * MIDI velocity to sampler gain. Tone's sampler uses velocity as playback gain,
@@ -154,6 +180,33 @@ function trillGrid(duration: number): { gap: number; count: number } {
   return { gap: span / count, count }
 }
 
+/** How fast a tremolo shakes, and how many alternations fit in its span. */
+function tremoloGrid(strokes: number, span: number): { gap: number; count: number } {
+  const perBeat = TREMOLO_PER_BEAT[strokes] ?? 4
+  const safeSpan = Math.max(0.05, span)
+  const count = Math.max(2, Math.min(64, Math.round(safeSpan * perBeat)))
+  return { gap: safeSpan / count, count }
+}
+
+/**
+ * The attacks a printed tremolo adds. The written note sounds on the beat, so the
+ * shake carries on from there, taking turns with its partner when there is one.
+ */
+function tremoloExtras(tremolo: Tremolo, pitch: number, duration: number): ExtraAttack[] {
+  const span = Math.max(duration, tremolo.span ?? duration)
+  const { gap, count } = tremoloGrid(tremolo.strokes, span)
+  const other = tremolo.kind === 'between' ? (tremolo.partner ?? pitch) : pitch
+  const attacks: ExtraAttack[] = []
+  for (let index = 1; index < count; index += 1) {
+    attacks.push({
+      pitch: index % 2 === 0 ? pitch : other,
+      offset: gap * index,
+      gate: gap * 0.9,
+    })
+  }
+  return attacks
+}
+
 /**
  * The attacks a printed ornament adds around the written note. The written note
  * itself lands on the beat, so no pattern repeats it at `offset: 0`.
@@ -170,8 +223,10 @@ function ornamentExtras(ornament: Ornament, pitch: number, duration: number): Ex
   if (kind === 'trill') {
     // The written note sounds on the beat; from there the key is handed to the
     // upper neighbour and back. The written note's own gate is cut short so the
-    // two keys really do take turns instead of ringing together.
-    const { gap, count } = trillGrid(duration)
+    // two keys really do take turns instead of ringing together. A wavy line
+    // printed after the trill keeps the alternation going past the written note.
+    const span = Math.max(duration, ornament.span ?? duration)
+    const { gap, count } = trillGrid(span)
     const attacks: ExtraAttack[] = []
     for (let index = 0; index < count; index += 1) {
       const extra = index % 2 === 0 ? upper : pitch
@@ -189,6 +244,11 @@ function ornamentExtras(ornament: Ornament, pitch: number, duration: number): Ex
     return [flick(pitch, -2 * step), flick(upper, -step)]
   }
 
+  if (kind === 'schleifer') {
+    // A slide into the note: lower neighbour, then the written pitch, then the note itself.
+    return [flick(lower, -2 * step), flick(pitch, -step)]
+  }
+
   // turn: upper – main – lower – main, again ending on the written note.
   return [
     flick(upper, -3 * step),
@@ -197,7 +257,7 @@ function ornamentExtras(ornament: Ornament, pitch: number, duration: number): Ex
   ]
 }
 
-/** Grace notes and ornament attacks, earliest first. */
+/** Grace notes, ornament attacks and tremolo shakes, earliest first. */
 function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
   const attacks: ExtraAttack[] = []
   const graces = note.graces ?? []
@@ -212,15 +272,26 @@ function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
     })
   }
   if (note.ornament) attacks.push(...ornamentExtras(note.ornament, note.pitch, note.duration))
+  // The first half of a two-note tremolo already plays the whole shake, so the
+  // second half must not add a second one on top of it.
+  if (note.tremolo && note.tremolo.role !== 'answer') {
+    attacks.push(...tremoloExtras(note.tremolo, note.pitch, note.duration))
+  }
   if (attacks.length === 0) return undefined
   return attacks.sort((a, b) => a.offset - b.offset)
 }
 
 /** The pedal span holding the key at `beat`, if any. */
-function pedalHolding(pedals: readonly PedalSpan[], beat: number, release: number): PedalSpan | undefined {
+function pedalHolding(
+  pedals: readonly PedalSpan[],
+  beat: number,
+  release: number,
+  staff: number | undefined,
+): PedalSpan | undefined {
   let best: PedalSpan | undefined
   for (const span of pedals) {
     if (span.downBeat > beat + 1e-3) break
+    if (!staffMatches(span.staff, staff)) continue
     const up = span.upBeat
     if (up != null && up <= beat + 1e-3) continue
     if (up != null && up >= release - 1e-3) best = span
@@ -231,7 +302,8 @@ function pedalHolding(pedals: readonly PedalSpan[], beat: number, release: numbe
 
 /**
  * Turn written notes into performed notes: loudness from dynamics and hairpins,
- * key length from articulation, slurs, fermatas, and the sustain pedal.
+ * key length from articulation, slurs, fermatas, breath marks and the sustain
+ * pedal, and the extra attacks that ornaments, tremolos and rolled chords imply.
  */
 export function compilePerformance(
   notes: readonly ScoreNote[],
@@ -276,7 +348,9 @@ export function compilePerformance(
     const base = hasExpression
       ? midiVelocityAt(note.beat, staff, { dynamics, wedges })
       : DEFAULT_MIDI_VELOCITY
-    const midi = clampVelocity(base + (articulation ? ARTICULATION_VELOCITY[articulation] : 0))
+    // A dynamic printed on this one note outranks the dynamic in force on its staff.
+    const printed = note.dynamics ?? base
+    const midi = clampVelocity(printed + (articulation ? ARTICULATION_VELOCITY[articulation] : 0))
     const written = Math.max(0.02, note.duration)
 
     let gate = written * (articulation ? ARTICULATION_GATE[articulation] : DEFAULT_GATE)
@@ -292,8 +366,8 @@ export function compilePerformance(
 
     // The sustain pedal keeps the string ringing after the key comes up. Staccato
     // and marcato stay short so the articulation is still heard.
-    if (articulation !== 'staccato' && articulation !== 'marcato') {
-      const span = pedalHolding(pedals, note.beat, note.beat + gate)
+    if (!articulation || !LIFTED.has(articulation)) {
+      const span = pedalHolding(pedals, note.beat, note.beat + gate, staff)
       if (span) {
         const up = span.upBeat
         if (up != null) gate = Math.max(gate, up - note.beat)
@@ -306,8 +380,20 @@ export function compilePerformance(
     // A trill passes the key back and forth with its upper neighbour, so the
     // written note is let go as soon as the first alternation sounds.
     if (note.ornament?.kind === 'trill') {
-      gate = Math.min(gate, trillGrid(note.duration).gap * 0.5)
+      gate = Math.min(gate, trillGrid(Math.max(written, note.ornament.span ?? written)).gap * 0.5)
     }
+
+    // A tremolo shakes the same key (or trades with its partner) from the beat on,
+    // so the written note itself is released as soon as the shake begins.
+    if (note.tremolo && note.tremolo.role !== 'answer') {
+      const span = Math.max(written, note.tremolo.span ?? written)
+      gate = Math.min(gate, tremoloGrid(note.tremolo.strokes, span).gap * 0.5)
+    }
+
+    // A printed breath mark or caesura lifts the key a hair early, so the next
+    // phrase can start cleanly instead of being smeared into this one.
+    if (note.breath) gate = Math.min(gate, written * (1 - BREATH_LIFT))
+
     gate = Math.max(0.02, gate)
 
     const performed: PerformedNote = {
@@ -319,6 +405,18 @@ export function compilePerformance(
       midi,
       gate,
     }
+
+    // A rolled chord climbs through its tones instead of striking them together.
+    if (note.arpeggio && note.arpeggio.count > 1) {
+      const { index, count } = note.arpeggio
+      const spread = Math.min(ARPEGGIO_MAX, ARPEGGIO_STEP * (count - 1))
+      performed.offset = (spread * index) / (count - 1)
+    }
+
+    // The second half of a two-note tremolo is already struck by the first half's
+    // shake, so it lights up the score without sounding again.
+    if (note.tremolo?.role === 'answer') performed.silent = true
+
     const extras = extrasFor(note)
     if (extras) performed.extras = extras
     return performed

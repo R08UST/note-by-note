@@ -18,10 +18,12 @@ interface DemoBarProps {
   expression?: Expression
   /** Follow the score's own tempo changes instead of the flat BPM. */
   scoreTempo?: boolean
+  /** Length of the bar at the starting beat, so the count-in matches the metre. */
+  countInBeats?: number
   onBeat: (beat: number) => void
 }
 
-export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, disabled, expression, scoreTempo = true, onBeat }: DemoBarProps) {
+export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, disabled, expression, scoreTempo = true, countInBeats = 4, onBeat }: DemoBarProps) {
   const [demoHand, setDemoHand] = useState<DemoHand>('both')
   const [playing, setPlaying] = useState(false)
   const engineRef = useRef<typeof import('../audio/engine') | null>(null)
@@ -52,7 +54,7 @@ export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, d
       startBeat: low,
       endBeat: high,
       loop,
-      countInBeats: 4,
+      countInBeats,
       tempos: scoreTempo ? expression?.tempos : undefined,
       onBeat,
       onEnded: () => setPlaying(false),
