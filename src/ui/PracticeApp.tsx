@@ -14,7 +14,7 @@ import { audioPrefs, setAudioPrefs } from '../audio/prefs'
 import type { Expression } from '../audio/performance'
 import { deleteUserScore, getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, updateUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
 import { DemoBar } from './DemoBar'
-import { ListenBar } from './ListenBar'
+import { ListenBar, type ListenHandle } from './ListenBar'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
 import { DevicePicker } from './DevicePicker'
@@ -116,7 +116,10 @@ export function PracticeApp() {
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [libraryError, setLibraryError] = useState<string | null>(null)
   const userPicked = useRef(false)
+  /** Set while continuous play is advancing the shelf, so the new piece keeps playing. */
+  const autoAdvance = useRef(false)
   const scoreRef = useRef<ScoreHandle>(null)
+  const listenRef = useRef<ListenHandle>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const trainInput = useRef<(event: PlayedEvent) => void>(() => {})
@@ -356,6 +359,12 @@ export function PracticeApp() {
 
   const choosePiece = (next: LoadedPiece, keepPicker = false) => {
     if (practice.status === 'playing' || practice.status === 'countin') practice.stop()
+    // The demo of the piece being replaced must fall silent, or it keeps sounding the
+    // old score and drags the cursor to the old beats. Continuous play is the one case
+    // where the demo is meant to carry on into the piece it just advanced to.
+    const autoPlay = autoAdvance.current
+    autoAdvance.current = false
+    if (!autoPlay && next.id !== piece?.id) listenRef.current?.stop()
     setFileError(null)
     setPiece(next)
     userPicked.current = true
@@ -507,14 +516,24 @@ export function PracticeApp() {
   const groups = onsets(active)
   const counts = countHands(notes)
   const runningNow = practice.status === 'playing' || practice.status === 'countin'
+  /**
+   * Move the cursor and anything already sounding to `beat`. Practice follows with a
+   * seamless relaunch; the listening demo restarts from there; idle just moves the line.
+   */
+  const jumpTo = (beat: number, until: number = endBeat) => {
+    if (runningNow) void practice.seek({ startBeat: beat, endBeat: until })
+    else {
+      scoreRef.current?.setBeat(beat)
+      listenRef.current?.seek(beat)
+    }
+  }
   const stepNote = (direction: -1 | 1) => {
     if (practice.stepOnset(direction)) return
     const next = neighborOnset(groups, cursorBeat, direction)
     if (!next || next.beat > endBeat + 1e-3) return
     setCursorBeat(next.beat)
     setRangeStart(next.measure)
-    if (runningNow) void practice.seek({ startBeat: next.beat, endBeat })
-    else scoreRef.current?.setBeat(next.beat)
+    jumpTo(next.beat)
   }
   const stepMeasure = (direction: -1 | 1) => {
     let measure = rangeStart
@@ -523,8 +542,7 @@ export function PracticeApp() {
     if (!target || target.beat > endBeat + 1e-3) return
     setCursorBeat(target.beat)
     setRangeStart(target.measure)
-    if (runningNow) void practice.seek({ startBeat: target.beat, endBeat })
-    else scoreRef.current?.setBeat(target.beat)
+    jumpTo(target.beat)
   }
   const hintNotes = practice.status === 'idle' ? firstOnset(notesInBeats(active, { startBeat: cursorBeat, endBeat })) : []
   const targetNotes = practice.status === 'playing' || practice.status === 'countin' ? practice.current : []
@@ -561,8 +579,7 @@ export function PracticeApp() {
         const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
         if (!first) return
         setCursorBeat(first.beat)
-        if (runningNow) void practice.seek({ startBeat: first.beat, endBeat })
-        else scoreRef.current?.setBeat(first.beat)
+        jumpTo(first.beat)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -685,8 +702,7 @@ export function PracticeApp() {
                       const first = firstOnsetInMeasure(groups, rangeStart) ?? groups[0]
                       if (!first) return
                       setCursorBeat(first.beat)
-                      if (runningNow) void practice.seek({ startBeat: first.beat, endBeat })
-                      else scoreRef.current?.setBeat(first.beat)
+                      jumpTo(first.beat)
                     }}><Glyph d="M4 3 V13 M6 4 L12 8 L6 12 Z" /></IconButton>
                     {mode === 'wait' && (
                       <IconButton label="退一音" disabled={practice.status !== 'playing'} onClick={practice.stepBack}><Glyph d="M11 3 L5 8 L11 13 M5 3 V13" /></IconButton>
@@ -706,8 +722,7 @@ export function PracticeApp() {
                         if (!target) return
                         setCursorBeat(target.beat)
                         setRangeStart(target.measure)
-                        if (runningNow) void practice.seek({ startBeat: target.beat, endBeat })
-                        else scoreRef.current?.setBeat(target.beat)
+                        jumpTo(target.beat)
                       }}
                     />
                   </label>
@@ -732,6 +747,8 @@ export function PracticeApp() {
                   <span className="toolbar-sep" aria-hidden="true" />
                   <ListenBar
                     toolbar
+                    ref={listenRef}
+                    pieceId={piece.id}
                     menuHost={menuHost}
                     notes={notes}
                     startBeat={cursorBeat}
@@ -750,16 +767,21 @@ export function PracticeApp() {
                     onPractice={() => void practice.start()}
                     onNext={() => {
                       if (!piece) return
+                      // Continuous play drives this, not the player: the piece that
+                      // arrives should be heard from its beginning.
+                      autoAdvance.current = true
                       if (piece.id.startsWith('saved:')) {
                         const index = savedScores.findIndex((score) => `saved:${score.id}` === piece.id)
                         const next = savedScores[index + 1] ?? savedScores[0]
                         if (next?.id != null && `saved:${next.id}` !== piece.id) void openSavedScore(next.id)
+                        else autoAdvance.current = false
                         return
                       }
                       const shelf = filterCatalog(catalog, query)
                       const index = shelf.findIndex((item) => item.id === piece.id)
                       const next = shelf[index + 1] ?? shelf[0]
                       if (next && next.id !== piece.id) void openCatalogPiece(next, false)
+                      else autoAdvance.current = false
                     }}
                   />
                   <div className="toolbar-group zoom-controls" role="group" aria-label="乐谱缩放">
@@ -802,7 +824,7 @@ export function PracticeApp() {
                           弹错就回到这一小节开头
                         </label>
                       )}
-                      <p className="device-note">点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。</p>
+                      <p className="device-note">点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。播放中也可以点谱上的音或小节，音乐会从那里接着放。</p>
                       <DemoBar
                         notes={notes}
                         bpm={bpm}
@@ -905,7 +927,7 @@ export function PracticeApp() {
                           setRangeStart(note.measure)
                           const nextEnd = Math.max(endBeat, note.beat)
                           if (note.beat > endBeat) setEndBeat(nextEnd)
-                          if (runningNow) void practice.seek({ startBeat: note.beat, endBeat: nextEnd })
+                          jumpTo(note.beat, nextEnd)
                         }}
                         onMeasure={(measure, shift) => {
                           const target = shift ? lastOnsetInMeasure(groups, measure) : firstOnsetInMeasure(groups, measure)
@@ -923,7 +945,7 @@ export function PracticeApp() {
                           setRangeStart(target.measure)
                           const nextEnd = Math.max(endBeat, target.beat)
                           if (target.beat > endBeat) setEndBeat(nextEnd)
-                          if (runningNow) void practice.seek({ startBeat: target.beat, endBeat: nextEnd })
+                          jumpTo(target.beat, nextEnd)
                         }}
                         onReady={(info) => {
                           setMapInfo({ matched: info.matched, total: info.total })
