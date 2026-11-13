@@ -1,5 +1,19 @@
 export type Hand = 'L' | 'R'
 
+/** A printed articulation. Accent and marcato also raise the loudness. */
+export type Articulation = 'staccato' | 'tenuto' | 'accent' | 'marcato' | 'portato'
+
+export type OrnamentKind = 'trill' | 'mordent' | 'inverted-mordent' | 'turn'
+
+/** A printed ornament, with the neighbours the key signature makes diatonic. */
+export interface Ornament {
+  kind: OrnamentKind
+  /** Scale step above the written pitch. */
+  upper: number
+  /** Scale step below the written pitch. */
+  lower: number
+}
+
 /** A note the player is expected to strike. Time is in quarter-note beats from the start. */
 export interface ScoreNote {
   id: string
@@ -12,8 +26,20 @@ export interface ScoreNote {
   measure: number
   /** MusicXML voice number. Empty when the file did not say. */
   voice?: string
+  /** MusicXML staff number, so a dynamic printed on one staff can stay on it. */
+  staff?: number
   /** Quarter notes from the start of this measure. */
   localBeat?: number
+  /** Printed articulation. Playback shortens staccato and lifts accent. */
+  articulation?: Articulation
+  /** Id of the slur this note sits under, so a slurred note can be held to the next. */
+  slur?: number
+  /** Printed fermata: the demo holds the note past its written value. */
+  fermata?: boolean
+  /** Grace notes printed just before this one, low to high. They are not judged. */
+  graces?: number[]
+  /** Printed ornament. The demo plays it out; judging ignores it. */
+  ornament?: Ornament
 }
 
 export interface PlayedEvent {

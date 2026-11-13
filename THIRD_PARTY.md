@@ -7,7 +7,7 @@ Note by Note is released under the GNU Affero General Public License v3.0 or lat
 - [homr-web](https://github.com/jymen/homr-web) and [homr](https://github.com/liebharc/homr) by Christian Liebhardt. AGPL-3.0-only. The 识谱 tab loads homr-web. Serving this app conveys that library.
 - [OpenSheetMusicDisplay](https://github.com/opensheetmusicdisplay/opensheetmusicdisplay). BSD-3-Clause. Draws the scores.
 - [Tone.js](https://github.com/Tonejs/Tone.js). MIT. Metronome, demo playback, and the practice clock.
-- Salamander Grand Piano, recorded by Alexander Holm. CC BY 3.0. A reduced set (every minor third, one velocity layer, Ogg Vorbis) is served from `public/samples/piano/` and loaded only after the first play or MIDI monitor gesture. Original archive: https://archive.org/details/SalamanderGrandPianoV3 — license https://creativecommons.org/licenses/by/3.0/
+- Salamander Grand Piano, recorded by Alexander Holm. CC BY 3.0. A reduced set (every minor third, three velocity layers, Ogg Vorbis) is served from `public/samples/piano/` and loaded only after the first play or MIDI monitor gesture. The three layers are what let `pp` sound soft rather than merely quiet; rebuild them with `node scripts/build-piano-layers.mjs`. Original archive: https://archive.org/details/SalamanderGrandPianoV3 — license https://creativecommons.org/licenses/by/3.0/
 - [WEBMIDI.js](https://github.com/djipco/webmidi). Apache-2.0.
 - [pdf.js](https://github.com/mozilla/pdf.js). Apache-2.0.
 - [Dexie](https://github.com/dexie/Dexie.js). Apache-2.0.

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
 import { notesInBeats } from '../modes/span'
+import { compilePerformance, type Expression } from '../audio/performance'
 
 type DemoHand = 'L' | 'R' | 'both' | 'other'
 
@@ -13,10 +14,14 @@ interface DemoBarProps {
   practiceHands: HandSelection
   loop: boolean
   disabled?: boolean
+  /** Dynamics, hairpins, pedal and tempo printed on the score. */
+  expression?: Expression
+  /** Follow the score's own tempo changes instead of the flat BPM. */
+  scoreTempo?: boolean
   onBeat: (beat: number) => void
 }
 
-export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, disabled, onBeat }: DemoBarProps) {
+export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, disabled, expression, scoreTempo = true, onBeat }: DemoBarProps) {
   const [demoHand, setDemoHand] = useState<DemoHand>('both')
   const [playing, setPlaying] = useState(false)
   const engineRef = useRef<typeof import('../audio/engine') | null>(null)
@@ -40,16 +45,18 @@ export function DemoBar({ notes, bpm, startBeat, endBeat, practiceHands, loop, d
           : span.filter((note) => note.hand === demoHand)
     if (selected.length === 0) return
     setPlaying(true)
+    const performed = compilePerformance(selected, expression)
     await engine.startDemo({
-      notes: selected,
+      notes: performed,
       bpm,
       startBeat: low,
       endBeat: high,
       loop,
       countInBeats: 4,
+      tempos: scoreTempo ? expression?.tempos : undefined,
       onBeat,
+      onEnded: () => setPlaying(false),
     })
-    if (!loop) setPlaying(false)
   }
 
   return (

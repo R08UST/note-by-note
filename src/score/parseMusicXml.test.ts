@@ -180,6 +180,220 @@ describe('parseMusicXml', () => {
   })
 })
 
+describe('printed expression', () => {
+  const direction = (body: string) => `<direction placement="below"><direction-type>${body}</direction-type></direction>`
+
+  it('reads printed dynamics as velocity', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<dynamics><f/></dynamics>') +
+            pitched('C', 4, 1) +
+            direction('<dynamics><pp/></dynamics>') +
+            pitched('D', 4, 1),
+        ),
+      ),
+    )
+    expect(parsed.dynamics).toEqual([
+      { beat: 0, velocity: 96, staff: undefined },
+      { beat: 1, velocity: 33, staff: undefined },
+    ])
+  })
+
+  it('reads a sound dynamics value against mf = 90', () => {
+    const parsed = parseMusicXml(
+      score(measure(1, attributes + `<direction><sound dynamics="45"/></direction>` + pitched('C', 4, 1))),
+    )
+    expect(parsed.dynamics[0].velocity).toBe(40)
+  })
+
+  it('pairs a crescendo with its stop', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<wedge type="crescendo"/>') +
+            pitched('C', 4, 1) +
+            pitched('D', 4, 1) +
+            direction('<wedge type="stop"/>') +
+            pitched('E', 4, 1),
+        ),
+      ),
+    )
+    expect(parsed.wedges).toEqual([{ startBeat: 0, endBeat: 2, direction: 'crescendo', staff: undefined }])
+  })
+
+  it('closes a hairpin that never stopped at the end of the piece', () => {
+    const parsed = parseMusicXml(
+      score(measure(1, attributes + direction('<wedge type="diminuendo"/>') + pitched('C', 4, 1))),
+    )
+    expect(parsed.wedges[0]).toMatchObject({ startBeat: 0, endBeat: 4, direction: 'diminuendo' })
+  })
+
+  it('reads a pedal down and up', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<pedal type="start" line="yes"/>') +
+            pitched('C', 3, 1) +
+            pitched('D', 3, 1) +
+            direction('<pedal type="stop" line="yes"/>') +
+            pitched('E', 3, 1),
+        ),
+      ),
+    )
+    expect(parsed.pedals).toEqual([{ downBeat: 0, upBeat: 2 }])
+  })
+
+  it('treats a pedal change as a lift and a new press on the same beat', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<pedal type="start"/>') +
+            pitched('C', 3, 1) +
+            direction('<pedal type="change"/>') +
+            pitched('D', 3, 1),
+        ),
+      ),
+    )
+    expect(parsed.pedals).toEqual([
+      { downBeat: 0, upBeat: 1 },
+      { downBeat: 1, upBeat: 4 },
+    ])
+  })
+
+  it('reads a printed tempo', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            `<direction><sound tempo="120"/></direction>` +
+            pitched('C', 4, 1) +
+            `<direction><sound tempo="60"/></direction>` +
+            pitched('D', 4, 1),
+        ),
+      ),
+    )
+    expect(parsed.tempos).toEqual([
+      { beat: 0, bpm: 120 },
+      { beat: 1, bpm: 60 },
+    ])
+  })
+
+  it('converts a metronome mark to quarter notes per minute', () => {
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<metronome><beat-unit>half</beat-unit><per-minute>60</per-minute></metronome>') +
+            pitched('C', 4, 1),
+        ),
+      ),
+    )
+    expect(parsed.tempos[0]).toEqual({ beat: 0, bpm: 120 })
+  })
+
+  it('keeps an articulation on its note', () => {
+    const mark = (name: string) => `<notations><articulations><${name}/></articulations></notations>`
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            `<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('staccato')}</note>` +
+            `<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('accent')}</note>` +
+            `<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('strongaccent')}</note>`,
+        ),
+      ),
+    )
+    expect(parsed.notes.map((note) => note.articulation)).toEqual(['staccato', 'accent', 'marcato'])
+  })
+
+  it('numbers the notes under one slur', () => {
+    const slur = (type: string) => `<notations><slur type="${type}" number="1"/></notations>`
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            `<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${slur('start')}</note>` +
+            `<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${slur('stop')}</note>` +
+            pitched('E', 4, 1),
+        ),
+      ),
+    )
+    expect(parsed.notes.map((note) => note.slur)).toEqual([1, 1, undefined])
+  })
+
+  it('marks a fermata and holds it through a tie', () => {
+    const start = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><tie type="start"/><type>half</type><notations><fermata type="upright"/></notations></note>`
+    const stop = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><tie type="stop"/><type>half</type></note>`
+    const parsed = parseMusicXml(score(measure(1, attributes + start + stop)))
+    expect(parsed.notes).toHaveLength(1)
+    expect(parsed.notes[0]).toMatchObject({ pitch: 60, duration: 4, fermata: true })
+  })
+
+  it('hangs grace notes on the note they lean on', () => {
+    const grace = (step: string) =>
+      `<note><grace/><pitch><step>${step}</step><octave>4</octave></pitch><type>16th</type></note>`
+    const parsed = parseMusicXml(score(measure(1, attributes + grace('D') + grace('E') + pitched('F', 4, 1))))
+    expect(parsed.notes).toHaveLength(1)
+    expect(parsed.notes[0]).toMatchObject({ pitch: 65, beat: 0, graces: [62, 64] })
+  })
+
+  it('reads a printed ornament with its diatonic neighbours', () => {
+    const mark = (name: string) => `<notations><ornaments><${name}/></ornaments></notations>`
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            `<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('trill-mark')}</note>` +
+            `<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('mordent')}</note>` +
+            `<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('inverted-mordent')}</note>` +
+            `<note><pitch><step>F</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type>${mark('turn')}</note>`,
+        ),
+      ),
+    )
+    expect(parsed.notes.map((note) => note.ornament?.kind)).toEqual([
+      'trill',
+      'mordent',
+      'inverted-mordent',
+      'turn',
+    ])
+    expect(parsed.notes[0].ornament).toEqual({ kind: 'trill', upper: 62, lower: 59 })
+  })
+
+  it('keeps an ornament diatonic in the key signature', () => {
+    const gMajor = `<attributes>
+      <divisions>1</divisions>
+      <key><fifths>1</fifths></key>
+      <time><beats>4</beats><beat-type>4</beat-type></time>
+    </attributes>`
+    const trill = `<note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><ornaments><trill-mark/></ornaments></notations></note>`
+    const parsed = parseMusicXml(score(measure(1, gMajor + trill)))
+    // F sharp trills to G, not to G sharp.
+    expect(parsed.notes[0].ornament).toMatchObject({ upper: 67, lower: 64 })
+  })
+
+  it('leaves every expression list empty when the score prints none', () => {
+    const parsed = parseMusicXml(BUNDLED_PIECES[0].xml)
+    expect(parsed.dynamics).toEqual([])
+    expect(parsed.wedges).toEqual([])
+    expect(parsed.pedals).toEqual([])
+    expect(parsed.tempos).toEqual([])
+  })
+})
+
 describe('unpackMxl', () => {
   it('reads the score path from the container', () => {
     const xml = score(measure(1, attributes + pitched('C', 4, 1)))
@@ -211,6 +425,17 @@ describe('normalizeForOsmd', () => {
     expect(normalizeForOsmd('<direction/>')).toBe('<direction/>')
   })
 
+  it('keeps the tempo the parser reads', () => {
+    const xml = score(
+      measure(
+        1,
+        attributes + '<direction placement="above"><staff>1</staff><sound tempo="60"/></direction>' + pitched('C', 4, 1),
+      ),
+    )
+    const parsed = parseMusicXml(normalizeForOsmd(xml))
+    expect(parsed.tempos).toEqual([{ beat: 0, bpm: 60 }])
+    expect(parsed.notes).toHaveLength(1)
+  })
 
   it('untie a grace note so the printed note keeps its head', () => {
     const grace =

@@ -2,9 +2,10 @@ import { CursorType, OpenSheetMusicDisplay, type GraphicalNote } from 'opensheet
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import type { Hand, ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
-import { cursorIndexForBeat } from '../score/cursorBeat'
+import { cursorIndexForBeat, foldRepeats } from '../score/cursorBeat'
 import { mapNotesToHeads, UNDRAWN_MEASURE } from '../score/mapNotes'
 import { collectHeads } from '../score/osmdHeads'
+import { normalizeForOsmd } from '../score/mxl'
 
 export interface ScoreHandle {
   prepare(hands: HandSelection, beat: number): void
@@ -59,7 +60,11 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
   const stepsRef = useRef<(number | null)[]>([])
+  /** Real OSMD step for each logical step, once repeats are folded away. */
+  const osmdStepsRef = useRef<number[]>([])
   const stepIndexRef = useRef(0)
+  /** Cursor steps already walked since the last reset, or -1 when unknown. */
+  const walkedRef = useRef(-1)
   const entriesRef = useRef<Map<string, Entry>>(new Map())
   const notesRef = useRef(notes)
   const onReadyRef = useRef(onReady)
@@ -97,13 +102,22 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     if (!osmd?.cursor || steps.length === 0) return
     beatRef.current = beat
     const index = cursorIndexForBeat(steps, beat)
+    const target = osmdStepsRef.current[index] ?? index
     const cursor = osmd.cursor
-    cursor.hide()
-    cursor.reset()
-    for (let step = 0; step < index; step += 1) {
+    // Playback walks the sheet forwards, so continue from where the cursor already
+    // stands instead of rewinding to the first note on every beat. Rewinding would
+    // walk up to a few hundred steps per call, which visibly lags behind the music.
+    let from = walkedRef.current
+    if (from < 0 || from > target) {
+      cursor.hide()
+      cursor.reset()
+      from = 0
+    }
+    for (let step = from; step < target; step += 1) {
       if (cursor.Iterator?.EndReached) break
       cursor.next()
     }
+    walkedRef.current = target
     cursor.show()
     stepIndexRef.current = index
     const element = cursor.cursorElement
@@ -168,7 +182,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
         if (cancelled || host.clientWidth < 40) return
       }
       try {
-        await osmd.load(xml)
+        await osmd.load(normalizeForOsmd(xml))
         if (cancelled) return
         osmd.Zoom = 1
         osmd.render()
@@ -220,16 +234,26 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             if (source) beatByHead.set(source, beat)
           }
           entriesRef.current = entries
-          stepsRef.current = raw.map((step) => {
-            let beat: number | null = null
-            for (const gnote of step) {
-              const source = (gnote as { sourceNote?: object }).sourceNote
-              const value = beatByHead.get(gnote) ?? (source ? beatByHead.get(source) : undefined)
-              if (value == null) continue
-              beat = beat == null ? value : Math.min(beat, value)
-            }
-            return beat
-          })
+
+          // A repeat mark makes the cursor walk the repeated bars a second time,
+          // so the beats run 70, 71, 74, then drop back to 51 and climb again.
+          // Playback plays the score once, so drop the second pass; otherwise a
+          // beat is found on the far side of the rewind and the line leaps over
+          // every note in between.
+          const walk = foldRepeats(
+            raw.map((row) => {
+              let beat: number | null = null
+              for (const gnote of row) {
+                const source = (gnote as { sourceNote?: object }).sourceNote
+                const value = beatByHead.get(gnote) ?? (source ? beatByHead.get(source) : undefined)
+                if (value == null) continue
+                beat = beat == null ? value : Math.min(beat, value)
+              }
+              return beat
+            }),
+          )
+          stepsRef.current = walk.map((item) => item.beat)
+          osmdStepsRef.current = walk.map((item) => item.step)
           for (const [id, entry] of entries) {
             for (const gnote of entry.gnotes) {
               const element = noteElement(gnote)
@@ -257,6 +281,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             }
           }
           markSpan()
+          walkedRef.current = -1
           if (beatRef.current != null) seekRef.current(beatRef.current)
           else osmd.cursor.show()
           if (!cancelled) {
@@ -303,6 +328,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
       osmdRef.current = null
       entriesRef.current = new Map()
       stepsRef.current = []
+      osmdStepsRef.current = []
       try {
         osmd.dispose()
       } catch {

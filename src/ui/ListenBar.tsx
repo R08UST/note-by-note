@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { ScoreNote } from '../judge/types'
+import { compilePerformance, type Expression } from '../audio/performance'
 import { keyboardBounds, Keyboard } from './Keyboard'
 
 interface ListenBarProps {
@@ -13,6 +14,10 @@ interface ListenBarProps {
   bpm: number
   onBpm: (bpm: number) => void
   disabled?: boolean
+  /** Dynamics, hairpins, pedal and tempo printed on the score. */
+  expression?: Expression
+  /** Follow the score's own tempo changes instead of the flat BPM. */
+  scoreTempo?: boolean
   onBeat: (beat: number) => void
   onPractice: () => void
   /** Next item in the shelf. Continuous play calls this when a piece ends. */
@@ -25,11 +30,12 @@ interface ListenBarProps {
   menuHost?: HTMLElement | null
 }
 
-export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, onBeat, onPractice, onNext, showKeyboard = true, onSounding, toolbar = false, menuHost = null }: ListenBarProps) {
+export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, expression, scoreTempo = true, onBeat, onPractice, onNext, showKeyboard = true, onSounding, toolbar = false, menuHost = null }: ListenBarProps) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
   const [loop, setLoop] = useState(false)
   const [continuous, setContinuous] = useState(false)
+  const [followScoreTempo, setFollowScoreTempo] = useState(scoreTempo)
   const [offer, setOffer] = useState(false)
   const [sounding, setSounding] = useState<Record<number, 'L' | 'R'>>({})
   const engineRef = useRef<typeof import('../audio/engine') | null>(null)
@@ -38,6 +44,7 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
   const pieceKey = `${notes.length}:${notes[0]?.pitch ?? 0}:${notes[notes.length - 1]?.beat ?? 0}`
   const last = notes.reduce((max, note) => Math.max(max, note.beat + note.duration), startBeat)
   const bounds = keyboardBounds([...notes])
+  const hasScoreTempo = (expression?.tempos?.length ?? 0) > 0
 
   const begin = async (fromLoop: boolean) => {
     const engine = engineRef.current ?? (await import('../audio/engine'))
@@ -50,12 +57,13 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
     setPlaying(true)
     setPaused(false)
     await engine.startDemo({
-      notes: selected,
+      notes: compilePerformance(selected, expression),
       bpm,
       startBeat: low,
       endBeat: high,
       loop: fromLoop,
       countInBeats: 0,
+      tempos: followScoreTempo ? expression?.tempos : undefined,
       onBeat,
       onSounding: (active) => {
         const next: Record<number, 'L' | 'R'> = {}
@@ -128,6 +136,16 @@ export function ListenBar({ notes, startBeat, rangeStart, rangeEnd, bpm, onBpm, 
         <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
         循环选区
       </label>
+      {hasScoreTempo && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={followScoreTempo}
+            onChange={(event) => setFollowScoreTempo(event.target.checked)}
+          />
+          按谱面速度
+        </label>
+      )}
       <label className="check">
         <input
           type="checkbox"

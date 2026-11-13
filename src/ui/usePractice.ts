@@ -13,6 +13,7 @@ import { latestRun, saveRun, type RunRecord } from '../storage/db'
 import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { audioPrefs } from '../audio/prefs'
+import { compilePerformance, type Expression } from '../audio/performance'
 import { startMetronome, stopMetronome, transportSeconds } from '../transport/metronome'
 import { scoreColor } from './format'
 import { practiceTransition } from './practiceMachine'
@@ -41,6 +42,8 @@ interface PracticeOptions {
   listenKeyboard?: boolean
   /** Wait mode: a wrong pitch rewinds to the first note of the measure. */
   resetOnError?: boolean
+  /** Printed dynamics, hairpins and pedal, so the accompanying hand is expressive too. */
+  expression?: Expression
 }
 
 type Engine = WaitMode | RhythmMode
@@ -69,6 +72,7 @@ export function usePractice({
   keyboardEnabled,
   listenKeyboard = true,
   resetOnError = false,
+  expression,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -420,7 +424,12 @@ export function usePractice({
         const other = options.hands === 'R' ? 'L' : 'R'
         const backing = notesInBeats(options.notes, options.span).filter((note) => note.hand === other)
         const engine = await import('../audio/engine')
-        accompanyStop.current = await engine.scheduleAccompaniment(backing, options.bpm, countInBeats, runRef.current.originBeat)
+        accompanyStop.current = await engine.scheduleAccompaniment(
+          compilePerformance(backing, expression),
+          options.bpm,
+          countInBeats,
+          runRef.current.originBeat,
+        )
       }
       if (runIdRef.current !== runId || statusRef.current !== 'countin') return
       const loop = () => {

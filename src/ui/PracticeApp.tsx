@@ -11,6 +11,7 @@ import { readScoreFile, unpackMxl } from '../score/mxl'
 import { noteName } from '../score/pitch'
 import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
 import { audioPrefs, setAudioPrefs } from '../audio/prefs'
+import type { Expression } from '../audio/performance'
 import { deleteUserScore, getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, updateUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
 import { DemoBar } from './DemoBar'
 import { ListenBar } from './ListenBar'
@@ -136,6 +137,16 @@ export function PracticeApp() {
   }, [piece])
 
   const notes = useMemo(() => parsed.score?.notes ?? [], [parsed.score])
+  // Everything the score prints about how it should sound, handed to playback.
+  const expression = useMemo<Expression>(
+    () => ({
+      dynamics: parsed.score?.dynamics ?? [],
+      wedges: parsed.score?.wedges ?? [],
+      pedals: parsed.score?.pedals ?? [],
+      tempos: parsed.score?.tempos ?? [],
+    }),
+    [parsed.score],
+  )
   useEffect(() => {
     setUndrawnIds([])
   }, [piece?.id])
@@ -164,6 +175,7 @@ export function PracticeApp() {
     keyboardEnabled,
     listenKeyboard: tab === 'practice',
     resetOnError,
+    expression,
   })
 
   useEffect(() => {
@@ -727,6 +739,7 @@ export function PracticeApp() {
                     rangeEnd={endBeat}
                     bpm={bpm}
                     onBpm={setBpm}
+                    expression={expression}
                     disabled={practice.status === 'playing' || practice.status === 'countin'}
                     showKeyboard={false}
                     onSounding={setListenHands}
@@ -797,6 +810,7 @@ export function PracticeApp() {
                         endBeat={endBeat}
                         practiceHands={hands}
                         loop={loop}
+                        expression={expression}
                         disabled={practice.status === 'playing' || practice.status === 'countin'}
                         onBeat={(beat) => scoreRef.current?.setBeat(beat)}
                       />
