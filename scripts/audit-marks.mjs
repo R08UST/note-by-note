@@ -1,5 +1,5 @@
 // Match judged notes to OSMD heads for every bundled score.
-// Usage: npx vite-node scripts/audit-marks.mjs
+// Usage: node scripts/audit-marks.mjs (bundled first with rolldown; AUDIT_ROOT points at the repo)
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Window } from 'happy-dom'
@@ -8,16 +8,24 @@ import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay'
 import { parseMusicXml } from '../src/score/parseMusicXml.ts'
 import { collectHeads } from '../src/score/osmdHeads.ts'
 import { mapNotesToHeads, unmatchedSummary } from '../src/score/mapNotes.ts'
+import { normalizeForOsmd } from '../src/score/mxl.ts'
 
-const window = new Window()
-globalThis.window = window
-globalThis.document = window.document
-globalThis.DOMParser = window.DOMParser
-globalThis.Node = window.Node
-globalThis.Element = window.Element
-globalThis.HTMLElement = window.HTMLElement
-globalThis.SVGElement = window.SVGElement
-globalThis.MutationObserver = window.MutationObserver
+// OSMD keeps a DOM tree per score, and the library is over a thousand files now, so the
+// window is thrown away and rebuilt every so often instead of growing until the heap dies.
+let window = new Window()
+function resetDom() {
+  window.happyDOM.close()
+  window = new Window()
+  globalThis.window = window
+  globalThis.document = window.document
+  globalThis.DOMParser = window.DOMParser
+  globalThis.Node = window.Node
+  globalThis.Element = window.Element
+  globalThis.HTMLElement = window.HTMLElement
+  globalThis.SVGElement = window.SVGElement
+  globalThis.MutationObserver = window.MutationObserver
+}
+resetDom()
 
 function unpack(file) {
   const bytes = readFileSync(file)
@@ -44,7 +52,9 @@ function filesUnder(dir) {
   return found
 }
 
-const root = path.resolve(import.meta.dirname, '..')
+// The script is bundled before it runs, so its own location says nothing about the repo. The
+// caller passes the checkout root; a direct run falls back to the parent of this file.
+const root = process.env.AUDIT_ROOT ? path.resolve(process.env.AUDIT_ROOT) : path.resolve(import.meta.dirname, '..')
 const only = process.argv[2]
 const offset = Number(process.env.AUDIT_OFFSET ?? 0)
 const limit = Number(process.env.AUDIT_LIMIT ?? 0)
@@ -61,10 +71,12 @@ for (const file of scores) {
     const xml = unpack(file)
     const parsed = parseMusicXml(xml)
     if (parsed.notes.length === 0) continue
-    await osmd.load(xml)
-    try { osmd.render() } catch { /* happy-dom has no font context; the note model is already built */ }
-    const stub = { setColor() {}, getSVGGElement() { return {} } }
-    const collected = collectHeads(osmd.Sheet, (note) => osmd.EngravingRules.GNote(note) ?? stub)
+    await osmd.load(normalizeForOsmd(xml))
+    // The sheet model from load() already carries every head, and rendering would build a
+    // full SVG per score, which is what made the heap grow without bound.
+    // Only head positions are audited, so no GraphicalNote is looked up. GNote() caches one
+    // object per note in a dictionary that never shrinks, which exhausts the heap on long scores.
+    const collected = collectHeads(osmd.Sheet, () => undefined)
     const mapped = mapNotesToHeads(parsed.notes, collected.heads)
     const rate = mapped.matched / parsed.notes.length
     if (rate < 1) {
@@ -83,6 +95,12 @@ for (const file of scores) {
   host.remove()
   done += 1
   if (done % 25 === 0) console.error(`${done}/${scores.length}`)
+  // happy-dom detaches a parsed document on a queued task, so the loop has to yield once and
+  // then collect; otherwise the heap keeps every score tree and dies after a few dozen files.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  if (global.gc) global.gc()
+  if (done % 50 === 0) resetDom()
+  if (process.env.AUDIT_MEM) console.error('mem', done, Math.round(process.memoryUsage().heapUsed / 1048576) + 'MB')
 }
 low.sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0))
 console.log(JSON.stringify({ checked: done, below98: low.length, pieces: low }, null, 2))

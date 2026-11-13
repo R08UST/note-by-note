@@ -1,6 +1,6 @@
 import { zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { unpackMxl } from './mxl'
+import { normalizeForOsmd, unpackMxl } from './mxl'
 import { parseMusicXml } from './parseMusicXml'
 import { BUNDLED_PIECES } from './pieces'
 
@@ -191,5 +191,60 @@ describe('unpackMxl', () => {
     })
     const parsed = parseMusicXml(unpackMxl(packed))
     expect(parsed.notes[0].pitch).toBe(60)
+  })
+})
+
+describe('normalizeForOsmd', () => {
+  it('adds the direction-type that bare tempo directions omit', () => {
+    const bare = '<direction placement="above"><staff>1</staff><sound tempo="60"/></direction>'
+    expect(normalizeForOsmd(bare)).toBe(
+      '<direction placement="above"><direction-type/><staff>1</staff><sound tempo="60"/></direction>',
+    )
+  })
+
+  it('is idempotent and leaves typed directions alone', () => {
+    const bare = '<direction><sound tempo="60"/></direction>'
+    const fixed = normalizeForOsmd(bare)
+    expect(normalizeForOsmd(fixed)).toBe(fixed)
+    const typed = '<direction><direction-type><dynamics><f/></dynamics></direction-type></direction>'
+    expect(normalizeForOsmd(typed)).toBe(typed)
+    expect(normalizeForOsmd('<direction/>')).toBe('<direction/>')
+  })
+
+
+  it('untie a grace note so the printed note keeps its head', () => {
+    const grace =
+      '<note><grace/><pitch><step>E</step><octave>6</octave></pitch><tie type="start"/><voice>1</voice><type>32nd</type>' +
+      '<notations><tied type="start"/></notations></note>'
+    const printed = '<note><chord/><pitch><step>E</step><octave>6</octave></pitch><duration>1</duration><tie type="stop"/>' +
+      '<voice>1</voice><type>quarter</type><notations><tied type="stop"/></notations></note>'
+    const fixed = normalizeForOsmd(grace + printed)
+    const [graceBlock] = fixed.split('</note>')
+    expect(graceBlock).not.toContain('<tie')
+    expect(graceBlock).not.toContain('<tied')
+    expect(graceBlock).toContain('<grace/>')
+    // The printed note is a chord tone of the same pitch, so its own tie stop stays.
+    expect(fixed).toContain('<tie type="stop"/>')
+  })
+
+  it('keeps a tie between two printed notes', () => {
+    const tied = `<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><tie type="start"/>` +
+      `<type>quarter</type><notations><tied type="start"/></notations></note>` +
+      `<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><tie type="stop"/>` +
+      `<type>quarter</type><notations><tied type="stop"/></notations></note>`
+    expect(normalizeForOsmd(tied)).toBe(tied)
+  })
+
+  it('splits a rest longer than its bar, which OSMD would clamp to one bar', () => {
+    const long = '<note><rest/><duration>6</duration><voice>2</voice><type>half</type><staff>2</staff></note>'
+    const fixed = normalizeForOsmd(score(measure(1, attributes + long)))
+    // The printed rest keeps its marks and becomes a whole note; the extra rests are hidden.
+    expect(fixed).toContain('<duration>4</duration><voice>2</voice><type>whole</type><staff>2</staff>')
+    expect(fixed).toContain('<note print-object="no"><rest/><duration>2</duration><voice>2</voice><type>half</type><staff>2</staff></note>')
+  })
+
+  it('leaves a rest that fits its bar alone', () => {
+    const fits = '<note><rest/><duration>4</duration><voice>2</voice><type>whole</type></note>'
+    expect(normalizeForOsmd(score(measure(1, attributes + fits)))).toBe(score(measure(1, attributes + fits)))
   })
 })

@@ -177,7 +177,12 @@ export function parseMusicXml(xml: string): ParsedScore {
     let divisions = 1
     let partStaves = 1
     let signature: TimeSignature = { beats: 4, beatType: 4 }
-    const openTies = new Map<string, ScoreNote>()
+    /**
+     * Attacks waiting for their tie stop, keyed by staff, voice and pitch. One key can hold several
+     * notes: an engraver may tie the same pitch twice in a bar and only close the first, and a stop then
+     * belongs to the note it follows, not to whichever start was written last.
+     */
+    const openTies = new Map<string, ScoreNote[]>()
     const measures = [...part.children].filter((element) => element.localName === 'measure')
     const firstRaw = measures[0]?.getAttribute('number')
     const firstNumber = firstRaw == null ? Number.NaN : Number(firstRaw)
@@ -252,13 +257,17 @@ export function parseMusicXml(xml: string): ParsedScore {
         const openKey = ties.stop
           ? openTies.has(tieKey)
             ? tieKey
-            : [...openTies.keys()].reverse().find((key) => key.endsWith(`|${pitch}`) && key.startsWith(`${staffKey}|`))
+            : [...openTies.keys()].find((key) => key.endsWith(`|${pitch}`) && key.startsWith(`${staffKey}|`))
           : undefined
 
         if (ties.stop && openKey) {
-          const existing = openTies.get(openKey)
+          const waiting = openTies.get(openKey)
+          const existing = waiting?.shift()
           if (existing) existing.duration += duration
-          if (!ties.start) openTies.delete(openKey)
+          if (!ties.start) {
+            if (waiting && waiting.length > 0) openTies.set(openKey, waiting)
+            else openTies.delete(openKey)
+          }
           continue
         }
 
@@ -273,7 +282,11 @@ export function parseMusicXml(xml: string): ParsedScore {
           localBeat: start,
         }
         notes.push(note)
-        if (ties.start) openTies.set(tieKey, note)
+        if (ties.start) {
+          const waiting = openTies.get(tieKey) ?? []
+          waiting.push(note)
+          openTies.set(tieKey, waiting)
+        }
       }
     })
   })
