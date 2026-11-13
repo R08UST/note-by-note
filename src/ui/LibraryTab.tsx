@@ -1,10 +1,30 @@
-import { lazy, Suspense, useState, type Ref } from 'react'
-import { filterCatalog, needsAttribution, pieceTitle, type CatalogPiece, type CatalogQuery } from '../score/catalog'
+import { lazy, Suspense, useMemo, useState, type Ref } from 'react'
+import {
+  filterCatalog,
+  groupByComposer,
+  needsAttribution,
+  pieceTitle,
+  LEVEL_ORDER,
+  type CatalogPiece,
+  type CatalogQuery,
+  type CatalogSort,
+} from '../score/catalog'
 import type { SavedScore, UserLevel } from '../storage/db'
 
 const ScoreImport = lazy(() => import('./ScoreImport').then((mod) => ({ default: mod.ScoreImport })))
 
-const LEVELS: CatalogPiece['level'][] = ['L1', 'L2', 'L3', 'L4', 'L5']
+const CATEGORIES: { value: NonNullable<CatalogQuery['category']>; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'graded', label: '独奏曲' },
+  { value: 'method', label: '教材' },
+  { value: 'etude', label: '练习曲' },
+]
+
+const SORTS: { value: CatalogSort; label: string }[] = [
+  { value: 'level', label: '难度' },
+  { value: 'length', label: '长度' },
+  { value: 'alpha', label: '字母' },
+]
 
 interface SavedScoreCard {
   id: number
@@ -59,7 +79,16 @@ export function LibraryTab({
 }: LibraryTabProps) {
   const [importing, setImporting] = useState(false)
   const [dropped, setDropped] = useState<File[]>([])
+  /** 用户手动折叠/展开过的作曲家。没记录的跟随默认（搜索时全展开）。 */
+  const [folded, setFolded] = useState<Record<string, boolean>>({})
+  const category = query.category ?? 'all'
+  const sort = query.sort ?? 'level'
   const shown = filterCatalog(pieces, query)
+  const shelves = useMemo(() => groupByComposer(shown, sort), [shown, sort])
+  const searching = query.text.trim().length > 0
+
+  const count = (predicate: (piece: CatalogPiece) => boolean) => pieces.filter(predicate).length
+
   return (
     <section className="library-panel" aria-label="曲库">
       <div className="library-panel-head">
@@ -70,28 +99,48 @@ export function LibraryTab({
           </button>
         )}
       </div>
+
       <div className="library-filters">
         <div className="segmented" role="group" aria-label="程度">
-          <button type="button" aria-pressed={(query.category == null || query.category === 'graded') && query.level === 'all'} onClick={() => onQuery({ ...query, category: 'graded', level: 'all' })}>
-            全部
+          <button
+            type="button"
+            aria-pressed={query.level === 'all'}
+            onClick={() => onQuery({ ...query, level: 'all' })}
+          >
+            全部 {pieces.length}
           </button>
-          {LEVELS.map((level) => (
+          {LEVEL_ORDER.map((level) => (
             <button
               key={level}
               type="button"
-              aria-pressed={query.category !== 'etude' && query.category !== 'method' && query.level === level}
-              onClick={() => onQuery({ ...query, category: query.category === 'method' ? 'method' : 'graded', level })}
+              aria-pressed={query.level === level}
+              onClick={() => onQuery({ ...query, level })}
             >
-              {level} {pieces.filter((piece) => piece.category !== 'etude' && piece.category !== 'method' && piece.level === level).length}
+              {level} {count((piece) => piece.level === level)}
             </button>
           ))}
-          <button type="button" aria-pressed={query.category === 'method'} onClick={() => onQuery({ ...query, category: 'method', level: 'all' })}>
-            教材 {pieces.filter((piece) => piece.category === 'method').length}
-          </button>
-          <button type="button" aria-pressed={query.category === 'etude'} onClick={() => onQuery({ ...query, category: 'etude', level: 'all' })}>
-            练习曲 {pieces.filter((piece) => piece.category === 'etude').length}
-          </button>
         </div>
+
+        <div className="segmented" role="group" aria-label="类型">
+          {CATEGORIES.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={category === item.value}
+              onClick={() => onQuery({ ...query, category: item.value })}
+            >
+              {item.label}{' '}
+              {count((piece) =>
+                item.value === 'all'
+                  ? true
+                  : item.value === 'graded'
+                    ? piece.category == null
+                    : piece.category === item.value,
+              )}
+            </button>
+          ))}
+        </div>
+
         <div className="segmented" role="group" aria-label="声部">
           <button type="button" aria-pressed={query.hands === 'all'} onClick={() => onQuery({ ...query, hands: 'all' })}>
             全部
@@ -103,16 +152,31 @@ export function LibraryTab({
             双手
           </button>
         </div>
+
         <label className="field search">
           <span>搜索</span>
           <input
             ref={searchRef}
             type="search"
-            placeholder="曲名、中文名或作曲家"
+            placeholder="曲名、作曲家或教材名"
             value={query.text}
             onChange={(event) => onQuery({ ...query, text: event.target.value })}
           />
         </label>
+
+        <div className="segmented" role="group" aria-label="排序">
+          <span className="segmented-label">排序</span>
+          {SORTS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={sort === item.value}
+              onClick={() => onQuery({ ...query, sort: item.value })}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <section className="library-section">
@@ -171,7 +235,7 @@ export function LibraryTab({
                 />
                 <select aria-label="程度" value={score.level ?? ''} onChange={(event) => onLevelSaved(score.id, event.target.value as UserLevel)}>
                   <option value="">程度</option>
-                  {(['L1', 'L2', 'L3', 'L4', 'L5'] as const).map((level) => (
+                  {LEVEL_ORDER.map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
@@ -189,44 +253,62 @@ export function LibraryTab({
       </section>
 
       <section className="library-section">
-        <h3>{query.category === 'method' ? '教材' : query.category === 'etude' ? '练习曲' : '全部曲库'}</h3>
-        <p className="device-note">
-          {shown.length} 首
-          {openingId ? ' · 正在打开…' : ''}
-        </p>
+        <div className="library-shelf-head">
+          <h3>{category === 'method' ? '教材' : category === 'etude' ? '练习曲' : '全部曲库'}</h3>
+          <span className="device-note">
+            {shown.length} 首 · {shelves.length} 位作曲家
+            {openingId ? ' · 正在打开…' : ''}
+          </span>
+          <div className="library-shelf-actions">
+            <button type="button" className="button ghost" onClick={() => setFolded({})}>
+              全部展开
+            </button>
+            <button
+              type="button"
+              className="button ghost"
+              onClick={() => setFolded(Object.fromEntries(shelves.map((shelf) => [shelf.composer, true])))}
+            >
+              全部收起
+            </button>
+          </div>
+        </div>
         {error && <p className="score-status error">{error}</p>}
         {shown.length === 0 ? (
           <p>没有符合的曲子。</p>
         ) : (
-          groupByBook(shown).map((group) => (
-            <div key={group.name}>
-              {group.name && <h3>{group.name}</h3>}
-              <ul className="library-grid">
-                {group.pieces.map((piece) => (
-                  <li key={piece.id}>
-                    <button
-                      type="button"
-                      className={piece.id === activeId ? 'library-card is-selected' : 'library-card'}
-                      disabled={openingId === piece.id}
-                      onClick={() => onOpen(piece)}
-                    >
-                      <strong>{pieceTitle(piece)}</strong>
-                      {piece.title_zh && <em>{piece.title}</em>}
-                      <span>
-                        {piece.composer} · {piece.level} · {piece.hands === 'one' ? '单手' : '双手'} · {piece.measures} 小节
-                      </span>
-                      <span>
-                        {piece.key || '—'} · {piece.time || '—'} · {piece.license}
-                      </span>
-                      <span className={needsAttribution(piece) ? 'attribution is-required' : 'attribution'}>
-                        {needsAttribution(piece) ? `署名：${piece.attribution}` : piece.attribution}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          <div className="library-shelves">
+            {shelves.map((shelf) => {
+              // 搜索时默认展开，让结果直接可见；否则默认收起，只看到作曲家列表。
+              const open = folded[shelf.composer] ?? searching
+              const activeHere = shelf.pieces.some((piece) => piece.id === activeId)
+              return (
+                <section key={shelf.composer} className={open ? 'composer-shelf is-open' : 'composer-shelf'}>
+                  <button
+                    type="button"
+                    className="composer-shelf-head"
+                    aria-expanded={open}
+                    onClick={() => setFolded((current) => ({ ...current, [shelf.composer]: !open }))}
+                  >
+                    <span className="composer-shelf-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                    <strong>{shelf.name}</strong>
+                    <span className="composer-shelf-count">
+                      {shelf.pieces.length} 首
+                      {activeHere ? ' · 正在练' : ''}
+                    </span>
+                  </button>
+                  {open && (
+                    <ul className="library-grid">
+                      {shelf.pieces.map((piece) => (
+                        <li key={piece.id}>
+                          <PieceCard piece={piece} active={piece.id === activeId} opening={openingId === piece.id} onOpen={onOpen} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )
+            })}
+          </div>
         )}
       </section>
       <button type="button" className="button ghost" onClick={onOpenFile}>
@@ -236,20 +318,55 @@ export function LibraryTab({
   )
 }
 
-function groupByBook(pieces: CatalogPiece[]): { name: string; pieces: CatalogPiece[] }[] {
-  if (!pieces.some((piece) => piece.book)) return [{ name: '', pieces }]
-  const order: string[] = []
-  const groups = new Map<string, CatalogPiece[]>()
-  for (const piece of pieces) {
-    const name = piece.book || '其他'
-    if (!groups.has(name)) {
-      groups.set(name, [])
-      order.push(name)
-    }
-    groups.get(name)!.push(piece)
-  }
-  return order.map((name) => ({
-    name,
-    pieces: (groups.get(name) ?? []).slice().sort((a, b) => (a.number ?? 0) - (b.number ?? 0) || a.id.localeCompare(b.id)),
-  }))
+function PieceCard({
+  piece,
+  active,
+  opening,
+  onOpen,
+}: {
+  piece: CatalogPiece
+  active: boolean
+  opening: boolean
+  onOpen: (piece: CatalogPiece) => void
+}) {
+  const title = pieceTitle(piece)
+  const original = piece.title?.trim()
+  return (
+    <div className={active ? 'library-card is-selected' : 'library-card'}>
+      <button type="button" className="library-card-main" disabled={opening} onClick={() => onOpen(piece)}>
+        <strong title={title}>{title}</strong>
+        <span className="library-card-meta">
+          {[
+            piece.composer,
+            piece.level,
+            piece.hands === 'one' ? '单手' : '双手',
+            `${piece.measures} 小节`,
+          ].join(' · ')}
+        </span>
+      </button>
+      <details className="library-card-more">
+        <summary>详情</summary>
+        <dl>
+          {original && original !== title && (
+            <>
+              <dt>原名</dt>
+              <dd>{original}</dd>
+            </>
+          )}
+          {piece.book && (
+            <>
+              <dt>教材</dt>
+              <dd>{piece.book}{piece.number != null ? ` 第 ${piece.number} 首` : ''}</dd>
+            </>
+          )}
+          <dt>调号</dt>
+          <dd>{piece.key || '—'} · {piece.time || '—'}</dd>
+          <dt>授权</dt>
+          <dd className={needsAttribution(piece) ? 'attribution is-required' : 'attribution'}>
+            {needsAttribution(piece) ? `需署名：${piece.attribution}` : piece.attribution}
+          </dd>
+        </dl>
+      </details>
+    </div>
+  )
 }

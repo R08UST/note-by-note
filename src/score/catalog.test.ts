@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { filterCatalog, needsAttribution, nowPlayingLine, pieceTitle, quickPicks, type CatalogPiece } from './catalog'
+import {
+  filterCatalog,
+  groupByComposer,
+  needsAttribution,
+  nowPlayingLine,
+  pieceTitle,
+  quickPicks,
+  sortPieces,
+  type CatalogPiece,
+} from './catalog'
 
 const sample: CatalogPiece[] = [
   {
@@ -61,5 +70,86 @@ describe('filterCatalog', () => {
       '茉莉花 · Traditional · L1',
     )
     expect(quickPicks(sample).map((piece) => piece.id)).toEqual(['a'])
+  })
+})
+
+describe('composer shelves', () => {
+  const make = (id: string, composer: string, level: CatalogPiece['level'], measures: number): CatalogPiece => ({
+    ...sample[0]!,
+    id,
+    composer,
+    level,
+    measures,
+    title: id,
+    title_zh: null,
+  })
+
+  it('folds abbreviated and full composer names into one shelf', () => {
+    const shelf = [
+      make('a', 'Johann Sebastian Bach', 'L3', 32),
+      make('b', 'J. S. Bach', 'L2', 16),
+      make('c', 'J.S. Bach', 'L4', 64),
+    ]
+    const groups = groupByComposer(shelf)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.name).toBe('Johann Sebastian Bach')
+    expect(groups[0]!.pieces.map((piece) => piece.id)).toEqual(['b', 'a', 'c'])
+  })
+
+  it('sorts shelves by surname, not by first name', () => {
+    const groups = groupByComposer([
+      make('a', 'Johann Sebastian Bach', 'L3', 10),
+      make('b', 'Ludwig van Beethoven', 'L3', 10),
+      make('c', 'Frédéric Chopin', 'L3', 10),
+      make('d', 'Johann Sebastian Bach', 'L3', 10),
+      make('e', 'Ludwig van Beethoven', 'L3', 10),
+      make('f', 'Frédéric Chopin', 'L3', 10),
+      make('g', 'Johann Sebastian Bach', 'L3', 10),
+      make('h', 'Ludwig van Beethoven', 'L3', 10),
+      make('i', 'Frédéric Chopin', 'L3', 10),
+    ])
+    expect(groups.map((group) => group.name)).toEqual([
+      'Johann Sebastian Bach',
+      'Ludwig van Beethoven',
+      'Frédéric Chopin',
+    ])
+  })
+
+  it('collects one-off composers into 其他作曲家 and keeps it last', () => {
+    const groups = groupByComposer([
+      make('a', 'Johann Sebastian Bach', 'L3', 10),
+      make('b', 'Johann Sebastian Bach', 'L3', 10),
+      make('c', 'Johann Sebastian Bach', 'L3', 10),
+      make('z', 'Dora Pejačević', 'L3', 10),
+      make('y', 'Anonymous', 'L1', 8),
+      make('x', 'Traditional', 'L1', 8),
+    ])
+    expect(groups.map((group) => group.name)).toEqual(['Johann Sebastian Bach', '其他作曲家'])
+    // Anonymous 和 Traditional 归并成同一个人，两首还不够三首，一起进「其他」。
+    expect(groups[1]!.pieces.map((piece) => piece.id).sort()).toEqual(['x', 'y', 'z'])
+  })
+
+  it('orders by length or alphabetically when asked', () => {
+    const shelf = [
+      make('long', 'Johann Sebastian Bach', 'L3', 90),
+      make('short', 'Johann Sebastian Bach', 'L5', 8),
+      make('mid', 'Johann Sebastian Bach', 'L4', 40),
+    ]
+    expect(sortPieces(shelf, 'length').map((piece) => piece.id)).toEqual(['short', 'mid', 'long'])
+    expect(sortPieces(shelf, 'alpha').map((piece) => piece.id)).toEqual(['long', 'mid', 'short'])
+    expect(sortPieces(shelf, 'level').map((piece) => piece.id)).toEqual(['long', 'mid', 'short'])
+  })
+})
+
+describe('pieceTitle fallbacks', () => {
+  it('falls back to a readable name built from the id when the title is blank', () => {
+    const blank: CatalogPiece = { ...sample[0]!, id: 'noc-trad-frere-jacques', title: '', title_zh: null }
+    expect(pieceTitle(blank)).toBe('Frere Jacques')
+  })
+
+  it('prefers the Chinese title, then the original, then the id', () => {
+    expect(pieceTitle(sample[0]!)).toBe('茉莉花')
+    expect(pieceTitle(sample[1]!)).toBe('Minuet in G')
+    expect(pieceTitle({ ...sample[1]!, id: 'noc-trad-frere-jacques', title: '  ', title_zh: '   ' })).toBe('Frere Jacques')
   })
 })

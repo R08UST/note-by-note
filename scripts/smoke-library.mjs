@@ -1,15 +1,26 @@
 // Headless check of every catalog score with the same parser the app uses.
 // Usage: node scripts/smoke-library.mjs
 // Writes public/pieces/manifest.json, dropping scores that do not parse or have no notes.
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
 const bundle = path.join(root, 'scripts/.parse-score.mjs')
+// rolldown ships with Vite, so it is already installed; esbuild may not be.
 const esbuild = spawnSync(
-  'npx',
-  ['--yes', 'esbuild', 'src/score/parseMusicXml.ts', '--bundle', '--platform=node', '--format=esm', `--outfile=${bundle}`],
+  process.execPath,
+  [
+    path.join(root, 'node_modules/rolldown/bin/cli.mjs'),
+    'src/score/parseMusicXml.ts',
+    '--format',
+    'esm',
+    '--platform',
+    'node',
+    '--file',
+    bundle,
+  ],
   { cwd: root, encoding: 'utf8' },
 )
 if (esbuild.status !== 0) {
@@ -17,7 +28,10 @@ if (esbuild.status !== 0) {
   throw new Error('could not bundle the MusicXML parser')
 }
 const candidatesPath = process.env.LIBRARY_CANDIDATES ?? '/tmp/library-src/candidates.json'
-const candidates = JSON.parse(readFileSync(candidatesPath, 'utf8'))
+// The graded candidates come from outside the repo. Without them, keep whatever the
+// manifest already holds for the graded and os- shelves and only re-check the rest.
+const hasCandidates = existsSync(candidatesPath)
+const candidates = hasCandidates ? JSON.parse(readFileSync(candidatesPath, 'utf8')) : { pieces: [] }
 const SHARP = ['C', 'G', 'D', 'A', 'E', 'B', 'F♯', 'C♯']
 const FLAT = ['C', 'F', 'B♭', 'E♭', 'A♭', 'D♭', 'G♭', 'C♭']
 
@@ -37,7 +51,7 @@ const results = []
 const batchSize = 12
 for (let start = 0; start < jobs.length; start += batchSize) {
   const batch = jobs.slice(start, start + batchSize)
-  const list = path.join('/tmp', `library-batch-${start}.json`)
+  const list = path.join(tmpdir(), `library-batch-${start}.json`)
   writeFileSync(list, JSON.stringify(batch))
   const child = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), list], {
     encoding: 'utf8',
@@ -78,20 +92,30 @@ for (const piece of candidates.pieces) {
   })
 }
 
-const manifest = {
-  generated_from: 'library candidates',
-  dropped,
-  pieces,
+const manifestPath = path.join(root, 'public/pieces/manifest.json')
+if (hasCandidates) {
+  const manifest = {
+    generated_from: 'library candidates',
+    dropped,
+    pieces,
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+  console.log(`kept ${pieces.length}, dropped ${dropped.length}`)
+  if (dropped.length) console.log(JSON.stringify(dropped, null, 2))
+} else {
+  // No candidate list outside the repo: keep the graded shelf that is already in the
+  // manifest so this run only re-checks and re-merges the shelves below.
+  const current = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  const kept = current.pieces.filter((piece) => !/^(etude|mutopia|method|noc)-/.test(String(piece.id)))
+  writeFileSync(manifestPath, JSON.stringify({ ...current, pieces: kept }))
+  console.log(`LIBRARY_CANDIDATES not found; kept ${kept.length} graded pieces from the manifest`)
 }
-writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(manifest))
-console.log(`kept ${pieces.length}, dropped ${dropped.length}`)
-if (dropped.length) console.log(JSON.stringify(dropped, null, 2))
 
 const etudesPath = path.join(root, 'public/pieces/etudes.json')
 if (readFileSync) {
   const etudes = JSON.parse(readFileSync(etudesPath, 'utf8'))
   const etudeJobs = etudes.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
-  const list = path.join('/tmp', 'library-etudes.json')
+  const list = path.join(tmpdir(), 'library-etudes.json')
   writeFileSync(list, JSON.stringify(etudeJobs))
   const child = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), list], {
     encoding: 'utf8',
@@ -119,7 +143,7 @@ if (readFileSync(mutopiaPath, 'utf8').trim()) {
   const mutopiaJobs = mutopia.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
   const mutopiaResults = []
   for (let start = 0; start < mutopiaJobs.length; start += 12) {
-    const mutopiaList = path.join('/tmp', `library-mutopia-${start}.json`)
+    const mutopiaList = path.join(tmpdir(), `library-mutopia-${start}.json`)
     writeFileSync(mutopiaList, JSON.stringify(mutopiaJobs.slice(start, start + 12)))
     const mutopiaChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), mutopiaList], {
       encoding: 'utf8',
@@ -147,7 +171,7 @@ if (readFileSync(mutopiaPath, 'utf8').trim()) {
 const methodsPath = path.join(root, 'public/pieces/method.json')
 const methods = JSON.parse(readFileSync(methodsPath, 'utf8'))
 const methodJobs = methods.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
-const methodList = path.join('/tmp', 'library-methods.json')
+const methodList = path.join(tmpdir(), 'library-methods.json')
 writeFileSync(methodList, JSON.stringify(methodJobs))
 const methodChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), methodList], {
   encoding: 'utf8',
@@ -167,3 +191,32 @@ const withMethods = JSON.parse(readFileSync(path.join(root, 'public/pieces/manif
 withMethods.pieces = withMethods.pieces.filter((piece) => !String(piece.id).startsWith('method-')).concat(methods)
 writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withMethods))
 console.log(`methods kept ${methods.length}`)
+
+const noctavePath = path.join(root, 'public/pieces/noctave.json')
+const noctave = JSON.parse(readFileSync(noctavePath, 'utf8'))
+const noctaveJobs = noctave.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
+const noctaveResults = []
+for (let start = 0; start < noctaveJobs.length; start += 12) {
+  const noctaveList = path.join(tmpdir(), `library-noctave-${start}.json`)
+  writeFileSync(noctaveList, JSON.stringify(noctaveJobs.slice(start, start + 12)))
+  const noctaveChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), noctaveList], {
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  if (noctaveChild.status !== 0) {
+    console.error(noctaveChild.stderr)
+    throw new Error('noctave audit failed')
+  }
+  noctaveResults.push(...JSON.parse(noctaveChild.stdout))
+  if ((start + 12) % 240 === 0) console.log(`noctave ${Math.min(start + 12, noctaveJobs.length)}/${noctaveJobs.length}`)
+}
+const noctaveChecked = new Map(noctaveResults.map((item) => [item.id, item]))
+const noctaveFailed = noctave.filter((piece) => noctaveChecked.get(piece.id)?.error || noctaveChecked.get(piece.id)?.notes < 1)
+if (noctaveFailed.length) {
+  console.log(JSON.stringify(noctaveFailed.map((piece) => ({ id: piece.id, error: noctaveChecked.get(piece.id)?.error }))))
+  throw new Error('a noctave piece did not parse')
+}
+const withNoctave = JSON.parse(readFileSync(path.join(root, 'public/pieces/manifest.json'), 'utf8'))
+withNoctave.pieces = withNoctave.pieces.filter((piece) => !String(piece.id).startsWith('noc-')).concat(noctave)
+writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withNoctave))
+console.log(`noctave kept ${noctave.length}`)

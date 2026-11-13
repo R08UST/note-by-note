@@ -70,7 +70,7 @@ export function PracticeApp() {
   const [omrMounted, setOmrMounted] = useState(() => tabFromHash(window.location.hash) === 'omr')
   const [piece, setPiece] = useState<LoadedPiece | null>(null)
   const [pickerOpen, setPickerOpen] = useState(() => hashOpensPicker(window.location.hash))
-  const [query, setQuery] = useState<CatalogQuery>({ level: 'all', hands: 'all', text: '', category: 'graded' })
+  const [query, setQuery] = useState<CatalogQuery>({ level: 'all', hands: 'all', text: '', category: 'all', sort: 'level' })
   const [bpm, setBpm] = useState(72)
   const [hands, setHands] = useState<HandSelection>('both')
   const [mode, setMode] = useState<PracticeMode>('wait')
