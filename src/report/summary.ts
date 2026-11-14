@@ -18,7 +18,7 @@ export interface RunSummary {
   unplayed: number
   /** Wrongs that did not consume a written note (wait mode). */
   untiedWrongs: number
-  /** Hits divided by notes that were actually judged. */
+  /** Hits divided by every judged key: hits, wrong keys, and misses. */
   hitRate: number
   meanOffsetMs: number | null
   /** Sample standard deviation of hit offsets. Null when timing was not scored. */
@@ -68,12 +68,16 @@ export function summarize(
     const expected = required.filter((note) => note.measure === measure).length
     const errors = judgements.filter((item) => {
       if (item.result !== 'wrong' && item.result !== 'miss') return false
-      if (!item.noteId) return false
-      return byId.get(item.noteId)?.measure === measure
+      const at = item.measure ?? (item.noteId ? byId.get(item.noteId)?.measure : undefined)
+      return at === measure
     }).length
     return { measure, expected, errors }
   })
 
+  // Every wrong key counts against the rate. A wait-mode wrong takes no written
+  // note, and a rhythm-mode slip can be followed by the right key, so dividing by
+  // notes alone would score a run full of wrong keys as perfect.
+  const attempts = hits.length + wrongs.length + misses.length
   return {
     expected: required.length,
     judged: judgedIds.size,
@@ -83,7 +87,7 @@ export function summarize(
     extras: extras.length,
     unplayed: required.filter((note) => !judgedIds.has(note.id)).length,
     untiedWrongs: wrongs.filter((item) => !item.noteId).length,
-    hitRate: judgedIds.size === 0 ? 0 : hits.length / judgedIds.size,
+    hitRate: attempts === 0 ? 0 : hits.length / attempts,
     meanOffsetMs: mean(offsets),
     timingSpreadMs: sampleSpread(offsets),
     perfects: offsets.filter((offset) => isOnTime(offset, perfectMs)).length,

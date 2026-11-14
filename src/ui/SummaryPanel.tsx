@@ -40,7 +40,7 @@ export function SummaryPanel({
         <p className="summary-percent">{percent}%</p>
         {!collapsed && (
           <p className="summary-sub">
-            {summary.hits}/{summary.judged || 0} 命中
+            {summary.hits}/{summary.hits + summary.wrongs + summary.misses} 命中
             {summary.timedHits > 0 ? ` · 平均 ${mean}` : ''}
             {` · 错 ${summary.wrongs} · 错过 ${summary.misses}`}
             {saved ? ' · 已保存' : ''}

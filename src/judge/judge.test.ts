@@ -73,12 +73,30 @@ describe('Judge', () => {
     expect(late.push(on(67, 1120))[0]).toMatchObject({ result: 'hit', offsetMs: 120 })
   })
 
-  it('marks a different pitch inside the window as wrong and consumes the note', () => {
+  it('marks a different pitch inside the window as wrong, and the right key can still land after it', () => {
     const judge = new Judge([c], { bpm: 60 })
     const wrong = judge.push(on(62, 10))
     expect(wrong[0]).toMatchObject({ noteId: 'c', pitch: 62, result: 'wrong' })
-    expect(judge.push(on(60, 20))[0]).toMatchObject({ result: 'extra' })
+    expect(judge.push(on(60, 20))[0]).toMatchObject({ noteId: 'c', result: 'hit' })
+    expect(judge.push(on(60, 30))[0]).toMatchObject({ result: 'extra' })
     expect(judge.advanceTo(10_000)).toEqual([])
+  })
+
+  it('costs one wrong, not the whole chord, when a slip comes before the chord tones', () => {
+    const judge = new Judge(
+      [note({ id: 'c', pitch: 60, beat: 0 }), note({ id: 'e', pitch: 64, beat: 0 }), note({ id: 'g', pitch: 67, beat: 0 })],
+      { bpm: 60 },
+    )
+    for (const [pitch, time] of [[62, 0], [60, 5], [64, 10], [67, 15]]) judge.push(on(pitch, time))
+    judge.advanceTo(10_000)
+    expect(judge.judgements.map((item) => `${item.result}:${item.noteId ?? '-'}`)).toEqual(['wrong:c', 'hit:c', 'hit:e', 'hit:g'])
+  })
+
+  it('keeps an uncorrected slip as the note’s one wrong, with no miss after it', () => {
+    const judge = new Judge([c], { bpm: 60 })
+    judge.push(on(62, 10))
+    expect(judge.advanceTo(10_000)).toEqual([])
+    expect(judge.judgements.map((item) => item.result)).toEqual(['wrong'])
   })
 
   it('marks a note-on with no open window as extra, and a closed window as a miss', () => {

@@ -94,7 +94,10 @@ export function computeWindows(notes: ScoreNote[], options: JudgeOptions): NoteW
 }
 
 interface OpenNote extends NoteWindow {
+  /** Accounted for: it can no longer be a miss. */
   matched: boolean
+  /** The right key landed on it. A note a wrong key took is matched but not hit. */
+  hit: boolean
 }
 
 /**
@@ -108,7 +111,7 @@ export class Judge {
 
   constructor(notes: ScoreNote[], options: JudgeOptions) {
     this.options = resolveJudgeOptions(options)
-    this.open = computeWindows(notes, options).map((window) => ({ ...window, matched: false }))
+    this.open = computeWindows(notes, options).map((window) => ({ ...window, matched: false, hit: false }))
   }
 
   get judgements(): readonly Judgement[] {
@@ -135,16 +138,20 @@ export class Judge {
     const timeMs = event.timeMs - this.options.latencyOffsetMs
     const produced = this.closeBefore(timeMs)
 
-    const waiting = this.open.filter(
+    const inWindow = this.open.filter(
       (note) =>
-        !note.matched &&
+        !note.hit &&
         timeMs >= note.expectedMs - note.earlyMs &&
         timeMs <= note.expectedMs + note.lateMs,
     )
-    const samePitch = waiting.filter((note) => note.note.pitch === event.pitch)
+    // A note a wrong key already took can still be hit while its window is open,
+    // so one slip inside a chord costs one wrong, not a wrong for every tone after it.
+    const samePitch = inWindow.filter((note) => note.note.pitch === event.pitch)
+    const waiting = inWindow.filter((note) => !note.matched)
     if (samePitch.length > 0) {
       const hit = samePitch[0]
       hit.matched = true
+      hit.hit = true
       produced.push({
         noteId: hit.note.id,
         pitch: event.pitch,

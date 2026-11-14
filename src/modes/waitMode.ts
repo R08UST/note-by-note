@@ -109,7 +109,8 @@ export class WaitMode {
       this.advancePastFinished()
       return [judgement]
     }
-    const wrong: Judgement = { pitch: event.pitch, result: 'wrong' }
+    const measure = this.groups[this.index]?.[0]?.measure
+    const wrong: Judgement = { pitch: event.pitch, result: 'wrong', ...(measure != null && { measure }) }
     this._judgements.push(wrong)
     if (this.resetOnError) this.rewindToMeasureStart()
     return [wrong]

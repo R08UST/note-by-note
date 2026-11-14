@@ -26,7 +26,7 @@ describe('WaitMode', () => {
 
   it('flags a wrong pitch and does not advance or consume the written note', () => {
     const mode = new WaitMode([note({ id: 'c', pitch: 60, beat: 0 })])
-    expect(mode.push(on(62))[0]).toEqual({ pitch: 62, result: 'wrong' })
+    expect(mode.push(on(62))[0]).toEqual({ pitch: 62, result: 'wrong', measure: 1 })
     expect(mode.cursorBeat()).toBe(0)
     expect(mode.push(on(60))[0]).toMatchObject({ noteId: 'c', result: 'hit' })
     expect(mode.done()).toBe(true)
@@ -64,7 +64,7 @@ describe('WaitMode', () => {
     expect(mode.push(on(62))[0]).toMatchObject({ noteId: 'b', result: 'hit' })
     expect(mode.cursorBeat()).toBe(2)
     // A wrong pitch rewinds to the first note of the measure and drops the hits.
-    expect(mode.push(on(70))[0]).toEqual({ pitch: 70, result: 'wrong' })
+    expect(mode.push(on(70))[0]).toEqual({ pitch: 70, result: 'wrong', measure: 1 })
     expect(mode.cursorBeat()).toBe(0)
     expect(mode.consumeReset().sort()).toEqual(['a', 'b'])
     expect(mode.judgements.filter((item) => item.result === 'hit').length).toBe(0)

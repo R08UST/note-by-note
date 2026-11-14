@@ -110,6 +110,8 @@ export interface Judgement {
   result: JudgementResult
   /** Played time minus expected time. Negative is early, positive is late. */
   offsetMs?: number
+  /** Bar a wrong key belongs to when it took no written note (wait mode), so the report can place it. */
+  measure?: number
 }
 
 /** Beginner timing defaults used by the judge and the rhythm-mode copy. */

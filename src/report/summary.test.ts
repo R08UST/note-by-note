@@ -38,12 +38,31 @@ describe('summarize', () => {
 
   it('leaves timing empty when hits have no offset, and ignores unplayed notes', () => {
     const summary = summarize(notes, [{ noteId: 'a', pitch: 60, result: 'hit' }, { pitch: 70, result: 'wrong' }])
-    expect(summary.hitRate).toBeCloseTo(1)
+    expect(summary.hitRate).toBeCloseTo(0.5)
     expect(summary.unplayed).toBe(3)
     expect(summary.meanOffsetMs).toBeNull()
     expect(summary.timingSpreadMs).toBeNull()
     expect(summary.untiedWrongs).toBe(1)
     expect(summary.perfects).toBe(0)
+  })
+
+  it('counts wait-mode wrong keys against the rate and in their bar', () => {
+    // Wait mode: every note is eventually hit, but five wrong keys came first.
+    const summary = summarize(notes.slice(0, 3), [
+      { pitch: 61, result: 'wrong', measure: 1 },
+      { pitch: 61, result: 'wrong', measure: 1 },
+      { pitch: 61, result: 'wrong', measure: 1 },
+      { noteId: 'a', pitch: 60, result: 'hit' },
+      { pitch: 63, result: 'wrong', measure: 1 },
+      { noteId: 'b', pitch: 62, result: 'hit' },
+      { pitch: 65, result: 'wrong', measure: 2 },
+      { noteId: 'c', pitch: 64, result: 'hit' },
+    ])
+    expect(summary.hitRate).toBeCloseTo(3 / 8)
+    expect(summary.errorsPerMeasure).toEqual([
+      { measure: 1, expected: 2, errors: 4 },
+      { measure: 2, expected: 1, errors: 1 },
+    ])
   })
 
   it('returns a zero hit rate when nothing was judged', () => {
