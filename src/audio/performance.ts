@@ -258,7 +258,7 @@ function ornamentExtras(ornament: Ornament, pitch: number, duration: number): Ex
 }
 
 /** Grace notes, ornament attacks and tremolo shakes, earliest first. */
-function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
+export function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
   const attacks: ExtraAttack[] = []
   const graces = note.graces ?? []
   if (graces.length > 0) {

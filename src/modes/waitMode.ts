@@ -78,6 +78,14 @@ export class WaitMode {
     return group.filter((note) => !this.hit.has(note.id))
   }
 
+  /**
+   * The group is finished once every required note is hit. A note a printed mark
+   * added is optional: hitting it counts, but the cursor does not wait for it.
+   */
+  private groupDone(group: ScoreNote[]): boolean {
+    return group.every((note) => note.optional || this.hit.has(note.id))
+  }
+
   push(event: PlayedEvent): Judgement[] {
     if (event.type !== 'on') return []
     if (this.done()) {
@@ -85,18 +93,37 @@ export class WaitMode {
       this._judgements.push(extra)
       return [extra]
     }
-    const match = this.groups[this.index].find((note) => !this.hit.has(note.id) && note.pitch === event.pitch)
+    // Prefer the attack the cursor stands on. A strike a printed mark added may
+    // belong to the group just behind the cursor (its lead-in sits before the
+    // written note) or just ahead of it (a trill's alternations land inside the
+    // next group's beat), so those are accepted too — but only the optional ones,
+    // so a written note is never consumed out of turn.
+    const match =
+      this.matchIn(this.groups[this.index], event.pitch) ??
+      this.matchIn(this.groups[this.index - 1], event.pitch, true) ??
+      this.matchIn(this.groups[this.index + 1], event.pitch, true)
     if (match) {
       this.hit.add(match.id)
       const judgement: Judgement = { noteId: match.id, pitch: event.pitch, result: 'hit' }
       this._judgements.push(judgement)
-      if (this.groups[this.index].every((note) => this.hit.has(note.id))) this.index += 1
+      this.advancePastFinished()
       return [judgement]
     }
     const wrong: Judgement = { pitch: event.pitch, result: 'wrong' }
     this._judgements.push(wrong)
     if (this.resetOnError) this.rewindToMeasureStart()
     return [wrong]
+  }
+
+  private matchIn(group: ScoreNote[] | undefined, pitch: number, optionalOnly = false): ScoreNote | undefined {
+    return group?.find(
+      (note) => !this.hit.has(note.id) && note.pitch === pitch && (!optionalOnly || note.optional),
+    )
+  }
+
+  /** Step forward over every group whose required notes are all hit. */
+  private advancePastFinished(): void {
+    while (this.index < this.groups.length && this.groupDone(this.groups[this.index])) this.index += 1
   }
 
   advanceTo(_timeMs: number): Judgement[] {
@@ -110,10 +137,12 @@ export class WaitMode {
 
   /** Move to the previous attack. Hits on the attack you leave are dropped, so the report only keeps what you replay. */
   retreat(): void {
-    if (this.index > 0 && this.groups[this.index]?.every((note) => !this.hit.has(note.id))) {
+    const current = this.groups[this.index]
+    // Nothing hit in the group the cursor stands on yet, so it is already the
+    // attack to replay and stepping back would skip a group for nothing.
+    if (this.index > 0 && current?.every((note) => !this.hit.has(note.id))) {
       this.index -= 1
-    }
-    const group = this.groups[this.index]
+    }    const group = this.groups[this.index]
     if (!group) return
     const ids = new Set(group.map((note) => note.id))
     for (const note of group) this.hit.delete(note.id)

@@ -56,7 +56,7 @@ describe('computeWindows', () => {
       { bpm: 60 },
     )
     const first = windows.find((item) => item.note.id === 'a')
-    expect(first?.lateMs).toBeCloseTo(24)
+    expect(first?.lateMs).toBeCloseTo(60)
   })
 })
 
@@ -138,5 +138,68 @@ describe('Judge', () => {
   it('emits a miss and an extra when the event itself is past the window', () => {
     const judge = new Judge([c], { bpm: 60 })
     expect(judge.push(on(60, 2000)).map((item) => item.result)).toEqual(['miss', 'extra'])
+  })
+})
+
+describe('short notes', () => {
+  /** A run of equal notes at `bpm`, struck with a normal human amount of jitter. */
+  function run(duration: number, bpm: number, sigmaMs: number) {
+    const count = 32
+    const notes = Array.from({ length: count }, (_, index) =>
+      note({ id: `n${index}`, pitch: 60 + (index % 5), beat: index * duration, duration }),
+    )
+    const judge = new Judge(notes, { bpm })
+    let seed = 987654321
+    const normal = () => {
+      const next = () => {
+        seed = (seed * 1664525 + 1013904223) % 4294967296
+        return (seed + 1) / 4294967297
+      }
+      return Math.sqrt(-2 * Math.log(next())) * Math.cos(2 * Math.PI * next())
+    }
+    const beatMs = 60_000 / bpm
+    for (const item of notes) {
+      const at = item.beat * beatMs + normal() * sigmaMs
+      judge.push(on(item.pitch, at))
+      judge.advanceTo(at)
+    }
+    judge.advanceTo(Number.POSITIVE_INFINITY)
+    return judge.judgements.filter((item) => item.result === 'hit').length
+  }
+
+  it('still scores 32nds played with a normal amount of jitter', () => {
+    // Half of a 32nd at 90 bpm is 42 ms: without a floor most of these were misses.
+    expect(run(0.125, 90, 30)).toBeGreaterThanOrEqual(28)
+  })
+
+  it('scores 32nds at a slow tempo too', () => {
+    expect(run(0.125, 60, 30)).toBeGreaterThanOrEqual(28)
+  })
+
+  it('leaves sixteenths and eighths untouched', () => {
+    expect(run(0.25, 120, 30)).toBe(32)
+    expect(run(0.5, 60, 30)).toBe(32)
+  })
+})
+
+describe('optional strikes from printed marks', () => {
+  const required = note({ id: 'w', pitch: 60, beat: 0 })
+  const optional = note({ id: 'w~m0', pitch: 62, beat: 0, optional: true })
+
+  it('never reports a miss when the optional strike is left out', () => {
+    const judge = new Judge([required, optional], { bpm: 60 })
+    expect(judge.push(on(60, 0))[0]).toMatchObject({ noteId: 'w', result: 'hit' })
+    expect(judge.advanceTo(10_000)).toEqual([])
+    expect(judge.done()).toBe(true)
+  })
+
+  it('scores the optional strike as a hit when it is played', () => {
+    const judge = new Judge([required, optional], { bpm: 60 })
+    expect(judge.push(on(62, 0))[0]).toMatchObject({ noteId: 'w~m0', result: 'hit' })
+  })
+
+  it('does not show an optional strike as the next note to play', () => {
+    const judge = new Judge([required, optional], { bpm: 60 })
+    expect(judge.upcoming().map((item) => item.id)).toEqual(['w'])
   })
 })

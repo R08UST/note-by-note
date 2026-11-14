@@ -22,6 +22,14 @@ export interface ResolvedJudgeOptions {
   latencyOffsetMs: number
 }
 
+/**
+ * Narrowest a window may become once a close neighbour shrinks it. A window under
+ * this is smaller than the jitter of a real key press and of the MIDI timestamp,
+ * so a correctly played short note would be scored a miss for being short. Windows
+ * may overlap at this width; the judge resolves that in time order, earliest first.
+ */
+export const MIN_WINDOW_MS = 60
+
 export function resolveJudgeOptions(options: JudgeOptions): ResolvedJudgeOptions {
   if (!(options.bpm > 0)) throw new Error('BPM must be greater than zero')
   return {
@@ -36,6 +44,11 @@ export function resolveJudgeOptions(options: JudgeOptions): ResolvedJudgeOptions
 
 export function beatToMs(beat: number, bpm: number): number {
   return (beat * 60_000) / bpm
+}
+
+/** The window a neighbour gap allows, never narrower than `MIN_WINDOW_MS`. */
+function neighborWindow(fraction: number, gap: number): number {
+  return Math.max(MIN_WINDOW_MS, fraction * gap)
 }
 
 /**
@@ -71,10 +84,10 @@ export function computeWindows(notes: ScoreNote[], options: JudgeOptions): NoteW
       }
     }
     const earlyMs = Number.isFinite(prevGap)
-      ? Math.min(resolved.earlyMs, resolved.neighborFraction * prevGap)
+      ? Math.min(resolved.earlyMs, neighborWindow(resolved.neighborFraction, prevGap))
       : resolved.earlyMs
     const lateMs = Number.isFinite(nextGap)
-      ? Math.min(resolved.lateMs, resolved.neighborFraction * nextGap)
+      ? Math.min(resolved.lateMs, neighborWindow(resolved.neighborFraction, nextGap))
       : resolved.lateMs
     return { note: entry.note, expectedMs: entry.expectedMs, earlyMs, lateMs }
   })
@@ -104,7 +117,7 @@ export class Judge {
 
   /** Notes still waiting, at the earliest remaining attack (a chord stays together). */
   upcoming(): ScoreNote[] {
-    const pending = this.open.filter((note) => !note.matched)
+    const pending = this.open.filter((note) => !note.matched && !note.note.optional)
     if (pending.length === 0) return []
     const onset = pending[0].expectedMs
     return pending
@@ -112,8 +125,9 @@ export class Judge {
       .map((note) => note.note)
   }
 
+  /** Finished once every required strike is accounted for. An optional one may remain. */
   done(): boolean {
-    return this.open.every((note) => note.matched)
+    return this.open.every((note) => note.matched || note.note.optional)
   }
 
   push(event: PlayedEvent): Judgement[] {
@@ -165,6 +179,12 @@ export class Judge {
     const produced: Judgement[] = []
     for (const note of this.open) {
       if (note.matched) continue
+      // A strike a printed mark adds is never a miss: leaving it out is a valid
+      // reading of the sheet, so its window simply lapses.
+      if (note.note.optional && note.expectedMs + note.lateMs < timeMs) {
+        note.matched = true
+        continue
+      }
       if (note.expectedMs + note.lateMs < timeMs) {
         note.matched = true
         produced.push({ noteId: note.note.id, pitch: note.note.pitch, result: 'miss' })

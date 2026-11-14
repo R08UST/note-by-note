@@ -84,6 +84,13 @@ export interface ScoreNote {
   dynamics?: number
   /** Printed fingering, 1 is the thumb. Technique drills use it to find thumb crossings. */
   finger?: number
+  /**
+   * A strike a printed mark implies rather than a notehead of its own, such as a
+   * grace note or a trill's alternation. It is only present when the player asked
+   * practice to honour printed marks. Matching it scores a hit; skipping it is
+   * never a miss, so the toggle can only help.
+   */
+  optional?: boolean
 }
 
 export interface PlayedEvent {

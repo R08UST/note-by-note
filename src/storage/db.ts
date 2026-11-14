@@ -24,6 +24,8 @@ export interface SettingsRecord {
   scoreZoom?: number
   /** Wait mode: a wrong pitch rewinds to the first note of the measure. Default on. */
   resetOnError?: boolean
+  /** Practice counts the strikes printed marks imply, not just the noteheads. Default off. */
+  honorMarks?: boolean
 }
 
 export interface RunRecord {

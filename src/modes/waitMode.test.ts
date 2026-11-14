@@ -101,3 +101,62 @@ describe('WaitMode', () => {
     expect(mode.consumeReset()).toEqual([])
   })
 })
+
+describe('WaitMode with printed marks', () => {
+  const base = { duration: 1, hand: 'R' as const, measure: 1 }
+  const written = { ...base, id: 'w', pitch: 60, beat: 0 }
+  const ornament = { ...base, id: 'w~m0', pitch: 62, beat: 0, optional: true }
+
+  it('does not wait for an optional strike', () => {
+    const engine = new WaitMode([written, ornament])
+    expect(engine.push({ pitch: 60, velocity: 90, timeMs: 0, type: 'on' })[0]).toMatchObject({ result: 'hit' })
+    expect(engine.done()).toBe(true)
+  })
+
+  it('accepts the optional strike as a hit when the player does play it', () => {
+    const engine = new WaitMode([written, ornament])
+    expect(engine.push({ pitch: 62, velocity: 90, timeMs: 0, type: 'on' })[0]).toMatchObject({
+      noteId: 'w~m0',
+      result: 'hit',
+    })
+    expect(engine.done()).toBe(false)
+    expect(engine.push({ pitch: 60, velocity: 90, timeMs: 10, type: 'on' })[0]).toMatchObject({ result: 'hit' })
+    expect(engine.done()).toBe(true)
+  })
+})
+
+describe('WaitMode with a trill printed on the current note', () => {
+  const base = { duration: 1, hand: 'R' as const, measure: 1 }
+  // C4, the trilled D4 with its alternations sitting inside the next beat, then E4.
+  const score = [
+    { ...base, id: 'c', pitch: 60, beat: 0 },
+    { ...base, id: 'd', pitch: 62, beat: 1 },
+    { ...base, id: 'd~m0', pitch: 64, beat: 1.125, optional: true },
+    { ...base, id: 'd~m1', pitch: 62, beat: 1.375, optional: true },
+    { ...base, id: 'e', pitch: 64, beat: 2 },
+  ]
+
+  it('accepts an alternation whose beat lands past the current attack', () => {
+    const engine = new WaitMode(score)
+    expect(engine.push({ pitch: 60, velocity: 90, timeMs: 0, type: 'on' })[0]).toMatchObject({ result: 'hit' })
+    const trill = engine.push({ pitch: 64, velocity: 90, timeMs: 10, type: 'on' })
+    expect(trill[0]).toMatchObject({ noteId: 'd~m0', result: 'hit' })
+    // The cursor stays on the written D4: the alternation does not move it.
+    expect(engine.cursorBeat()).toBe(1)
+  })
+
+  it('still flags a pitch that is not on the sheet', () => {
+    const engine = new WaitMode(score)
+    engine.push({ pitch: 60, velocity: 90, timeMs: 0, type: 'on' })
+    expect(engine.push({ pitch: 66, velocity: 90, timeMs: 10, type: 'on' })[0]).toMatchObject({ result: 'wrong' })
+  })
+
+  it('never consumes the written note that follows out of turn', () => {
+    const engine = new WaitMode(score)
+    engine.push({ pitch: 60, velocity: 90, timeMs: 0, type: 'on' })
+    // The first E4 is a printed alternation of the trill; a second one is not on
+    // the sheet at that point, so it must not reach the written E4 a beat away.
+    expect(engine.push({ pitch: 64, velocity: 90, timeMs: 10, type: 'on' })[0]?.noteId).toBe('d~m0')
+    expect(engine.push({ pitch: 64, velocity: 90, timeMs: 20, type: 'on' })[0]?.result).not.toBe('hit')
+  })
+})

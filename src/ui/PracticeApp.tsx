@@ -79,6 +79,7 @@ export function PracticeApp() {
   const [loopLimit, setLoopLimit] = useState(0)
   const [ramp, setRamp] = useState(false)
   const [resetOnError, setResetOnError] = useState(true)
+  const [honorMarks, setHonorMarks] = useState(false)
   const [rangeStart, setRangeStart] = useState(1)
   const [rangeEnd, setRangeEnd] = useState(1)
   const [cursorBeat, setCursorBeat] = useState(0)
@@ -179,6 +180,7 @@ export function PracticeApp() {
     keyboardEnabled,
     listenKeyboard: tab === 'practice',
     resetOnError,
+    honorMarks,
     expression,
   })
 
@@ -233,6 +235,7 @@ export function PracticeApp() {
       setLatencyOffsetMs(settings.latencyOffsetMs)
       if (settings.continuous === false) setContinuous(false)
       if (settings.resetOnError === false) setResetOnError(false)
+      if (settings.honorMarks === true) setHonorMarks(true)
       if (settings.lastLibraryId) setLastLibraryId(settings.lastLibraryId)
       setAudioPrefs({
         muted: settings.muted ?? false,
@@ -274,8 +277,9 @@ export function PracticeApp() {
       keyboardOpen,
       scoreZoom,
       resetOnError,
+      honorMarks,
     })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom, resetOnError])
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom, resetOnError, honorMarks])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -819,6 +823,10 @@ export function PracticeApp() {
                         </label>
                       </div>
                       <label className="check"><input type="checkbox" checked={ramp} onChange={(event) => setRamp(event.target.checked)} />干净一遍后速度 +4</label>
+                      <label className="check">
+                        <input type="checkbox" checked={honorMarks} onChange={(event) => setHonorMarks(event.target.checked)} />
+                        认谱上的装饰音和颤音
+                      </label>
                       {mode === 'wait' && (
                         <label className="check">
                           <input type="checkbox" checked={resetOnError} onChange={(event) => setResetOnError(event.target.checked)} />

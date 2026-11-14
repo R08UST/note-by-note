@@ -4,6 +4,7 @@ import { pitchForCode } from '../midi/keyboardMap'
 import { selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { RhythmMode } from '../modes/rhythmMode'
+import { markNotes } from '../modes/marks'
 import { WaitMode } from '../modes/waitMode'
 import { entryClock, notesInBeats, shiftNotes, type BeatSpan } from '../modes/span'
 import { summarize, type RunSummary } from '../report/summary'
@@ -44,6 +45,8 @@ interface PracticeOptions {
   listenKeyboard?: boolean
   /** Wait mode: a wrong pitch rewinds to the first note of the measure. */
   resetOnError?: boolean
+  /** Count the strikes a printed mark implies (grace notes, ornaments, tremolo) as playable. */
+  honorMarks?: boolean
   /** Printed dynamics, hairpins and pedal, so the accompanying hand is expressive too. */
   expression?: Expression
 }
@@ -75,6 +78,7 @@ export function usePractice({
   keyboardEnabled,
   listenKeyboard = true,
   resetOnError = false,
+  honorMarks = false,
   expression,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
@@ -126,8 +130,9 @@ export function usePractice({
     ramp,
     onRamp,
     resetOnError,
+    honorMarks,
   })
-  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, timeSignatures, loop, span, loopLimit, ramp, onRamp, resetOnError }
+  optionsRef.current = { notes, pieceId, pieceTitle, bpm, hands, mode, latencyOffsetMs, timeSignature, timeSignatures, loop, span, loopLimit, ramp, onRamp, resetOnError, honorMarks }
   const startRef = useRef<(keepPasses?: boolean) => Promise<void>>(async () => {})
   const launchRef = useRef<(keepPasses: boolean, seamless: boolean) => Promise<void>>(async () => {})
   const runIdRef = useRef(0)
@@ -378,7 +383,7 @@ export function usePractice({
     })
     if (seamless && nextStatus !== 'playing' && nextStatus !== 'countin') return
     const options = optionsRef.current
-    const selected = notesInBeats(selectHands(options.notes, options.hands), options.span)
+    const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
     if (selected.length === 0) return
     const entry = Math.min(options.span.startBeat, options.span.endBeat)
     const perBar = quarterBeatsPerMeasureAt(options.timeSignatures, entry, options.timeSignature)

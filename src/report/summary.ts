@@ -46,6 +46,10 @@ export function summarize(
   judgements: readonly Judgement[],
   perfectMs: number = BEGINNER_TOLERANCE.perfectMs,
 ): RunSummary {
+  // A strike a printed mark adds is optional: it is never a miss, and counting it
+  // in `expected` would make the hit rate fall when the player simply reads the
+  // sheet without the ornament.
+  const required = notes.filter((note) => !note.optional)
   const byId = new Map(notes.map((note) => [note.id, note]))
   const hits = judgements.filter((item) => item.result === 'hit')
   const wrongs = judgements.filter((item) => item.result === 'wrong')
@@ -61,7 +65,7 @@ export function summarize(
 
   const measures = [...new Set(notes.map((note) => note.measure))].sort((a, b) => a - b)
   const errorsPerMeasure = measures.map((measure) => {
-    const expected = notes.filter((note) => note.measure === measure).length
+    const expected = required.filter((note) => note.measure === measure).length
     const errors = judgements.filter((item) => {
       if (item.result !== 'wrong' && item.result !== 'miss') return false
       if (!item.noteId) return false
@@ -71,13 +75,13 @@ export function summarize(
   })
 
   return {
-    expected: notes.length,
+    expected: required.length,
     judged: judgedIds.size,
     hits: hits.length,
     wrongs: wrongs.length,
     misses: misses.length,
     extras: extras.length,
-    unplayed: notes.filter((note) => !judgedIds.has(note.id)).length,
+    unplayed: required.filter((note) => !judgedIds.has(note.id)).length,
     untiedWrongs: wrongs.filter((item) => !item.noteId).length,
     hitRate: judgedIds.size === 0 ? 0 : hits.length / judgedIds.size,
     meanOffsetMs: mean(offsets),

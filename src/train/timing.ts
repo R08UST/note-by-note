@@ -1,14 +1,22 @@
 import type { ScoreNote } from '../judge/types'
 
 /**
- * Hit window: half the shortest note, capped at 250 ms (piano-trainer rhythm_checker).
+ * Floor for the hit window. Below this the window is narrower than the jitter of
+ * a real key press (and of the MIDI timestamp itself), so a correctly played
+ * short note would be judged a miss just for being short.
+ */
+export const MIN_WINDOW_MS = 90
+
+/**
+ * Hit window: half the shortest note, capped at 250 ms (piano-trainer rhythm_checker),
+ * and never below `MIN_WINDOW_MS` so 32nds stay playable.
  * On-time band: ±max(40 ms, 0.15 of a beat), tightened from 1.0 at level 1 to 0.6 at level 10
  * (RhythmTrainer's 0.15-beat press window).
  */
 export function timingForExercise(notes: readonly ScoreNote[], bpm: number, level = 1): { earlyMs: number; lateMs: number; perfectMs: number } {
   const shortest = notes.reduce((min, note) => Math.min(min, note.duration), 1)
   const beatMs = 60_000 / bpm
-  const window = Math.min((shortest * beatMs) / 2, 250)
+  const window = Math.min(Math.max((shortest * beatMs) / 2, MIN_WINDOW_MS), 250)
   const factor = 1 - Math.min(9, Math.max(0, level - 1)) * (0.4 / 9)
   const perfect = Math.max(40, 0.15 * beatMs) * factor
   return { earlyMs: window, lateMs: window, perfectMs: perfect }
