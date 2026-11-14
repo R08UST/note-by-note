@@ -1001,7 +1001,6 @@ input[type="range"] {
 /* Children of the scrolling pane must keep their own height (the level rail was shrinking to 2px). */
 .train-pane > * { flex-shrink: 0; }
 .train-pane { gap: 10px; padding-right: 4px; }
-.train-pane > .device-note:first-of-type { color: var(--ink); font-size: var(--font-md); }
 .level-chip:disabled { opacity: 0.4; }
 .train-pane > .segmented { align-self: flex-start; }
 /* One scroll area, not a scroller inside a scroller: the exercise score shows at full height. */
@@ -1014,6 +1013,26 @@ input[type="range"] {
 }
 .train-score .score-host { min-height: 0; }
 .train > .keybed { margin-top: var(--space-1); }
+.train-head { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; justify-content: space-between; }
+.midi-chip { display: inline-flex; gap: var(--space-2); align-items: center; color: var(--muted); font-size: var(--font-sm); }
+.midi-chip.is-on { color: var(--ink); }
+.midi-chip.is-on::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--moss); }
+.midi-chip .error { color: var(--coral); }
+.train-bar { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center; }
+.train-more { position: relative; }
+.train-more > summary { cursor: pointer; color: var(--muted); list-style: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.train-more > summary::-webkit-details-marker { display: none; }
+.train-more[open] > summary { border-color: var(--amber); color: var(--ink); }
+.train-more[open] {
+  display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: center;
+  flex-basis: 100%; padding: var(--space-2) var(--space-3); background: var(--bg-sunken); border-radius: var(--radius);
+}
+.train-hint { margin: 0; color: var(--muted); font-size: var(--font-sm); }
+.train-hint.is-count { color: var(--amber); font-family: var(--serif); font-size: 1.6rem; line-height: 1.2; }
+.train-result { margin: 0; font-size: var(--font-lg); color: var(--ink); }
+.level-info { color: var(--muted); font-size: var(--font-sm); }
+.level-info > summary { cursor: pointer; color: var(--ink); }
+.level-info p { margin: var(--space-1) 0 0; }
 
 /* ---------- Settings ---------- */
 .panel.settings { width: 100%; max-width: 860px; align-self: center; }

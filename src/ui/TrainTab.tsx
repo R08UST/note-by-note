@@ -1,11 +1,21 @@
-import { lazy, Suspense, useCallback, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { PlayedEvent, ScoreNote } from '../judge/types'
+import { pitchForCode } from '../midi/keyboardMap'
 import type { TimeSignature } from '../score/parseMusicXml'
 import { Keyboard } from './Keyboard'
 import { RhythmPanel } from './RhythmPanel'
 import { SightPanel } from './SightPanel'
 
 const TechniquePanel = lazy(() => import('./TechniquePanel').then((mod) => ({ default: mod.TechniquePanel })))
+
+export interface MidiStatus {
+  supported: boolean
+  on: boolean
+  busy: boolean
+  error: string | null
+  devices: number
+  enable: () => void
+}
 
 interface TrainTabProps {
   active: boolean
@@ -15,91 +25,124 @@ interface TrainTabProps {
   onSaved: () => void
   onCheckpoint: (pieceId: string) => void
   inputRef: { current: (event: PlayedEvent) => void }
+  midi: MidiStatus
   continuous: boolean
   onContinuous: (value: boolean) => void
 }
 
-export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef, continuous, onContinuous }: TrainTabProps) {
-  const [pane, setPane] = useState<'sight' | 'rhythm' | 'scale' | 'chord'>('sight')
+type Pane = 'sight' | 'rhythm' | 'scale' | 'chord' | 'finger'
+const PANES: [Pane, string][] = [
+  ['finger', '指法'],
+  ['scale', '音阶'],
+  ['chord', '和弦'],
+  ['sight', '视奏'],
+  ['rhythm', '节奏'],
+]
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
+}
+
+export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef, midi, continuous, onContinuous }: TrainTabProps) {
+  const [pane, setPane] = useState<Pane>('finger')
   const [keyRange, setKeyRange] = useState({ low: 48, high: 84 })
-  const sightPush = useRef<(event: PlayedEvent) => void>(() => {})
-  const rhythmPush = useRef<(event: PlayedEvent) => void>(() => {})
-  const techPush = useRef<(event: PlayedEvent) => void>(() => {})
+  const [pressed, setPressed] = useState<Set<number>>(() => new Set())
+  const push = useRef<(event: PlayedEvent) => void>(() => {})
+  const bind = useCallback((next: (event: PlayedEvent) => void) => {
+    push.current = next
+  }, [])
   const onRange = useCallback((low: number, high: number) => {
     setKeyRange((prev) => (prev.low === low && prev.high === high ? prev : { low, high }))
   }, [])
+
+  // MIDI, the computer keyboard and the on-screen keys all come through here, so every pane hears every source.
   inputRef.current = (event) => {
     if (!active) return
-    if (pane === 'sight') sightPush.current(event)
-    else if (pane === 'rhythm') rhythmPush.current(event)
-    else techPush.current(event)
+    setPressed((prev) => {
+      const down = event.type === 'on'
+      if (down === prev.has(event.pitch)) return prev
+      const next = new Set(prev)
+      if (down) next.add(event.pitch)
+      else next.delete(event.pitch)
+      return next
+    })
+    push.current(event)
   }
-  const range = pane === 'scale' || pane === 'chord' ? keyRange : { low: 48, high: 84 }
+
+  useEffect(() => {
+    if (!active || !keyboardEnabled) return
+    const held = new Set<string>()
+    const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return
+      const pitch = pitchForCode(event.code)
+      if (pitch == null || held.has(event.code)) return
+      held.add(event.code)
+      event.preventDefault()
+      inputRef.current({ pitch, velocity: 96, timeMs: performance.now(), type: 'on' })
+    }
+    const up = (event: KeyboardEvent) => {
+      if (!held.delete(event.code)) return
+      const pitch = pitchForCode(event.code)
+      if (pitch != null) inputRef.current({ pitch, velocity: 0, timeMs: performance.now(), type: 'off' })
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [active, keyboardEnabled, inputRef])
+
+  const technique = pane === 'scale' || pane === 'chord' || pane === 'finger'
+  const range = technique ? keyRange : { low: 48, high: 84 }
+  const shared = { active, latencyOffsetMs, onBind: bind, onSaved, continuous, onContinuous }
 
   return (
     <section className="panel train">
-      <h2>训练</h2>
-      <p className="lede">认谱、节奏、音阶和和弦分开练。判定窗口跟着速度和最短的音符走，最长不超过 250 毫秒。</p>
-      <div className="segmented train-switch" role="tablist" aria-label="训练">
-        <button type="button" role="tab" aria-selected={pane === 'sight'} onClick={() => setPane('sight')}>视奏</button>
-        <button type="button" role="tab" aria-selected={pane === 'rhythm'} onClick={() => setPane('rhythm')}>节奏</button>
-        <button type="button" role="tab" aria-selected={pane === 'scale'} onClick={() => setPane('scale')}>音阶</button>
-        <button type="button" role="tab" aria-selected={pane === 'chord'} onClick={() => setPane('chord')}>和弦</button>
+      <div className="train-head">
+        <div className="segmented train-switch" role="tablist" aria-label="训练">
+          {PANES.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={pane === id} onClick={() => setPane(id)}>{label}</button>
+          ))}
+        </div>
+        <MidiChip midi={midi} keyboardEnabled={keyboardEnabled} />
       </div>
-      {pane === 'sight' && (
-        <SightPanel
-          active={active}
-          keyboardEnabled={keyboardEnabled}
-          latencyOffsetMs={latencyOffsetMs}
-          onBind={(push) => {
-            sightPush.current = push
-          }}
-          onSaved={onSaved}
-          onCheckpoint={onCheckpoint}
-          continuous={continuous}
-          onContinuous={onContinuous}
-        />
-      )}
-      {pane === 'rhythm' && (
-        <RhythmPanel
-          active={active}
-          keyboardEnabled={keyboardEnabled}
-          latencyOffsetMs={latencyOffsetMs}
-          piece={piece}
-          onBind={(push) => {
-            rhythmPush.current = push
-          }}
-          onSaved={onSaved}
-          continuous={continuous}
-          onContinuous={onContinuous}
-        />
-      )}
-      {(pane === 'scale' || pane === 'chord') && (
-        <Suspense fallback={<p className="device-note">正在打开{pane === 'scale' ? '音阶' : '和弦'}…</p>}>
-          <TechniquePanel
-            kind={pane}
-            active={active}
-            keyboardEnabled={keyboardEnabled}
-            latencyOffsetMs={latencyOffsetMs}
-            onBind={(push) => {
-              techPush.current = push
-            }}
-            onSaved={onSaved}
-            onRange={onRange}
-            continuous={continuous}
-            onContinuous={onContinuous}
-          />
+      {pane === 'sight' && <SightPanel {...shared} onCheckpoint={onCheckpoint} />}
+      {pane === 'rhythm' && <RhythmPanel {...shared} piece={piece} />}
+      {technique && (
+        <Suspense fallback={<p className="device-note">正在打开…</p>}>
+          <TechniquePanel key={pane} kind={pane} {...shared} onRange={onRange} />
         </Suspense>
       )}
       <Keyboard
         low={range.low}
         high={range.high}
-        pressed={new Set()}
+        pressed={pressed}
         flashes={{}}
         targets={[]}
         hints={[]}
         onEvent={(event) => inputRef.current(event)}
       />
     </section>
+  )
+}
+
+function MidiChip({ midi, keyboardEnabled }: { midi: MidiStatus; keyboardEnabled: boolean }) {
+  if (!midi.supported) return <span className="midi-chip">{keyboardEnabled ? '电脑键盘输入（这个浏览器没有 MIDI）' : '这个浏览器没有 MIDI'}</span>
+  if (midi.on) {
+    return (
+      <span className={midi.devices > 0 ? 'midi-chip is-on' : 'midi-chip'}>
+        {midi.devices > 0 ? `MIDI 已连接 · ${midi.devices} 个端口` : 'MIDI 已打开，还没插键盘'}
+      </span>
+    )
+  }
+  return (
+    <span className="midi-chip">
+      <button type="button" className="button primary" onClick={midi.enable} disabled={midi.busy}>
+        {midi.busy ? '正在请求…' : '连接 MIDI 键盘'}
+      </button>
+      {midi.error && <span className="error">{midi.error}</span>}
+    </span>
   )
 }

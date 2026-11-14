@@ -8,15 +8,13 @@ import { techLevels, type TechKind } from '../train/technique'
 import { analyzeTouch, touchLine, type TouchReport } from '../train/touch'
 import { ContinueBar } from './ContinueBar'
 import { DemoBar } from './DemoBar'
-import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
-import { LevelRail } from './TrainBits'
+import { DrillHint, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { useDrill } from './useDrill'
 
 interface TechniquePanelProps {
   kind: TechKind
   active: boolean
-  keyboardEnabled: boolean
   latencyOffsetMs: number
   onBind: (push: (event: PlayedEvent) => void) => void
   onSaved: () => void
@@ -25,7 +23,7 @@ interface TechniquePanelProps {
   onContinuous: (value: boolean) => void
 }
 
-export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs, onBind, onSaved, onRange, continuous, onContinuous }: TechniquePanelProps) {
+export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved, onRange, continuous, onContinuous }: TechniquePanelProps) {
   const levels = techLevels(kind)
   const [level, setLevel] = useState(1)
   const [index, setIndex] = useState(0)
@@ -56,7 +54,6 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
   continuousRef.current = continuous
   const declined = useRef<Set<number>>(new Set())
   const goNextRef = useRef<() => void>(() => {})
-  const retryRef = useRef<() => void>(() => {})
 
   const reload = () => {
     void listTrainRuns().then((rows) => {
@@ -110,7 +107,6 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
 
   const drill = useDrill({
     active,
-    keyboardEnabled,
     notes: exercise?.notes ?? [],
     bpm,
     timing,
@@ -196,7 +192,6 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
     void drill.start()
   }
   goNextRef.current = () => goNext(false)
-  retryRef.current = retryItem
 
   useEffect(() => {
     if (!pendingStart.current) return
@@ -225,9 +220,6 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
       if (event.key === 'Enter') {
         event.preventDefault()
         goNextRef.current()
-      } else if (event.code === 'KeyR') {
-        event.preventDefault()
-        retryRef.current()
       }
     }
     window.addEventListener('keydown', down)
@@ -235,35 +227,14 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
   }, [active, drill.status, report, hold])
 
   if (!spec || !exercise) return null
-  const noun = kind === 'scale' ? '音阶' : '和弦'
+  const noun = NOUN[kind]
+  const busy = drill.status === 'playing' || drill.status === 'countin'
+  const lastBeat = Math.max(...exercise.notes.map((note) => note.beat + note.duration))
+  const pickLevel = (next: number) => { setLevel(next); setIndex(0); setReport(''); setHold(null) }
 
   return (
     <div className="train-pane">
-      <LevelRail count={levels.length} prefix={kind === 'scale' ? '音' : '和'} value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={(next) => { setLevel(next); setIndex(0); setReport(''); setHold(null) }} />
-      <p className="device-note">{noun} {spec.id} {spec.title}。{spec.detail}</p>
-      <p className="device-note">依据：{spec.source}</p>
-      <p className="device-note">3 条不同的练习第一次就干净通过，才算过关。连续练习留在这一级。{kind === 'scale' ? '节奏模式按拍子看每个音准不准、匀不匀。' : '和弦要一起下键。缺的音和多出来的音会单独写出来。'}</p>
-      <div className="train-settings">
-        <label className="field">速度 {bpm}
-          <input type="range" min={48} max={144} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
-        </label>
-        <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
-        <label className="check"><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />循环</label>
-        <label className="check" title={`节奏模式下连续 ${LADDER_RUN} 遍干净加 ${LADDER_STEP}，连续 ${LADDER_RUN} 遍没过减 ${LADDER_STEP}`}><input type="checkbox" checked={ladder} onChange={(event) => setLadder(event.target.checked)} />自动加速</label>
-        <span className="device-note">{best == null ? '这一条还没有干净的节奏记录' : `这一条最快干净 ${best}`}</span>
-        <div className="segmented" role="group" aria-label="判定">
-          <button type="button" aria-pressed={timing === 'wait'} onClick={() => setTiming('wait')}>等待</button>
-          <button type="button" aria-pressed={timing === 'strict'} onClick={() => setTiming('strict')}>节奏</button>
-        </div>
-      </div>
-      <div className="omr-actions">
-        <button type="button" className="button primary" onClick={() => void drill.start()} disabled={drill.status === 'playing' || drill.status === 'countin'}>
-          {drill.status === 'countin' ? '预备…' : '开始'}
-        </button>
-        <button type="button" className="button stop" onClick={drill.stop}>停止</button>
-        <button type="button" className="button ghost" onClick={() => { drill.stop(); scoreRef.current?.setBeat(exercise.notes[0]?.beat ?? 0) }}>回到开头</button>
-      </div>
-      {drill.countBeat != null && <div className="count-in">{drill.countBeat}</div>}
+      <LevelRail count={levels.length} prefix={PREFIX[kind]} value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={pickLevel} />
       <div className="recent" aria-label="这一级的条目">
         {spec.items.map((entry, entryIndex) => (
           <button key={entry.id} type="button" aria-pressed={entry.id === exercise.id} onClick={() => { setIndex(entryIndex); setReport(''); setHold(null) }}>
@@ -271,12 +242,41 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
           </button>
         ))}
       </div>
+      <div className="train-bar">
+        <StartStop status={drill.status} onStart={drill.status === 'finished' ? retryItem : () => void drill.start()} onStop={drill.stop} />
+        <div className="segmented" role="group" aria-label="判定">
+          <button type="button" aria-pressed={timing === 'wait'} onClick={() => setTiming('wait')} title="弹对了才往前走，不看节拍">等我</button>
+          <button type="button" aria-pressed={timing === 'strict'} onClick={() => setTiming('strict')} title="跟节拍器，看准不准、匀不匀">跟拍</button>
+        </div>
+        <label className="field">速度 {bpm}
+          <input type="range" min={40} max={160} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
+        </label>
+        <details className="train-more">
+          <summary>更多</summary>
+          <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
+          <label className="check"><input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />同一条循环</label>
+          <label className="check" title={`跟拍时连续 ${LADDER_RUN} 遍干净加 ${LADDER_STEP}，连续 ${LADDER_RUN} 遍没过减 ${LADDER_STEP}`}><input type="checkbox" checked={ladder} onChange={(event) => setLadder(event.target.checked)} />自动加速</label>
+          <span className="device-note">{best == null ? '这一条还没有干净的跟拍记录' : `这一条最快干净 ${best}`}</span>
+        </details>
+      </div>
+      <DrillHint status={drill.status} timing={timing} countBeat={drill.countBeat} />
+      <div className="score-frame train-score">
+        <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
+      </div>
+      {report && <p className="train-result">{report}</p>}
+      {report && touch && touchLine(touch) && <p className="device-note">{touchLine(touch)}</p>}
+      {report && touch && touch.tips.length > 0 && (
+        <ul className="device-note touch-tips">
+          {touch.tips.map((tip) => <li key={tip}>{tip}</li>)}
+        </ul>
+      )}
+      {report && ladderNote && <p className="device-note">{ladderNote}</p>}
       <ContinueBar
         continuous={continuous}
         onContinuous={onContinuous}
         onRetry={retryItem}
-        onNext={goNext}
-        busy={drill.status === 'playing' || drill.status === 'countin'}
+        onNext={() => goNext()}
+        busy={busy}
         sessionDone={session.done}
         sessionClean={session.clean}
         itemId={exercise.id}
@@ -299,41 +299,29 @@ export function TechniquePanel({ kind, active, keyboardEnabled, latencyOffsetMs,
           notes={exercise.notes}
           bpm={bpm}
           startBeat={exercise.notes[0]?.beat ?? 0}
-          endBeat={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          endBeat={lastBeat}
           practiceHands="both"
           loop={loop}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          disabled={busy}
           onBeat={(beat) => scoreRef.current?.setBeat(beat)}
         />
       )}
-      {exercise.notes.length > 0 && (
-        <ListenBar
-          showKeyboard={false}
-          notes={exercise.notes}
-          startBeat={exercise.notes[0]?.beat ?? 0}
-          rangeStart={exercise.notes[0]?.beat ?? 0}
-          rangeEnd={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
-          bpm={bpm}
-          onBpm={setBpm}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
-          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-          onPractice={() => void drill.start()}
-          onNext={() => setIndex((value) => (value + 1) % spec.items.length)}
-        />
-      )}
-      <div className="score-frame train-score">
-        <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
-      </div>
-      {report && <p className="device-note">{report}</p>}
-      {report && touch && touchLine(touch) && <p className="device-note">{touchLine(touch)}</p>}
-      {report && touch && touch.tips.length > 0 && (
-        <ul className="device-note touch-tips">
-          {touch.tips.map((tip) => <li key={tip}>{tip}</li>)}
-        </ul>
-      )}
-      {report && ladderNote && <p className="device-note">{ladderNote}</p>}
+      <LevelInfo
+        title={`${noun} ${spec.id} · ${spec.title}`}
+        detail={spec.detail}
+        source={spec.source}
+        rule={`3 条不同的练习第一次就干净通过，才算过关。${RULE[kind]}`}
+      />
     </div>
   )
+}
+
+const NOUN: Record<TechKind, string> = { scale: '音阶', chord: '和弦', finger: '指法' }
+const PREFIX: Record<TechKind, string> = { scale: '音', chord: '和', finger: '指' }
+const RULE: Record<TechKind, string> = {
+  scale: '跟拍模式按拍子看每个音准不准、匀不匀。',
+  chord: '和弦要一起下键。缺的音和多出来的音会单独写出来。',
+  finger: '先慢，求匀。用力度键盘弹时，结果里会指出最弱的手指。',
 }
 
 function resultLine(summary: { hits: number; expected: number; perfects: number; misses: number; extras: number; wrongs: number; timingSpreadMs: number | null }, judgements: readonly Judgement[], timing: boolean): string {

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
-import { pitchForCode } from '../midi/keyboardMap'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { listPitchStats, listTrainRuns, rememberPitches, saveTrainRun, type PitchStatRecord, type TrainRunRecord } from '../storage/db'
@@ -10,16 +9,14 @@ import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '..
 import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
-import { HeatKeys, LevelRail } from './TrainBits'
+import { DrillHint, HeatKeys, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { DemoBar } from './DemoBar'
 import { describeNotes } from './format'
-import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
 interface SightPanelProps {
   active: boolean
-  keyboardEnabled: boolean
   latencyOffsetMs: number
   onBind: (push: (event: PlayedEvent) => void) => void
   onSaved: () => void
@@ -30,7 +27,7 @@ interface SightPanelProps {
 
 const CARDS = 8
 
-export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, onSaved, onCheckpoint, continuous, onContinuous }: SightPanelProps) {
+export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpoint, continuous, onContinuous }: SightPanelProps) {
   const [level, setLevel] = useState(1)
   const [kind, setKind] = useState<'flash' | 'phrase' | 'weak'>('phrase')
   const [hand, setHand] = useState<'R' | 'L' | 'both'>('R')
@@ -58,7 +55,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   const continuousRef = useRef(continuous)
   continuousRef.current = continuous
   const goNextRef = useRef<() => void>(() => {})
-  const retryRef = useRef<() => void>(() => {})
   const holdFired = useRef(false)
   const shownAt = useRef(0)
   const lock = useRef(false)
@@ -110,7 +106,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
 
   const drill = useDrill({
     active: active && phraseLike,
-    keyboardEnabled,
     notes: phrase.notes,
     bpm,
     timing,
@@ -204,25 +199,13 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
 
   useEffect(() => {
     onBind((event) => {
-      if (event.type !== 'on') return
       if (phraseLike) drill.push(event)
+      else if (event.type !== 'on') return
+      // Flash cards: the first key deals the cards instead of answering one.
+      else if (!flashing) startFlash()
       else answerRef.current(event.pitch, event.timeMs)
     })
   })
-
-  useEffect(() => {
-    if (!active || !keyboardEnabled || phraseLike) return
-    const down = (event: KeyboardEvent) => {
-      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)) return
-      const pitch = pitchForCode(event.code)
-      if (pitch == null) return
-      event.preventDefault()
-      answerRef.current(pitch, performance.now())
-    }
-    window.addEventListener('keydown', down)
-    return () => window.removeEventListener('keydown', down)
-  }, [active, keyboardEnabled, phraseLike])
 
   const goNext = () => {
     setHold(null)
@@ -249,9 +232,9 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
     retrying.current = true
     setHold(null)
     setReport(null)
+    void drill.start()
   }
   goNextRef.current = goNext
-  retryRef.current = retryItem
 
   useEffect(() => {
     setSession({ done: 0, clean: 0 })
@@ -282,9 +265,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
       if (event.key === 'Enter') {
         event.preventDefault()
         goNextRef.current()
-      } else if (event.code === 'KeyR') {
-        event.preventDefault()
-        retryRef.current()
       }
     }
     window.addEventListener('keydown', down)
@@ -307,50 +287,52 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
   }
 
   const hintList = phraseLike ? drill.current : shown?.notes ?? []
+  const busy = drill.status === 'playing' || drill.status === 'countin'
 
   return (
     <div className="train-pane">
       <LevelRail count={SIGHT_LEVELS.length} prefix="S" value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
-      <p className="device-note">
-        S{spec.id} {spec.title}。{spec.detail}
-      </p>
-      <p className="device-note">依据：{spec.source}</p>
-      <p className="device-note">同一级先右手、再左手、再双手。连续练习就按这个顺序换题，不自动升级。3 条不同的曲子第一次就干净通过，才算过关。</p>
-      <div className="segmented" role="group" aria-label="视奏题型">
-        <button type="button" aria-pressed={kind === 'flash'} onClick={() => setKind('flash')}>单音认谱</button>
-        <button type="button" aria-pressed={kind === 'phrase'} onClick={() => setKind('phrase')}>短句视奏</button>
-        <button type="button" aria-pressed={kind === 'weak'} onClick={() => setKind('weak')}>弱点</button>
-      </div>
-      {spec.id === 3 || spec.id === 6 || spec.id === 10 ? (
-        <div className="omr-actions">
-          <span className="device-note">过关试奏，只读一遍：</span>
-          {spec.id >= 3 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-twinkle-twinkle-little-star')}>小星星</button>}
-          {spec.id >= 6 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-ode-to-joy')}>欢乐颂</button>}
-          {spec.id >= 10 && <button type="button" className="button ghost" onClick={() => onCheckpoint('noc-bach-menuet-bwv-anh-113')}>小步舞曲</button>}
+      <div className="train-bar">
+        <div className="segmented" role="group" aria-label="视奏题型">
+          <button type="button" aria-pressed={kind === 'phrase'} onClick={() => setKind('phrase')}>短句</button>
+          <button type="button" aria-pressed={kind === 'flash'} onClick={() => setKind('flash')}>单音卡片</button>
+          <button type="button" aria-pressed={kind === 'weak'} onClick={() => setKind('weak')} title="多出你常错的音">弱点</button>
         </div>
-      ) : null}
-      <div className="train-settings">
         <div className="segmented" role="group" aria-label="哪只手">
           <button type="button" aria-pressed={hand === 'R'} onClick={() => setHand('R')}>右手</button>
           <button type="button" aria-pressed={hand === 'L'} onClick={() => setHand('L')}>左手</button>
           <button type="button" aria-pressed={hand === 'both'} onClick={() => setHand('both')}>{spec.together ? '双手' : '交替'}</button>
         </div>
-        <label className="field">速度 {bpm}
-          <input type="range" min={48} max={132} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
-        </label>
-        <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
-        <label className="check"><input type="checkbox" checked={hints} onChange={(event) => setHints(event.target.checked)} />显示音名</label>
+      </div>
+      <div className="train-bar">
         {phraseLike ? (
-          <div className="segmented" role="group" aria-label="判定">
-            <button type="button" aria-pressed={timing === 'wait'} onClick={() => setTiming('wait')}>只看音高</button>
-            <button type="button" aria-pressed={timing === 'strict'} onClick={() => setTiming('strict')}>按拍子</button>
-          </div>
+          <StartStop status={drill.status} onStart={drill.status === 'finished' ? retryItem : () => void drill.start()} onStop={drill.stop} />
         ) : (
+          <button type="button" className="button primary" onClick={startFlash} disabled={flashing}>
+            {flashing ? `第 ${cardIndex + 1} / ${CARDS} 张` : `开始 ${CARDS} 张`}
+          </button>
+        )}
+        {phraseLike ? (
           <>
-            <div className="segmented" role="group" aria-label="八度">
-              <button type="button" aria-pressed={octave === 'any'} onClick={() => setOctave('any')}>任意八度</button>
-              <button type="button" aria-pressed={octave === 'exact'} onClick={() => setOctave('exact')}>原位</button>
+            <div className="segmented" role="group" aria-label="判定">
+              <button type="button" aria-pressed={timing === 'wait'} onClick={() => setTiming('wait')} title="弹对了才往前走">等我</button>
+              <button type="button" aria-pressed={timing === 'strict'} onClick={() => setTiming('strict')} title="跟节拍器">跟拍</button>
             </div>
+            <label className="field">速度 {bpm}
+              <input type="range" min={48} max={132} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
+            </label>
+          </>
+        ) : (
+          <div className="segmented" role="group" aria-label="八度">
+            <button type="button" aria-pressed={octave === 'any'} onClick={() => setOctave('any')}>任意八度</button>
+            <button type="button" aria-pressed={octave === 'exact'} onClick={() => setOctave('exact')}>原位</button>
+          </div>
+        )}
+        <details className="train-more">
+          <summary>更多</summary>
+          <label className="check"><input type="checkbox" checked={hints} onChange={(event) => setHints(event.target.checked)} />显示音名</label>
+          {phraseLike && <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>}
+          {!phraseLike && (
             <label className="field">限时
               <select value={timerSeconds} onChange={(event) => setTimerSeconds(Number(event.target.value))}>
                 <option value={0}>不限时</option>
@@ -359,36 +341,27 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
                 <option value={8}>8 秒</option>
               </select>
             </label>
-          </>
-        )}
+          )}
+          {!phraseLike && <button type="button" className="button ghost" onClick={() => setSeed((value) => value + 17)}>换一组</button>}
+        </details>
       </div>
-      <div className="omr-actions">
-        {phraseLike ? (
-          <>
-            <button type="button" className="button primary" onClick={() => void drill.start()} disabled={drill.status === 'playing' || drill.status === 'countin'}>
-              {drill.status === 'countin' ? '预备…' : '开始'}
-            </button>
-            <button type="button" className="button stop" onClick={drill.stop}>停止</button>
-          </>
-        ) : (
-          <button type="button" className="button primary" onClick={startFlash} disabled={flashing}>
-            {flashing ? `第 ${cardIndex + 1} / ${CARDS} 张` : '开始 8 张'}
-          </button>
-        )}
-        {!phraseLike && <button type="button" className="button ghost" onClick={() => setSeed((value) => value + 17)}>换一组</button>}
-        {hints && hintList.length > 0 && <span className="note-hint">{describeNotes(hintList)}</span>}
-        {flashNote && <span className="device-note">{flashNote}</span>}
-      </div>
-      {drill.countBeat != null && phraseLike && <div className="count-in">{drill.countBeat}</div>}
-      {phraseLike && (
-        <BankBar
-          items={bank.items}
-          currentId={bank.current?.id}
-          marks={bank.marks}
-          open={bank.open}
-          onToggle={() => bank.setOpen((value) => !value)}
-          onPick={(id) => { setReport(null); bank.pick(id) }}
-        />
+      {phraseLike ? (
+        <DrillHint status={drill.status} timing={timing} countBeat={drill.countBeat} />
+      ) : (
+        <p className="train-hint">{flashNote || (flashing ? '弹出这个音' : '弹任意键发牌')}</p>
+      )}
+      {hints && hintList.length > 0 && <span className="note-hint">{describeNotes(hintList)}</span>}
+      {shown && (
+        <div className="score-frame train-score">
+          <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />
+        </div>
+      )}
+      {phraseLike && report && <ResultLine summary={report} timing={timing === 'strict'} />}
+      {!phraseLike && cardResults.length > 0 && (
+        <p className="train-result">
+          这组 {cardResults.filter((item) => item.hit).length}/{cardResults.length} 正确
+          {`，平均 ${Math.round(average(cardResults.map((item) => item.ms)) ?? 0)} ms`}
+        </p>
       )}
       {phraseLike && (
         <ContinueBar
@@ -396,7 +369,7 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           onContinuous={onContinuous}
           onRetry={retryItem}
           onNext={goNext}
-          busy={drill.status === 'playing' || drill.status === 'countin'}
+          busy={busy}
           sessionDone={session.done}
           sessionClean={session.clean}
           itemId={bank.current?.id}
@@ -416,7 +389,6 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           }}
         />
       )}
-      {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
       {phraseLike && phrase.notes.length > 0 && (
         <DemoBar
           notes={phrase.notes}
@@ -425,42 +397,36 @@ export function SightPanel({ active, keyboardEnabled, latencyOffsetMs, onBind, o
           endBeat={Math.max(...phrase.notes.map((note) => note.beat + note.duration))}
           practiceHands={hand}
           loop={false}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
+          disabled={busy}
           onBeat={(beat) => scoreRef.current?.setBeat(beat)}
         />
       )}
-      {phraseLike && phrase.notes.length > 0 && (
-        <ListenBar
-          showKeyboard={false}
-          notes={phrase.notes}
-          startBeat={0}
-          rangeStart={0}
-          rangeEnd={Math.max(...phrase.notes.map((note) => note.beat + note.duration))}
-          bpm={bpm}
-          onBpm={setBpm}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
-          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-          onPractice={() => void drill.start()}
-          onNext={() => {
-            const index = bank.items.findIndex((item) => item.id === bank.current?.id)
-            const next = bank.items[index + 1] ?? bank.items[0]
-            if (next && next.id !== bank.current?.id) bank.pick(next.id)
-          }}
+      {phraseLike && (
+        <BankBar
+          items={bank.items}
+          currentId={bank.current?.id}
+          marks={bank.marks}
+          open={bank.open}
+          onToggle={() => bank.setOpen((value) => !value)}
+          onPick={(id) => { setReport(null); bank.pick(id) }}
         />
       )}
-      {shown && (
-        <div className="score-frame train-score">
-          <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />
+      {phraseLike && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
+      {spec.id === 3 || spec.id === 6 || spec.id === 10 ? (
+        <div className="omr-actions">
+          <span className="device-note">过关试奏，只读一遍：</span>
+          {spec.id >= 3 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-twinkle-twinkle-little-star')}>小星星</button>}
+          {spec.id >= 6 && <button type="button" className="button ghost" onClick={() => onCheckpoint('os-ode-to-joy')}>欢乐颂</button>}
+          {spec.id >= 10 && <button type="button" className="button ghost" onClick={() => onCheckpoint('noc-bach-menuet-bwv-anh-113')}>小步舞曲</button>}
         </div>
-      )}
-      {phraseLike && report && <ResultLine summary={report} timing={timing === 'strict'} />}
-      {!phraseLike && cardResults.length > 0 && (
-        <p className="device-note">
-          这组 {cardResults.filter((item) => item.hit).length}/{cardResults.length} 正确
-          {`，平均 ${Math.round(average(cardResults.map((item) => item.ms)) ?? 0)} ms`}
-        </p>
-      )}
+      ) : null}
       <HeatKeys stats={stats} />
+      <LevelInfo
+        title={`S${spec.id} · ${spec.title}`}
+        detail={spec.detail}
+        source={spec.source}
+        rule="同一级先右手、再左手、再双手。连续练习按这个顺序换题，不自动升级。3 条不同的曲子第一次就干净通过，才算过关。"
+      />
     </div>
   )
 }
@@ -475,7 +441,7 @@ function ResultLine({ summary, timing }: { summary: RunSummary; timing: boolean 
   const accuracy = summary.expected === 0 ? 0 : Math.round((summary.hits / summary.expected) * 100)
   const onTime = summary.expected === 0 ? 0 : Math.round((summary.perfects / summary.expected) * 100)
   return (
-    <p className="device-note">
+    <p className="train-result">
       音高 {accuracy}%{timing ? ` · 准时 ${onTime}%` : ''}
       {summary.meanOffsetMs != null ? ` · 平均 ${Math.round(summary.meanOffsetMs)} ms` : ''}
       {summary.timingSpreadMs != null ? ` · 分散 ${Math.round(summary.timingSpreadMs)} ms` : ''}

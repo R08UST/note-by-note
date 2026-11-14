@@ -1,9 +1,9 @@
 import type { Hand } from '../judge/types'
-import { materialize, type WrittenNote, type WrittenScore } from './musicXml'
+import { materialize, measureTicks, TICKS, type WrittenNote, type WrittenScore } from './musicXml'
 
-/** Early-grade scales and chords. Each level cites the syllabus line it follows. */
+/** Early-grade finger work, scales and chords. Each level cites the syllabus line it follows. */
 
-export type TechKind = 'scale' | 'chord'
+export type TechKind = 'scale' | 'chord' | 'finger'
 
 export interface TechLevel {
   id: number
@@ -57,6 +57,8 @@ const Dm: KeyDef = { name: 'd 小调', fifths: -1, tonic: 62, letter: 1, mode: '
 const Dh: KeyDef = { name: 'd 和声小调', fifths: -1, tonic: 62, letter: 1, mode: 'harmonic' }
 const Eh: KeyDef = { name: 'e 和声小调', fifths: 1, tonic: 64, letter: 2, mode: 'harmonic' }
 const Gm: KeyDef = { name: 'g 和声小调', fifths: -2, tonic: 67, letter: 4, mode: 'harmonic' }
+const AM: KeyDef = { name: 'A 大调', fifths: 3, tonic: 69, letter: 5, mode: 'major' }
+const EM: KeyDef = { name: 'E 大调', fifths: 4, tonic: 64, letter: 2, mode: 'major' }
 
 function semi(mode: Mode, degree: number): number {
   const oct = Math.floor(degree / 7)
@@ -98,6 +100,8 @@ interface Hit {
   key: KeyDef
   /** Chromatic notes carry their own spelling. */
   spelling?: { step: string; alter: number }
+  /** Length in ticks. Every hit in one slot shares it. Default is a quarter. */
+  ticks?: number
 }
 
 function fingers(hand: Hand, octaves: 1 | 2, fRh: boolean): { up: number[]; down: number[] } {
@@ -265,23 +269,30 @@ const CADENCE: Record<string, number[][]> = {
 
 function toScore(title: string, fifths: number, hits: Hit[], clef: WrittenScore['clef']): TechBuilt {
   const staves: 1 | 2 = clef === 'grand' ? 2 : 1
-  const notes: WrittenNote[] = hits.map((hit) => ({
-    pitch: hit.pitch,
-    ticks: 12,
-    hand: hit.hand,
-    measure: Math.floor(hit.at / 4) + 1,
-    chord: false,
-    finger: hit.finger,
-    spelling: hit.pitch == null ? undefined : hit.spelling ?? (hit.letter == null ? undefined : spellLetter(hit.letter, hit.pitch)),
-  }))
-  const byAt = new Map<string, number>()
-  for (const note of notes) {
-    const at = hits[notes.indexOf(note)]?.at ?? 0
-    const slot = `${note.hand}:${at}`
-    const seen = byAt.get(slot) ?? 0
-    if (seen > 0) note.chord = true
-    byAt.set(slot, seen + 1)
+  // Slots can differ in length, so each slot starts where the previous one ended.
+  const slotStart = new Map<number, number>()
+  let tick = 0
+  for (const hit of hits) {
+    if (slotStart.has(hit.at)) continue
+    slotStart.set(hit.at, tick)
+    tick += hit.ticks ?? TICKS
   }
+  const perMeasure = measureTicks(TIME)
+  const byAt = new Map<string, number>()
+  const notes: WrittenNote[] = hits.map((hit) => {
+    const slot = `${hit.hand}:${hit.at}`
+    const seen = byAt.get(slot) ?? 0
+    byAt.set(slot, seen + 1)
+    return {
+      pitch: hit.pitch,
+      ticks: hit.ticks ?? TICKS,
+      hand: hit.hand,
+      measure: Math.floor((slotStart.get(hit.at) ?? 0) / perMeasure) + 1,
+      chord: seen > 0,
+      finger: hit.finger,
+      spelling: hit.pitch == null ? undefined : hit.spelling ?? (hit.letter == null ? undefined : spellLetter(hit.letter, hit.pitch)),
+    }
+  })
   const score: WrittenScore = { title, fifths, time: TIME, staves, clef, notes }
   const made = materialize(score)
   const pitches = made.notes.map((note) => note.pitch)
@@ -360,7 +371,39 @@ function buildScales(): TechLevel[] {
       source: 'ABRSM 2021 Grade 2：半音阶从 D 开始，分手一个八度。指法按大纲允许的常规 1–3 指法。',
       items: [chromaticItem(62, 'R'), chromaticItem(50, 'L'), chromaticItem(74, 'R')],
     },
+    {
+      id: 7,
+      title: '升号大调：A、E',
+      detail: 'A 大调三个升号，E 大调四个。指法和 C 大调一样：右手 123-1234，左手 54321-321。分手两个八度。',
+      source: 'ABRSM 2021 Grade 2：A、E 大调分手两个八度。指法与 C 大调同属一个指法组。',
+      items: [scaleItem(AM, 2, 'R'), scaleItem(AM, 2, 'L'), scaleItem(EM, 2, 'R'), scaleItem(EM, 2, 'L')],
+    },
+    {
+      id: 8,
+      title: '节奏变化',
+      detail: '同一条音阶换三种节奏弹：均匀八分、长短（附点）、短长（反附点）。长短交替让每个手指轮流落在重音上，不匀的地方会露出来。',
+      source: '用附点、反附点节奏练音阶是常见的匀度练法，例如 Cortot《钢琴技术的理性原则》音阶一章的节奏变化。',
+      items: [
+        rhythmScale(C, 'R', [6], '八分'),
+        rhythmScale(C, 'R', [9, 3], '长短'),
+        rhythmScale(C, 'R', [3, 9], '短长'),
+        rhythmScale(G, 'L', [6], '八分'),
+        rhythmScale(G, 'L', [9, 3], '长短'),
+      ],
+    },
   ]
+}
+
+/** One octave up and down with its notes re-timed by `cycle`. The last note is a quarter so the line lands on a beat. */
+function rhythmScale(key: KeyDef, hand: Hand, cycle: number[], label: string): TechBuilt {
+  const hits = scaleHits(key, 1, hand, key.tonic)
+  hits.forEach((hit, index) => {
+    hit.ticks = index === hits.length - 1 ? TICKS : (cycle[index % cycle.length] ?? TICKS)
+  })
+  const title = `${key.name} · ${hand === 'R' ? '右手' : '左手'} · ${label}`
+  const built = toScore(title, key.fifths, hits, hand === 'L' ? 'bass' : 'treble')
+  built.id = `scale-rhythm-${key.name}-${hand}-${cycle.join('.')}`
+  return built
 }
 
 function contraryItem(tonic: number, octaves: 1 | 2): TechBuilt {
@@ -468,11 +511,126 @@ function lineItem(title: string, fifths: number, hits: Hit[], clef: WrittenScore
   return built
 }
 
+/** A line inside one five-finger position. Degree 0–4 sits under finger 1–5 (right) or 5–1 (left). */
+function positionHits(key: KeyDef, degrees: number[], hands: Hands, ticks = TICKS): Hit[] {
+  const mode: Mode = key.mode === 'major' ? 'major' : 'natural'
+  const use: KeyDef = { ...key, mode }
+  const write: Hand[] = hands === 'both' ? ['R', 'L'] : [hands]
+  const hits: Hit[] = []
+  degrees.forEach((degree, at) => {
+    for (const hand of write) {
+      const base = hand === 'L' ? key.tonic - 12 : key.tonic
+      hits.push({ pitch: base + semi(mode, degree), hand, finger: hand === 'R' ? degree + 1 : 5 - degree, at, letter: key.letter + degree, key: use, ticks })
+    }
+  })
+  return hits
+}
+
+/**
+ * A Hanon-style figure moved up the scale one step at a time, then its mirror image back down.
+ * `offsets` are scale steps above the group's first note; `rhFingers` is the right hand going up.
+ * Going down, and in the left hand, every finger n becomes 6 − n, as Hanon prints it.
+ */
+function hanonHits(key: KeyDef, offsets: number[], rhFingers: number[], hands: Hands): Hit[] {
+  const write: Hand[] = hands === 'both' ? ['R', 'L'] : [hands]
+  const hits: Hit[] = []
+  let at = 0
+  const group = (start: number, sign: 1 | -1) => {
+    offsets.forEach((offset, index) => {
+      const degree = start + sign * offset
+      const rh = rhFingers[index] ?? 1
+      for (const hand of write) {
+        const plain = (hand === 'R') === (sign === 1)
+        const base = hand === 'L' ? key.tonic - 12 : key.tonic
+        hits.push({ pitch: base + semi(key.mode, degree), hand, finger: plain ? rh : 6 - rh, at, letter: key.letter + degree, key, ticks: 6 })
+      }
+      at += 1
+    })
+  }
+  const top = Math.max(...offsets)
+  for (let start = 0; start < 7; start += 1) group(start, 1)
+  for (let start = 6 + top; start >= top; start -= 1) group(start, -1)
+  for (const hand of write) {
+    const base = hand === 'L' ? key.tonic - 12 : key.tonic
+    hits.push({ pitch: base, hand, finger: hand === 'R' ? 1 : 5, at, letter: key.letter, key, ticks: TICKS })
+  }
+  return hits
+}
+
+function fingerItem(id: string, title: string, key: KeyDef, hits: Hit[], hands: Hands): TechBuilt {
+  const built = toScore(title, key.fifths, hits, hands === 'both' ? 'grand' : hands === 'L' ? 'bass' : 'treble')
+  built.id = id
+  return built
+}
+
+const FIVE_UP_DOWN = [0, 1, 2, 3, 4, 3, 2, 1, 0]
+const FIVE_SKIPS = [0, 2, 1, 3, 2, 4, 4, 2, 3, 1, 2, 0]
+/** Each neighbour pair alternates eight times. 4–5 is the hardest pair. */
+const PAIRS = [0, 1, 2, 3].flatMap((low) => [low, low + 1, low, low + 1, low, low + 1, low, low + 1])
+const HANON_1 = { offsets: [0, 2, 3, 4, 5, 4, 3, 2], fingers: [1, 2, 3, 4, 5, 4, 3, 2] }
+const HANON_2 = { offsets: [0, 2, 5, 4, 3, 4, 3, 2], fingers: [1, 2, 5, 4, 3, 4, 3, 2] }
+const HANON_3 = { offsets: [0, 2, 5, 4, 3, 2, 3, 4], fingers: [1, 2, 5, 4, 3, 2, 3, 4] }
+
+function handLabel(hands: Hands): string {
+  return hands === 'R' ? '右手' : hands === 'L' ? '左手' : '双手'
+}
+
+function buildFinger(): TechLevel[] {
+  const five = (key: KeyDef, hands: Hands) =>
+    fingerItem(`finger-five-${key.name}-${hands}`, `${key.name}五指 · ${handLabel(hands)}`, key, positionHits(key, FIVE_UP_DOWN, hands), hands)
+  const skips = (key: KeyDef, hands: Hands) =>
+    fingerItem(`finger-skip-${key.name}-${hands}`, `${key.name}三度跳 · ${handLabel(hands)}`, key, positionHits(key, FIVE_SKIPS, hands), hands)
+  const pairs = (key: KeyDef, hands: Hands) =>
+    fingerItem(`finger-pairs-${key.name}-${hands}`, `${key.name}两指交替 · ${handLabel(hands)}`, key, positionHits(key, PAIRS, hands, 6), hands)
+  const hanon = (number: 1 | 2 | 3, hands: Hands) => {
+    const figure = number === 1 ? HANON_1 : number === 2 ? HANON_2 : HANON_3
+    return fingerItem(`finger-hanon-${number}-${hands}`, `哈农第 ${number} 条 · ${handLabel(hands)}`, C, hanonHits(C, figure.offsets, figure.fingers, hands), hands)
+  }
+  return [
+    {
+      id: 1,
+      title: '五指位置',
+      detail: '五个手指各管一个键，上行再下行。手腕放松，指尖站住，每个音一样响、一样长。',
+      source: 'RCM Piano Syllabus Preparatory A 与 Faber《Piano Adventures》入门册都从五指位置起步。',
+      items: [five(C, 'R'), five(C, 'L'), five(G, 'R'), five(G, 'L'), five(C, 'both')],
+    },
+    {
+      id: 2,
+      title: '五指内的三度跳',
+      detail: '1-3-2-4-3-5，再倒回来。手不移位，只有手指在动。跳的时候手腕不要跟着晃。',
+      source: '五指位置内的三度跳进，见 Czerny Op.599 开头几条与 Bartók《小宇宙》第一册。',
+      items: [skips(C, 'R'), skips(C, 'L'), skips(D, 'R'), skips(F, 'L'), skips(C, 'both')],
+    },
+    {
+      id: 3,
+      title: '两指交替',
+      detail: '1-2、2-3、3-4、4-5 各交替八下，八分音符。4-5 最难，弱指要和强指一样响。用力度键盘弹时会指出最弱的手指。',
+      source: '相邻两指交替是手指独立的基本功，Hanon《钢琴艺术家》与 Brahms《51 首练习》都有。',
+      items: [pairs(C, 'R'), pairs(C, 'L'), pairs(G, 'R'), pairs(C, 'both')],
+    },
+    {
+      id: 4,
+      title: '哈农第 1 条',
+      detail: '一个 8 音音型从 C 起逐级上移一个八度，再镜像下行回来。八分音符。先用「等我」摸熟，再「跟拍」。',
+      source: 'C.-L. Hanon《钢琴艺术家》（1873，公有领域）第 1 条。这里只走一个八度，写成八分音符。',
+      items: [hanon(1, 'R'), hanon(1, 'L'), hanon(1, 'both')],
+    },
+    {
+      id: 5,
+      title: '哈农第 2、3 条',
+      detail: '第 2 条练 3-4-5 指的伸张和弱指，第 3 条加了 2-3-4 的回转。同样逐级上移再下行。',
+      source: 'C.-L. Hanon《钢琴艺术家》（1873，公有领域）第 2、3 条，一个八度，八分音符。',
+      items: [hanon(2, 'R'), hanon(2, 'L'), hanon(3, 'R'), hanon(3, 'L'), hanon(2, 'both')],
+    },
+  ]
+}
+
+export const FINGER_LEVELS: TechLevel[] = buildFinger()
 export const SCALE_LEVELS: TechLevel[] = buildScales()
 export const CHORD_LEVELS: TechLevel[] = buildChords()
 
 export function techLevels(kind: TechKind): TechLevel[] {
-  return kind === 'scale' ? SCALE_LEVELS : CHORD_LEVELS
+  return kind === 'scale' ? SCALE_LEVELS : kind === 'chord' ? CHORD_LEVELS : FINGER_LEVELS
 }
 
 /** Pitches and fingers of one scale, for tests. */

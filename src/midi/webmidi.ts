@@ -10,6 +10,17 @@ export function midiSupported(): boolean {
   return typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator
 }
 
+/** True when the browser already lets this page use MIDI, so it can reconnect without a prompt. */
+export async function midiGranted(): Promise<boolean> {
+  if (!midiSupported() || !navigator.permissions) return false
+  try {
+    const status = await navigator.permissions.query({ name: 'midi' as PermissionName })
+    return status.state === 'granted'
+  } catch {
+    return false
+  }
+}
+
 export async function enableMidi(): Promise<void> {
   if (!midiSupported()) {
     throw new Error('This browser has no Web MIDI. Use Chrome or Edge on localhost.')
@@ -40,13 +51,28 @@ function velocityOf(raw: number | undefined, normalized: number | undefined): nu
   return Math.round((normalized ?? 0.8) * 127)
 }
 
+/** Listen on every input. Many USB pianos show up as two ports and only one carries the keys. */
+export const ALL_INPUTS = '*'
+
 export function attachInput(
   id: string,
   onEvent: (event: PlayedEvent) => void,
   onSustain?: (down: boolean) => void,
 ): () => void {
+  if (id === ALL_INPUTS) {
+    const detach = WebMidi.inputs.map((input) => attachOne(input, onEvent, onSustain))
+    return () => detach.forEach((stop) => stop())
+  }
   const input: Input | undefined = WebMidi.inputs.find((item) => item.id === id)
   if (!input) return () => {}
+  return attachOne(input, onEvent, onSustain)
+}
+
+function attachOne(
+  input: Input,
+  onEvent: (event: PlayedEvent) => void,
+  onSustain?: (down: boolean) => void,
+): () => void {
 
   const noteOn = (event: NoteMessageEvent) => {
     const velocity = velocityOf(event.note.rawAttack, event.note.attack)

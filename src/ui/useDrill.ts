@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
-import { pitchForCode } from '../midi/keyboardMap'
 import { RhythmMode } from '../modes/rhythmMode'
 import { WaitMode } from '../modes/waitMode'
 import { summarize, type RunSummary } from '../report/summary'
@@ -16,8 +15,8 @@ type Engine = WaitMode | RhythmMode
 export type DrillTiming = 'wait' | 'strict'
 
 interface DrillOptions {
+  /** The panel is on screen. Only then does the first key start a take. */
   active: boolean
-  keyboardEnabled: boolean
   notes: ScoreNote[]
   bpm: number
   timing: DrillTiming
@@ -33,15 +32,8 @@ interface DrillOptions {
   onDone: (summary: RunSummary, judgements: Judgement[], touches: Touch[]) => void
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
-}
-
 export function useDrill({
   active,
-  keyboardEnabled,
   notes,
   bpm,
   timing,
@@ -58,7 +50,6 @@ export function useDrill({
   const [judgements, setJudgements] = useState<Judgement[]>([])
   const [summary, setSummary] = useState<RunSummary | null>(null)
   const [countBeat, setCountBeat] = useState<number | null>(null)
-  const [pressed, setPressed] = useState<Set<number>>(() => new Set())
   const [current, setCurrent] = useState<ScoreNote[]>([])
   const statusRef = useRef(status)
   const engineRef = useRef<Engine | null>(null)
@@ -66,7 +57,10 @@ export function useDrill({
   const touchesRef = useRef<Touch[]>([])
   const downRef = useRef<Map<number, Touch>>(new Map())
   const rafRef = useRef(0)
-  const held = useRef<Set<string>>(new Set())
+  /** Which timing a key press would start, or null when this drill is off screen. */
+  const autoStartRef = useRef<DrillTiming | null>(null)
+  autoStartRef.current = active ? timing : null
+  const startingRef = useRef(false)
   const perfectRef = useRef(80)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
@@ -98,18 +92,25 @@ export function useDrill({
   finishRef.current = finish
 
   const push = useCallback((event: PlayedEvent) => {
-    setPressed((prev) => {
-      const down = event.type === 'on'
-      if (down === prev.has(event.pitch)) return prev
-      const next = new Set(prev)
-      if (down) next.add(event.pitch)
-      else next.delete(event.pitch)
-      return next
-    })
     if (event.type === 'off') {
       const touch = downRef.current.get(event.pitch)
       if (touch && touch.offMs == null) touch.offMs = event.timeMs
       downRef.current.delete(event.pitch)
+      return
+    }
+    // Strict mode runs on the audio clock, which the browser keeps frozen until the page has had a real
+    // click. MIDI is not a user gesture, so before that click a key cannot start a strict take.
+    const auto = autoStartRef.current
+    if (statusRef.current === 'idle' && (auto === 'wait' || (auto === 'strict' && audioUnlocked()))) {
+      // The metronome may still be loading. Keys pressed meanwhile must not start a second take.
+      if (startingRef.current) return
+      startingRef.current = true
+      // The first key starts the drill, so hands can stay on the piano. Wait mode also judges that key;
+      // strict mode counts in first, so the key that started it is not part of the take.
+      void startRef.current().then(() => {
+        startingRef.current = false
+        if (runRef.current.timing === 'wait' && statusRef.current === 'playing') pushRef.current(event)
+      })
       return
     }
     if (statusRef.current !== 'playing') return
@@ -140,32 +141,8 @@ export function useDrill({
     if (runRef.current.timing === 'wait') scoreRef.current?.setBeat(engine.cursorBeat() ?? 0)
     if (engine.done()) finishRef.current('done')
   }, [scoreRef])
-
-  useEffect(() => {
-    if (!active || !keyboardEnabled) return
-    const down = (event: KeyboardEvent) => {
-      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
-      if (isTypingTarget(event.target)) return
-      const pitch = pitchForCode(event.code)
-      if (pitch == null || held.current.has(event.code)) return
-      held.current.add(event.code)
-      event.preventDefault()
-      push({ pitch, velocity: 96, timeMs: performance.now(), type: 'on' })
-    }
-    const up = (event: KeyboardEvent) => {
-      if (!held.current.has(event.code)) return
-      held.current.delete(event.code)
-      const pitch = pitchForCode(event.code)
-      if (pitch == null) return
-      push({ pitch, velocity: 0, timeMs: performance.now(), type: 'off' })
-    }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
-    }
-  }, [active, keyboardEnabled, push])
+  const pushRef = useRef(push)
+  pushRef.current = push
 
   useEffect(() => {
     statusRef.current = 'idle'
@@ -247,7 +224,14 @@ export function useDrill({
     rafRef.current = requestAnimationFrame(loop)
   }
 
+  const startRef = useRef(start)
+  startRef.current = start
   const stop = () => finishRef.current('stop')
 
-  return { status, judgements, summary, countBeat, pressed, current, push, start, stop }
+  return { status, judgements, summary, countBeat, current, push, start, stop }
+}
+
+/** False until the page has had a click or key press, so audio may still be blocked. */
+export function audioUnlocked(): boolean {
+  return typeof navigator === 'undefined' || !navigator.userActivation || navigator.userActivation.hasBeenActive
 }

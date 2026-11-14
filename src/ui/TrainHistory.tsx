@@ -9,6 +9,7 @@ const LABELS: Record<TrainMode, string> = {
   'rhythm-piece': '曲目节奏',
   scale: '音阶',
   chord: '和弦',
+  finger: '指法',
 }
 
 export function TrainHistory({ runs }: { runs: TrainRunRecord[] }) {

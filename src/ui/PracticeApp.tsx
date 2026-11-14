@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PlayedEvent, ScoreNote } from '../judge/types'
 import { KEY_BINDINGS } from '../midi/keyboardMap'
-import { attachInput, enableMidi, listInputs, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
+import { ALL_INPUTS, attachInput, enableMidi, listInputs, midiGranted, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
@@ -344,16 +344,25 @@ export function PracticeApp() {
         void import('../audio/engine').then((engine) => engine.monitorPedal(down))
       },
     )
-  }, [midiOn, inputId, practice.handleInput])
+    // `inputs` is a dependency so a keyboard plugged in later is picked up by the all-inputs listener.
+  }, [midiOn, inputId, inputs, practice.handleInput])
 
   useEffect(() => {
     if (!midiOn) return
     return watchInputs(() => {
       const next = listInputs()
       setInputs(next)
-      setInputId((current) => (next.some((item) => item.id === current) ? current : (next[0]?.id ?? '')))
+      setInputId((current) => (current === ALL_INPUTS || next.some((item) => item.id === current) ? current : ALL_INPUTS))
     })
   }, [midiOn])
+
+  // Reconnect on load when the browser already allowed MIDI, so nobody has to visit Settings every time.
+  useEffect(() => {
+    void midiGranted().then((granted) => {
+      if (granted) void onEnableMidi()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const finishPick = () => {
     if (narrowScreen()) {
@@ -440,7 +449,7 @@ export function PracticeApp() {
       const next = listInputs()
       setMidiOn(true)
       setInputs(next)
-      setInputId(next[0]?.id ?? '')
+      setInputId(ALL_INPUTS)
     } catch (error) {
       setMidiError(error instanceof Error ? error.message : 'MIDI 没有获得允许。')
     } finally {
@@ -1050,6 +1059,7 @@ export function PracticeApp() {
             if (entry) void openCatalogPiece(entry)
           }}
           inputRef={trainInput}
+          midi={{ supported: midiSupported(), on: midiOn, busy: midiBusy, error: midiError, devices: inputs.length, enable: () => void onEnableMidi() }}
           continuous={continuous}
           onContinuous={setContinuous}
         />

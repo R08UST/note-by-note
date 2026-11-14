@@ -20,18 +20,16 @@ import {
   worstMeasures,
   type RhythmMatch,
 } from '../train/rhythm'
-import { LevelRail } from './TrainBits'
+import { DrillHint, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { DemoBar } from './DemoBar'
-import { ListenBar } from './ListenBar'
 import { ScoreView, type ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
 
 interface RhythmPanelProps {
   active: boolean
-  keyboardEnabled: boolean
   latencyOffsetMs: number
   piece: { id: string; title: string; notes: ScoreNote[]; time: TimeSignature } | null
   onBind: (push: (event: PlayedEvent) => void) => void
@@ -42,7 +40,7 @@ interface RhythmPanelProps {
 
 type RhythmKind = 'line' | 'hands' | 'pulse' | 'beat' | 'piece'
 
-export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, onBind, onSaved, continuous, onContinuous }: RhythmPanelProps) {
+export function RhythmPanel({ active, latencyOffsetMs, piece, onBind, onSaved, continuous, onContinuous }: RhythmPanelProps) {
   const [level, setLevel] = useState(1)
   const [kind, setKind] = useState<RhythmKind>('line')
   const [bpm, setBpm] = useState(72)
@@ -69,7 +67,6 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
   const continuousRef = useRef(continuous)
   continuousRef.current = continuous
   const goNextRef = useRef<() => void>(() => {})
-  const retryRef = useRef<() => void>(() => {})
   const holdFired = useRef(false)
 
   const reload = () => {
@@ -114,7 +111,6 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
   const matchRule: RhythmMatch = kind === 'hands' ? 'hands' : rule
   const drill = useDrill({
     active,
-    keyboardEnabled,
     notes: exercise.notes,
     bpm,
     timing: 'strict',
@@ -197,9 +193,9 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
     retrying.current = true
     setHold(null)
     setReport(null)
+    void drill.start()
   }
   goNextRef.current = goNext
-  retryRef.current = retryItem
 
   useEffect(() => {
     setSession({ done: 0, clean: 0 })
@@ -230,153 +226,82 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
       if (event.key === 'Enter') {
         event.preventDefault()
         goNextRef.current()
-      } else if (event.code === 'KeyR') {
-        event.preventDefault()
-        retryRef.current()
       }
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
   }, [active, kind, drill.status, report, hold])
 
+  const busy = drill.status === 'playing' || drill.status === 'countin'
+
   return (
     <div className="train-pane">
       <LevelRail count={RHYTHM_LEVELS.length} prefix="R" value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={setLevel} />
-      <p className="device-note">R{spec.id} {spec.title}。{spec.detail}</p>
-      <p className="device-note">依据：{spec.source}</p>
-      <p className="device-note">先跟稳拍子，再打节奏。干净通过后速度加 5。预备是两小节。</p>
-      <div className="segmented" role="group" aria-label="节奏题型">
-        <button type="button" aria-pressed={kind === 'line'} onClick={() => setKind('line')}>单行</button>
-        <button type="button" aria-pressed={kind === 'hands'} onClick={() => setKind('hands')}>双手</button>
-        <button type="button" aria-pressed={kind === 'beat'} onClick={() => setKind('beat')}>拍加节奏</button>
-        <button type="button" aria-pressed={kind === 'pulse'} onClick={() => setKind('pulse')}>跟拍</button>
-        <button type="button" aria-pressed={kind === 'piece'} onClick={() => setKind('piece')}>从曲目</button>
+      <div className="train-bar">
+        <div className="segmented" role="group" aria-label="节奏题型">
+          <button type="button" aria-pressed={kind === 'line'} onClick={() => setKind('line')}>单行</button>
+          <button type="button" aria-pressed={kind === 'hands'} onClick={() => setKind('hands')}>双手</button>
+          <button type="button" aria-pressed={kind === 'beat'} onClick={() => setKind('beat')}>拍加节奏</button>
+          <button type="button" aria-pressed={kind === 'pulse'} onClick={() => setKind('pulse')}>跟拍</button>
+          <button type="button" aria-pressed={kind === 'piece'} onClick={() => setKind('piece')}>从曲目</button>
+        </div>
       </div>
-      <div className="train-settings">
+      <div className="train-bar">
+        <StartStop status={drill.status} disabled={exercise.notes.length === 0} onStart={drill.status === 'finished' && kind === 'line' ? retryItem : () => void drill.start()} onStop={drill.stop} />
+        {kind !== 'line' && <button type="button" className="button ghost" disabled={busy} onClick={() => { setReport(null); setSeed((value) => value + 9) }}>换一题</button>}
         <label className="field">速度 {bpm}
           <input type="range" min={48} max={144} value={bpm} onChange={(event) => setBpm(Number(event.target.value))} />
         </label>
-        <label className="check"><input type="checkbox" checked={autoTempo} onChange={(event) => setAutoTempo(event.target.checked)} />通过后加速</label>
-        <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
-        {kind !== 'hands' && (
-          <div className="segmented" role="group" aria-label="哪一个键算对">
-            <button type="button" aria-pressed={rule === 'any'} onClick={() => setRule('any')}>任意键</button>
-            <button type="button" aria-pressed={rule === 'chosen'} onClick={() => setRule('chosen')}>指定音</button>
-          </div>
-        )}
-        {kind !== 'hands' && rule === 'chosen' && (
-          <label className="field">音
-            <select value={chosen} onChange={(event) => setChosen(Number(event.target.value))}>
-              {[48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72].map((pitch) => (
-                <option key={pitch} value={pitch}>{noteName(pitch)}</option>
-              ))}
-            </select>
-          </label>
-        )}
         {kind === 'pulse' && (
           <div className="segmented" role="group" aria-label="跟拍密度">
             <button type="button" aria-pressed={subdivision === 'quarter'} onClick={() => setSubdivision('quarter')}>四分</button>
             <button type="button" aria-pressed={subdivision === 'eighth'} onClick={() => setSubdivision('eighth')}>八分</button>
           </div>
         )}
-        {kind === 'piece' && (
-          <>
-            <label className="field">从
-              <input type="number" min={1} value={fromMeasure} onChange={(event) => setFromMeasure(Number(event.target.value) || 1)} />
+        <details className="train-more">
+          <summary>更多</summary>
+          <label className="check"><input type="checkbox" checked={autoTempo} onChange={(event) => setAutoTempo(event.target.checked)} />通过后加速</label>
+          <label className="check"><input type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />节拍器</label>
+          {kind !== 'hands' && (
+            <div className="segmented" role="group" aria-label="哪一个键算对">
+              <button type="button" aria-pressed={rule === 'any'} onClick={() => setRule('any')}>任意键</button>
+              <button type="button" aria-pressed={rule === 'chosen'} onClick={() => setRule('chosen')}>指定音</button>
+            </div>
+          )}
+          {kind !== 'hands' && rule === 'chosen' && (
+            <label className="field">音
+              <select value={chosen} onChange={(event) => setChosen(Number(event.target.value))}>
+                {[48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72].map((pitch) => (
+                  <option key={pitch} value={pitch}>{noteName(pitch)}</option>
+                ))}
+              </select>
             </label>
-            <label className="field">到
-              <input type="number" min={1} value={toMeasure} onChange={(event) => setToMeasure(Number(event.target.value) || 1)} />
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={useWorst} onChange={(event) => setUseWorst(event.target.checked)} />
-              上次最弱的小节{worst.length > 0 ? `（${worst.join('、')}）` : ''}
-            </label>
-          </>
-        )}
+          )}
+        </details>
       </div>
+      {kind === 'piece' && (
+        <div className="train-bar">
+          <label className="field">从
+            <input type="number" min={1} value={fromMeasure} onChange={(event) => setFromMeasure(Number(event.target.value) || 1)} />
+          </label>
+          <label className="field">到
+            <input type="number" min={1} value={toMeasure} onChange={(event) => setToMeasure(Number(event.target.value) || 1)} />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={useWorst} onChange={(event) => setUseWorst(event.target.checked)} />
+            上次最弱的小节{worst.length > 0 ? `（${worst.join('、')}）` : ''}
+          </label>
+        </div>
+      )}
       {kind === 'piece' && !piece && <p className="score-status">先在练习里打开一首曲子，再抽它的节奏。</p>}
       {kind === 'hands' && <p className="device-note">中央 C 以上算右手，以下算左手。</p>}
-      <div className="omr-actions">
-        <button type="button" className="button primary" disabled={exercise.notes.length === 0 || drill.status === 'playing' || drill.status === 'countin'} onClick={() => void drill.start()}>
-          {drill.status === 'countin' ? '预备…' : '开始'}
-        </button>
-        <button type="button" className="button stop" onClick={drill.stop}>停止</button>
-        {kind !== 'line' && <button type="button" className="button ghost" onClick={() => { setReport(null); setSeed((value) => value + 9) }}>换一题</button>}
-      </div>
-      {kind === 'line' && (
-        <ContinueBar
-          continuous={continuous}
-          onContinuous={onContinuous}
-          onRetry={retryItem}
-          onNext={goNext}
-          busy={drill.status === 'playing' || drill.status === 'countin'}
-          sessionDone={session.done}
-          sessionClean={session.clean}
-          itemId={bank.current?.id}
-          hold={hold}
-          offer={offer}
-          onAccept={() => {
-            setOffer(false)
-            setHold(null)
-            setReport(null)
-            if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
-            setLevel((value) => Math.min(RHYTHM_LEVELS.length, value + 1))
-          }}
-          onStay={() => {
-            declined.current.add(spec.id)
-            setOffer(false)
-          }}
-        />
-      )}
-      {kind === 'line' && (
-        <BankBar
-          items={bank.items}
-          currentId={bank.current?.id}
-          marks={bank.marks}
-          open={bank.open}
-          onToggle={() => bank.setOpen((value) => !value)}
-          onPick={(id) => { setReport(null); bank.pick(id) }}
-        />
-      )}
-      {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.id} · {bank.current.source}</p>}
-      {drill.countBeat != null && <div className="count-in">{drill.countBeat}</div>}
-      {exercise.notes.length > 0 && (
-        <DemoBar
-          notes={exercise.notes}
-          bpm={bpm}
-          startBeat={0}
-          endBeat={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
-          practiceHands="R"
-          loop={false}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
-          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-        />
-      )}
-      {exercise.notes.length > 0 && (
-        <ListenBar
-          showKeyboard={false}
-          notes={exercise.notes}
-          startBeat={0}
-          rangeStart={0}
-          rangeEnd={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
-          bpm={bpm}
-          onBpm={setBpm}
-          disabled={drill.status === 'playing' || drill.status === 'countin'}
-          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-          onPractice={() => void drill.start()}
-          onNext={() => {
-            const index = bank.items.findIndex((item) => item.id === bank.current?.id)
-            const next = bank.items[index + 1] ?? bank.items[0]
-            if (next && next.id !== bank.current?.id) bank.pick(next.id)
-          }}
-        />
-      )}
+      <DrillHint status={drill.status} timing="strict" countBeat={drill.countBeat} />
       <div className="score-frame train-score">
         <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
       </div>
       {report && (
         <div className="rhythm-report">
-          <p className="device-note">
+          <p className="train-result">
             打中 {Math.round(pitchAccuracy(report) * 100)}% · 准时 {Math.round(onTimeRate(report) * 100)}%
             {report.meanOffsetMs != null ? ` · 平均 ${Math.round(report.meanOffsetMs)} ms` : ''}
             {report.timingSpreadMs != null ? ` · 分散 ${Math.round(report.timingSpreadMs)} ms` : ''}
@@ -396,6 +321,55 @@ export function RhythmPanel({ active, keyboardEnabled, latencyOffsetMs, piece, o
           </ul>
         </div>
       )}
+      {kind === 'line' && (
+        <ContinueBar
+          continuous={continuous}
+          onContinuous={onContinuous}
+          onRetry={retryItem}
+          onNext={goNext}
+          busy={busy}
+          sessionDone={session.done}
+          sessionClean={session.clean}
+          itemId={bank.current?.id}
+          hold={hold}
+          offer={offer}
+          onAccept={() => {
+            setOffer(false)
+            setHold(null)
+            setReport(null)
+            if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
+            setLevel((value) => Math.min(RHYTHM_LEVELS.length, value + 1))
+          }}
+          onStay={() => {
+            declined.current.add(spec.id)
+            setOffer(false)
+          }}
+        />
+      )}
+      {exercise.notes.length > 0 && (
+        <DemoBar
+          notes={exercise.notes}
+          bpm={bpm}
+          startBeat={0}
+          endBeat={Math.max(...exercise.notes.map((note) => note.beat + note.duration))}
+          practiceHands="R"
+          loop={false}
+          disabled={busy}
+          onBeat={(beat) => scoreRef.current?.setBeat(beat)}
+        />
+      )}
+      {kind === 'line' && (
+        <BankBar
+          items={bank.items}
+          currentId={bank.current?.id}
+          marks={bank.marks}
+          open={bank.open}
+          onToggle={() => bank.setOpen((value) => !value)}
+          onPick={(id) => { setReport(null); bank.pick(id) }}
+        />
+      )}
+      {kind === 'line' && bank.current && <p className="device-note">第 {bankNumber(bank.current.id)} 题 · {bank.current.source}</p>}
+      <LevelInfo title={`R${spec.id} · ${spec.title}`} detail={spec.detail} source={spec.source} rule="先跟稳拍子，再打节奏。干净通过后速度加 5。预备是两小节。" />
     </div>
   )
 }

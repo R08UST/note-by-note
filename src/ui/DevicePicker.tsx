@@ -1,4 +1,4 @@
-import type { MidiPortInfo } from '../midi/webmidi'
+import { ALL_INPUTS, type MidiPortInfo } from '../midi/webmidi'
 
 interface DevicePickerProps {
   supported: boolean
@@ -33,7 +33,7 @@ export function DevicePicker({
         <label className="device-select">
           <span>键盘</span>
           <select value={inputId} onChange={(event) => onSelect(event.target.value)}>
-            {inputs.length === 0 && <option value="">还没有设备</option>}
+            <option value={ALL_INPUTS}>{inputs.length === 0 ? '还没有设备（插上会自动接上）' : `所有键盘（${inputs.length} 个端口）`}</option>
             {inputs.map((input) => (
               <option key={input.id} value={input.id}>
                 {input.name}

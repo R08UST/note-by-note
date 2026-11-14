@@ -1,5 +1,6 @@
 import type { PitchStatRecord } from '../storage/db'
 import { noteName } from '../score/pitch'
+import { audioUnlocked } from './useDrill'
 
 export function HeatKeys({ stats }: { stats: readonly PitchStatRecord[] }) {
   const byPitch = new Map(stats.map((stat) => [stat.pitch, stat]))
@@ -81,5 +82,38 @@ export function LevelRail({
         )
       })}
     </div>
+  )
+}
+
+type DrillStatus = 'idle' | 'countin' | 'playing' | 'finished'
+
+/** One button that starts a take and stops it, so the main action never moves. */
+export function StartStop({ status, disabled, onStart, onStop }: { status: DrillStatus; disabled?: boolean; onStart: () => void; onStop: () => void }) {
+  const busy = status === 'playing' || status === 'countin'
+  return (
+    <button type="button" className={busy ? 'button stop' : 'button primary'} disabled={!busy && disabled} onClick={busy ? onStop : onStart}>
+      {busy ? '停止' : status === 'finished' ? '再来一遍' : '开始'}
+    </button>
+  )
+}
+
+/** What to do next, in one line under the toolbar. */
+export function DrillHint({ status, timing, countBeat }: { status: DrillStatus; timing: 'wait' | 'strict'; countBeat: number | null }) {
+  if (status === 'countin') return <p className="train-hint is-count">预备 {countBeat ?? ''}</p>
+  if (status === 'playing') return <p className="train-hint">{timing === 'wait' ? '按谱弹，弹对了光标才往前走' : '跟着节拍器弹'}</p>
+  if (status === 'idle' && timing === 'strict' && !audioUnlocked()) return <p className="train-hint">先点一次「开始」：浏览器要点过一下才放节拍器。之后弹任意键就能开始。</p>
+  if (status === 'idle') return <p className="train-hint">{timing === 'wait' ? '弹第一个音就开始，不用点按钮' : '弹任意键开始，先跟节拍器数拍'}</p>
+  return null
+}
+
+/** Level explanation and sources, folded away until asked for. */
+export function LevelInfo({ title, detail, source, rule }: { title: string; detail: string; source?: string; rule?: string }) {
+  return (
+    <details className="level-info">
+      <summary>{title}</summary>
+      <p>{detail}</p>
+      {rule && <p>{rule}</p>}
+      {source && <p className="device-note">依据：{source}</p>}
+    </details>
   )
 }

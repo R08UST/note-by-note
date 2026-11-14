@@ -52,7 +52,7 @@ export interface SavedScore {
   tag?: string
 }
 
-export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece' | 'scale' | 'chord'
+export type TrainMode = 'sight-flash' | 'sight-phrase' | 'rhythm' | 'rhythm-hands' | 'pulse' | 'rhythm-piece' | 'scale' | 'chord' | 'finger'
 
 export interface TrainRunRecord {
   id?: number

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { WaitMode } from '../modes/waitMode'
-import { CHORD_LEVELS, SCALE_LEVELS, scaleShape } from './technique'
+import { CHORD_LEVELS, FINGER_LEVELS, SCALE_LEVELS, scaleShape } from './technique'
 
 describe('scale syllabus', () => {
   it('prints the standard C major and F major fingerings', () => {
@@ -73,5 +73,33 @@ describe('chord syllabus', () => {
     expect(mode.done()).toBe(false)
     mode.push({ pitch: 67, velocity: 80, timeMs: 30, type: 'on' })
     expect(mode.done()).toBe(true)
+  })
+})
+
+describe('finger drills', () => {
+  it('moves Hanon No. 1 up by step and mirrors the fingers on the way down', () => {
+    const right = FINGER_LEVELS[3]?.items[0]?.notes ?? []
+    expect(right.slice(0, 8).map((note) => note.pitch)).toEqual([60, 64, 65, 67, 69, 67, 65, 64])
+    expect(right.slice(0, 8).map((note) => note.finger)).toEqual([1, 2, 3, 4, 5, 4, 3, 2])
+    expect(right.slice(8, 10).map((note) => note.pitch)).toEqual([62, 65])
+    expect(right[56]?.finger).toBe(5)
+    expect(right.at(-1)?.pitch).toBe(60)
+    // Eighths: one group per bar, and the closing C lands on the next downbeat.
+    expect(right[8]?.beat).toBe(4)
+    expect(right.at(-1)?.beat).toBe(56)
+    const left = FINGER_LEVELS[3]?.items[1]?.notes ?? []
+    expect(left.slice(0, 8).map((note) => note.finger)).toEqual([5, 4, 3, 2, 1, 2, 3, 4])
+  })
+
+  it('keeps five-finger lines under one hand position', () => {
+    const five = FINGER_LEVELS[0]?.items[1]?.notes ?? []
+    expect(five.map((note) => note.pitch)).toEqual([48, 50, 52, 53, 55, 53, 52, 50, 48])
+    expect(five.map((note) => note.finger)).toEqual([5, 4, 3, 2, 1, 2, 3, 4, 5])
+  })
+
+  it('re-times a scale into dotted pairs that fill whole bars', () => {
+    const dotted = SCALE_LEVELS[7]?.items[1]?.notes ?? []
+    expect(dotted.slice(0, 3).map((note) => note.duration)).toEqual([0.75, 0.25, 0.75])
+    expect(dotted.at(-1)?.beat).toBe(7)
   })
 })
