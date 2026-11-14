@@ -69,10 +69,10 @@ export function Controls({
       </div>
       <div className="segmented" role="group" aria-label="练习方式">
         <button type="button" aria-pressed={mode === 'wait'} disabled={locked} onClick={() => onMode('wait')}>
-          等待
+          等我
         </button>
         <button type="button" aria-pressed={mode === 'rhythm'} disabled={locked} onClick={() => onMode('rhythm')}>
-          节奏
+          跟拍
         </button>
       </div>
       <button
@@ -85,17 +85,18 @@ export function Controls({
         循环
       </button>
       <div className="transport-buttons">
-        <button type="button" className="button primary" disabled={!canStart} onClick={onStart}>
-          {status === 'finished' ? '再来一次' : '开始'}
-        </button>
-        <button type="button" className="button stop" disabled={!running} onClick={onStop}>
-          停止
-        </button>
+        {running ? (
+          <button type="button" className="button stop" onClick={onStop}>停止</button>
+        ) : (
+          <button type="button" className="button primary" disabled={!canStart} onClick={onStart}>
+            {status === 'finished' ? '再来一次' : '开始'}
+          </button>
+        )}
       </div>
       <p className="control-hint">
         {mode === 'wait'
-          ? '等待模式会停在当前音，直到你按下乐谱上的音。按错可以重试。'
-          : '节奏模式先预备，再按拍子走。判定窗口是最短音符的一半，最长不超过 250 毫秒。'}
+          ? '等我：直接弹谱上的第一个音就开始，不用点按钮。光标停在当前音，弹对了才往前走。'
+          : '跟拍：点开始，先数一小节，再跟着节拍器弹。'}
         {loop ? ' 走到结尾会再来一遍。' : ''}
       </p>
     </div>

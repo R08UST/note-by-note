@@ -250,7 +250,7 @@ export function ListenBar({ notes, pieceId = '', startBeat, rangeStart, rangeEnd
       <button type="button" className="button primary listen-play" title="从当前位置播放" disabled={disabled && !playing} onClick={() => void toggle()}>
         {playing && !paused ? '暂停' : '播放'}
       </button>
-      <button type="button" className="button ghost" title="停止播放" onClick={stop}>停止</button>
+      {playing && <button type="button" className="button ghost" title="停止播放" onClick={stop}>停止</button>}
       {toolbar && menuHost ? createPortal(<div className="listen-menu">{extras}</div>, menuHost) : extras}
       {showKeyboard && (
         <Keyboard

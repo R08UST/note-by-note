@@ -8,15 +8,6 @@ import { SightPanel } from './SightPanel'
 
 const TechniquePanel = lazy(() => import('./TechniquePanel').then((mod) => ({ default: mod.TechniquePanel })))
 
-export interface MidiStatus {
-  supported: boolean
-  on: boolean
-  busy: boolean
-  error: string | null
-  devices: number
-  enable: () => void
-}
-
 interface TrainTabProps {
   active: boolean
   keyboardEnabled: boolean
@@ -25,7 +16,6 @@ interface TrainTabProps {
   onSaved: () => void
   onCheckpoint: (pieceId: string) => void
   inputRef: { current: (event: PlayedEvent) => void }
-  midi: MidiStatus
   continuous: boolean
   onContinuous: (value: boolean) => void
 }
@@ -44,7 +34,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
 }
 
-export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef, midi, continuous, onContinuous }: TrainTabProps) {
+export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSaved, onCheckpoint, inputRef, continuous, onContinuous }: TrainTabProps) {
   const [pane, setPane] = useState<Pane>('finger')
   const [keyRange, setKeyRange] = useState({ low: 48, high: 84 })
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -100,13 +90,10 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
 
   return (
     <section className="panel train">
-      <div className="train-head">
-        <div className="segmented train-switch" role="tablist" aria-label="训练">
-          {PANES.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={pane === id} onClick={() => setPane(id)}>{label}</button>
-          ))}
-        </div>
-        <MidiChip midi={midi} keyboardEnabled={keyboardEnabled} />
+      <div className="segmented train-switch" role="tablist" aria-label="训练">
+        {PANES.map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={pane === id} onClick={() => setPane(id)}>{label}</button>
+        ))}
       </div>
       {pane === 'sight' && <SightPanel {...shared} onCheckpoint={onCheckpoint} />}
       {pane === 'rhythm' && <RhythmPanel {...shared} piece={piece} />}
@@ -125,24 +112,5 @@ export function TrainTab({ active, keyboardEnabled, latencyOffsetMs, piece, onSa
         onEvent={(event) => inputRef.current(event)}
       />
     </section>
-  )
-}
-
-function MidiChip({ midi, keyboardEnabled }: { midi: MidiStatus; keyboardEnabled: boolean }) {
-  if (!midi.supported) return <span className="midi-chip">{keyboardEnabled ? '电脑键盘输入（这个浏览器没有 MIDI）' : '这个浏览器没有 MIDI'}</span>
-  if (midi.on) {
-    return (
-      <span className={midi.devices > 0 ? 'midi-chip is-on' : 'midi-chip'}>
-        {midi.devices > 0 ? `MIDI 已连接 · ${midi.devices} 个端口` : 'MIDI 已打开，还没插键盘'}
-      </span>
-    )
-  }
-  return (
-    <span className="midi-chip">
-      <button type="button" className="button primary" onClick={midi.enable} disabled={midi.busy}>
-        {midi.busy ? '正在请求…' : '连接 MIDI 键盘'}
-      </button>
-      {midi.error && <span className="error">{midi.error}</span>}
-    </span>
   )
 }

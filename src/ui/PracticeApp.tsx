@@ -17,7 +17,7 @@ import { DemoBar } from './DemoBar'
 import { ListenBar, type ListenHandle } from './ListenBar'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
-import { DevicePicker } from './DevicePicker'
+import { DevicePicker, MidiChip } from './DevicePicker'
 import { FeedbackStrip } from './FeedbackStrip'
 import { keyboardBounds, Keyboard } from './Keyboard'
 import type { ScoreHandle } from './ScoreView'
@@ -182,6 +182,8 @@ export function PracticeApp() {
     resetOnError,
     honorMarks,
     expression,
+    // MIDI reaches practice from every tab but Train, and a player may be playing along with the demo.
+    allowAutoStart: () => tabRef.current === 'practice' && scoreState === 'ready' && !listenRef.current?.playing(),
   })
 
   useEffect(() => {
@@ -457,6 +459,20 @@ export function PracticeApp() {
     }
   }
 
+  const midiStatus = { supported: midiSupported(), on: midiOn, busy: midiBusy, error: midiError, devices: inputs.length, enable: () => void onEnableMidi() }
+
+  /** Reopen a piece from the history list. */
+  const reopenPiece = (pieceId: string) => {
+    window.location.hash = '#practice'
+    if (pieceId.startsWith('saved:')) {
+      void openSavedScore(Number(pieceId.slice('saved:'.length)))
+      return
+    }
+    const entry = catalog.find((item) => item.id === pieceId)
+    if (entry) void openCatalogPiece(entry)
+  }
+  const canReopen = (pieceId: string) => pieceId.startsWith('saved:') ? savedScores.some((score) => `saved:${score.id}` === pieceId) : catalog.some((item) => item.id === pieceId)
+
   const useOmrPiece = (xml: string, title: string) => {
     const score = parseMusicXml(xml)
     const name = score.title && score.title !== 'Untitled' ? score.title : title || '未命名识谱'
@@ -607,6 +623,7 @@ export function PracticeApp() {
           <p className="eyebrow">练习台</p>
           <h1>Note by Note</h1>
         </div>
+        <MidiChip midi={midiStatus} keyboardEnabled={keyboardEnabled} />
       </header>
 
       <nav className="tabs" aria-label="分区">
@@ -1059,7 +1076,6 @@ export function PracticeApp() {
             if (entry) void openCatalogPiece(entry)
           }}
           inputRef={trainInput}
-          midi={{ supported: midiSupported(), on: midiOn, busy: midiBusy, error: midiError, devices: inputs.length, enable: () => void onEnableMidi() }}
           continuous={continuous}
           onContinuous={setContinuous}
         />
@@ -1081,12 +1097,13 @@ export function PracticeApp() {
       )}
 
       <div className={tab === 'history' ? 'tab-panel' : 'tab-panel is-stashed'}>
-        <HistoryPanel runs={runs} trainRuns={trainRuns} />
+        <HistoryPanel runs={runs} trainRuns={trainRuns} canOpen={canReopen} onOpen={reopenPiece} />
       </div>
 
       <div className={tab === 'settings' ? 'tab-panel' : 'tab-panel is-stashed'}>
         <section className="panel settings">
           <h2>设置</h2>
+          <h3>键盘与 MIDI</h3>
           <DevicePicker
             supported={midiSupported()}
             enabled={midiOn}
@@ -1097,7 +1114,18 @@ export function PracticeApp() {
             onEnable={() => void onEnableMidi()}
             onSelect={setInputId}
           />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={keyboardEnabled}
+              onChange={(event) => setKeyboardEnabled(event.target.checked)}
+            />
+            电脑键盘也能弹音
+          </label>
+          <h3>延迟校准</h3>
           <LatencyCalibrator value={latencyOffsetMs} onChange={setLatencyOffsetMs} bind={bindCalibrator} />
+          <details className="settings-more">
+            <summary>手动输入偏移</summary>
           <label className="field latency">
             <span>延迟校准 {latencyOffsetMs} 毫秒</span>
             <input
@@ -1112,14 +1140,7 @@ export function PracticeApp() {
           <p>
             如果琴键的音比你弹下去的时刻晚到，就把这个数调高，直到准时的音落在节奏尺的中间。这个数值会从 MIDI 时间里减掉，再和乐谱比较。下次按开始时生效。
           </p>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={keyboardEnabled}
-              onChange={(event) => setKeyboardEnabled(event.target.checked)}
-            />
-            电脑键盘可以弹音
-          </label>
+          </details>
           <h3>声音</h3>
           <p className="device-note">钢琴音色在第一次播放时才下载，存在本站，不会去外站取。键盘如果自己会响，监听保持关闭。</p>
           <label className="check">
@@ -1186,6 +1207,8 @@ export function PracticeApp() {
               }}
             />
           </label>
+          <details className="settings-more">
+            <summary>电脑键盘对应哪些音</summary>
           <div className="key-map">
             {KEY_BINDINGS.filter((binding) => /^[A-Z]$/.test(binding.label)).map((binding) => (
               <span key={binding.code}>
@@ -1194,8 +1217,9 @@ export function PracticeApp() {
             ))}
           </div>
           <p>Q 这一排从 C4 起。Z 这一排从 C3 起。两排之间是黑键。</p>
-          <section className="about">
-            <h2>关于 / 版权</h2>
+          </details>
+          <details className="settings-more about">
+            <summary>关于 / 版权</summary>
             <p>曲库里的谱可以打开来练。反复记号不会按反复展开，倚音不计入对错。</p>
             <ul>
               <li>
@@ -1210,21 +1234,27 @@ export function PracticeApp() {
               </li>
             </ul>
             <p>带 CC BY 的曲子会在卡片上写出「署名」。没有署名要求的曲子仍列出出处，方便核对。</p>
-          </section>
+          </details>
         </section>
       </div>
     </div>
   )
 }
 
-function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: TrainRunRecord[] }) {
+function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[]; trainRuns: TrainRunRecord[]; canOpen: (pieceId: string) => boolean; onOpen: (pieceId: string) => void }) {
+  if (runs.length === 0 && trainRuns.length === 0) {
+    return (
+      <section className="panel">
+        <h2>记录</h2>
+        <p>还没有记录。在「练习」里弹完或停下一首，或在「训练」里练完一条，成绩就会出现在这里。只存在这个浏览器里。</p>
+      </section>
+    )
+  }
   return (
     <section className="panel">
       <h2>记录</h2>
-      <TrainHistory runs={trainRuns} />
-      {runs.length === 0 ? (
-        <p>还没有记录。练完或停下一次，就会出现在这个浏览器里。</p>
-      ) : (
+      {trainRuns.length > 0 && <TrainHistory runs={trainRuns} />}
+      {runs.length > 0 && (
         <table className="runs">
           <thead>
             <tr>
@@ -1233,6 +1263,7 @@ function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: Train
               <th>方式</th>
               <th>命中率</th>
               <th>平均偏差</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -1240,9 +1271,10 @@ function HistoryPanel({ runs, trainRuns }: { runs: RunRecord[]; trainRuns: Train
               <tr key={run.id ?? run.createdAt}>
                 <td>{new Date(run.createdAt).toLocaleString()}</td>
                 <td>{run.title || run.pieceId}</td>
-                <td>{run.mode === 'wait' ? '等待' : run.mode === 'rhythm' ? '节奏' : run.mode}</td>
+                <td>{run.mode === 'wait' ? '等我' : run.mode === 'rhythm' ? '跟拍' : run.mode}</td>
                 <td>{Math.round(run.hitRate * 100)}%</td>
                 <td>{run.meanOffsetMs == null ? '—' : `${Math.round(run.meanOffsetMs)} ms`}</td>
+                <td>{canOpen(run.pieceId) && <button type="button" className="button ghost" onClick={() => onOpen(run.pieceId)}>再练</button>}</td>
               </tr>
             ))}
           </tbody>

@@ -46,3 +46,32 @@ export function DevicePicker({
     </div>
   )
 }
+
+export interface MidiStatus {
+  supported: boolean
+  on: boolean
+  busy: boolean
+  error: string | null
+  devices: number
+  enable: () => void
+}
+
+/** MIDI state in the top bar, with the connect button where every tab can reach it. */
+export function MidiChip({ midi, keyboardEnabled }: { midi: MidiStatus; keyboardEnabled: boolean }) {
+  if (!midi.supported) return <span className="midi-chip">{keyboardEnabled ? '电脑键盘输入（这个浏览器没有 MIDI）' : '这个浏览器没有 MIDI'}</span>
+  if (midi.on) {
+    return (
+      <span className={midi.devices > 0 ? 'midi-chip is-on' : 'midi-chip'}>
+        {midi.devices > 0 ? `MIDI 已连接 · ${midi.devices} 个端口` : 'MIDI 已打开，还没插键盘'}
+      </span>
+    )
+  }
+  return (
+    <span className="midi-chip">
+      <button type="button" className="button primary" onClick={midi.enable} disabled={midi.busy}>
+        {midi.busy ? '正在请求…' : '连接 MIDI 键盘'}
+      </button>
+      {midi.error && <span className="error">{midi.error}</span>}
+    </span>
+  )
+}

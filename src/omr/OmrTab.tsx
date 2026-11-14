@@ -345,6 +345,8 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
         </div>
       )}
       {stage && <p className="device-note">{stage}</p>}
+      <details className="settings-more">
+        <summary>技术信息</summary>
       <dl className="timings">
         <div>
           <dt>后端</dt>
@@ -381,6 +383,8 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
         </ul>
       )}
       {timings.backendReason && <p className="device-note">{timings.backendReason}</p>}
+      {log && <pre className="omr-log">{log}</pre>}
+      </details>
       {error && <p className="score-status error">{error}</p>}
       {xml && (
         <div className="omr-result">
@@ -409,7 +413,6 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
           )}
         </div>
       )}
-      {log && <pre className="omr-log">{log}</pre>}
       <footer className="omr-license">
         识别使用 <a href="https://github.com/jymen/homr-web">homr-web</a>（AGPL-3.0），移植自{' '}
         <a href="https://github.com/liebharc/homr">homr</a>（Christian Liebhardt，同样是 AGPL-3.0）。和弦文字识别已关闭。生成的

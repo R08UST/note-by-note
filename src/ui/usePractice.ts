@@ -49,6 +49,8 @@ interface PracticeOptions {
   honorMarks?: boolean
   /** Printed dynamics, hairpins and pedal, so the accompanying hand is expressive too. */
   expression?: Expression
+  /** Asked when the first written note is played while idle. False keeps that key from starting a take. */
+  allowAutoStart?: () => boolean
 }
 
 type Engine = WaitMode | RhythmMode
@@ -80,6 +82,7 @@ export function usePractice({
   resetOnError = false,
   honorMarks = false,
   expression,
+  allowAutoStart = () => true,
 }: PracticeOptions) {
   const [status, setStatus] = useState<RunStatus>('idle')
   const [pressed, setPressed] = useState<Set<number>>(() => new Set())
@@ -273,6 +276,9 @@ export function usePractice({
   }
 
   const onInputRef = useRef<(event: PlayedEvent) => void>(() => {})
+  const autoStarting = useRef(false)
+  const allowAutoStartRef = useRef(allowAutoStart)
+  allowAutoStartRef.current = allowAutoStart
   onInputRef.current = (event: PlayedEvent) => {
     setPressed((prev) => {
       const down = event.type === 'on'
@@ -282,6 +288,20 @@ export function usePractice({
       else next.delete(event.pitch)
       return next
     })
+    if (event.type === 'on' && (statusRef.current === 'idle' || statusRef.current === 'finished') && optionsRef.current.mode === 'wait') {
+      // Playing the first written note starts wait mode, so hands can stay on the keys.
+      // Any other key is ignored, so noodling between takes does not start or log a run.
+      const options = optionsRef.current
+      const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
+      const first = Math.min(...selected.map((note) => note.beat))
+      if (autoStarting.current || !allowAutoStartRef.current() || !selected.some((note) => note.beat === first && note.pitch === event.pitch)) return
+      autoStarting.current = true
+      void startRef.current().then(() => {
+        autoStarting.current = false
+        if (statusRef.current === 'playing') onInputRef.current(event)
+      })
+      return
+    }
     if (event.type !== 'on' || statusRef.current !== 'playing') return
     const engine = engineRef.current
     if (!engine) return
