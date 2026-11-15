@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Judgement, PlayedEvent } from '../judge/types'
 import { noteName } from '../score/pitch'
 import { listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
@@ -8,9 +8,11 @@ import { techLevels, type TechKind } from '../train/technique'
 import { analyzeTouch, touchLine, type TouchReport } from '../train/touch'
 import { ContinueBar } from './ContinueBar'
 import { DemoBar } from './DemoBar'
-import { ScoreView, type ScoreHandle } from './ScoreView'
+import type { ScoreHandle } from './ScoreView'
 import { DrillHint, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { useDrill } from './useDrill'
+
+const ScoreView = lazy(() => import('./ScoreView').then((mod) => ({ default: mod.ScoreView })))
 
 interface TechniquePanelProps {
   kind: TechKind
@@ -261,7 +263,9 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
       </div>
       <DrillHint status={drill.status} timing={timing} countBeat={drill.countBeat} />
       <div className="score-frame train-score">
-        <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
+        <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
+          <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
+        </Suspense>
       </div>
       {report && <p className="train-result">{report}</p>}
       {report && touch && touchLine(touch) && <p className="device-note">{touchLine(touch)}</p>}

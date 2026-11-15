@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
@@ -25,8 +25,10 @@ import { BankBar } from './BankBar'
 import { ContinueBar } from './ContinueBar'
 import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { DemoBar } from './DemoBar'
-import { ScoreView, type ScoreHandle } from './ScoreView'
+import type { ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
+
+const ScoreView = lazy(() => import('./ScoreView').then((mod) => ({ default: mod.ScoreView })))
 
 interface RhythmPanelProps {
   active: boolean
@@ -297,7 +299,9 @@ export function RhythmPanel({ active, latencyOffsetMs, piece, onBind, onSaved, c
       {kind === 'hands' && <p className="device-note">中央 C 以上算右手，以下算左手。</p>}
       <DrillHint status={drill.status} timing="strict" countBeat={drill.countBeat} />
       <div className="score-frame train-score">
-        <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
+        <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
+          <ScoreView xml={exercise.xml} notes={exercise.notes} ref={scoreRef} onReady={() => {}} onError={() => {}} />
+        </Suspense>
       </div>
       {report && (
         <div className="rhythm-report">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
@@ -12,8 +12,10 @@ import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { DrillHint, HeatKeys, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { DemoBar } from './DemoBar'
 import { describeNotes } from './format'
-import { ScoreView, type ScoreHandle } from './ScoreView'
+import type { ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
+
+const ScoreView = lazy(() => import('./ScoreView').then((mod) => ({ default: mod.ScoreView })))
 
 interface SightPanelProps {
   active: boolean
@@ -361,7 +363,9 @@ export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpo
       {hints && hintList.length > 0 && <span className="note-hint">{describeNotes(hintList)}</span>}
       {shown && (
         <div className="score-frame train-score">
-          <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />
+          <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
+            <ScoreView xml={shown.xml} notes={shown.notes} ref={phraseLike ? scoreRef : undefined} onReady={() => {}} onError={() => {}} />
+          </Suspense>
         </div>
       )}
       {phraseLike && report && <ResultLine summary={report} timing={timing === 'strict'} />}
