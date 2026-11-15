@@ -10,6 +10,8 @@ interface ContinueBarProps {
   hold: number | null
   nextHandLabel?: string
   offer: boolean
+  /** The offer is to step back a level instead of up. */
+  down?: boolean
   onAccept: () => void
   onStay: () => void
 }
@@ -26,6 +28,7 @@ export function ContinueBar({
   hold,
   nextHandLabel,
   offer,
+  down = false,
   onAccept,
   onStay,
 }: ContinueBarProps) {
@@ -48,8 +51,8 @@ export function ContinueBar({
       )}
       {offer && (
         <div className="promote-offer" role="status">
-          <p>已达成升级条件，要进入下一级吗？</p>
-          <button type="button" className="button primary" onClick={onAccept}>进入下一级</button>
+          <p>{down ? '连续三题低于 80%，要回上一级巩固一下吗？' : '已达成升级条件，要进入下一级吗？'}</p>
+          <button type="button" className="button primary" onClick={onAccept}>{down ? '回上一级' : '进入下一级'}</button>
           <button type="button" className="button ghost" onClick={onStay}>留在这一级</button>
         </div>
       )}

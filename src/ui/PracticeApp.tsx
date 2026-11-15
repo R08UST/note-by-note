@@ -1261,6 +1261,7 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
               <th>时间</th>
               <th>曲子</th>
               <th>方式</th>
+              <th>速度 · 手 · 小节</th>
               <th>命中率</th>
               <th>平均偏差</th>
               <th />
@@ -1272,6 +1273,7 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
                 <td>{new Date(run.createdAt).toLocaleString()}</td>
                 <td>{run.title || run.pieceId}</td>
                 <td>{run.mode === 'wait' ? '等我' : run.mode === 'rhythm' ? '跟拍' : run.mode}</td>
+                <td>{runSetup(run)}</td>
                 <td>{Math.round(run.hitRate * 100)}%</td>
                 <td>{run.meanOffsetMs == null ? '—' : `${Math.round(run.meanOffsetMs)} ms`}</td>
                 <td>{canOpen(run.pieceId) && <button type="button" className="button ghost" onClick={() => onOpen(run.pieceId)}>再练</button>}</td>
@@ -1282,6 +1284,16 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
       )}
     </section>
   )
+}
+
+/** Tempo, hand and bars of a saved run. Older runs did not record them and show a dash. */
+function runSetup(run: RunRecord): string {
+  const parts = [
+    run.bpm == null ? null : `${run.bpm}`,
+    run.hands == null ? null : run.hands === 'both' ? '双手' : run.hands === 'R' ? '右手' : '左手',
+    run.measures == null ? null : run.measures.start === run.measures.end ? `第 ${run.measures.start} 小节` : `${run.measures.start}–${run.measures.end} 小节`,
+  ].filter(Boolean)
+  return parts.length === 0 ? '—' : parts.join(' · ')
 }
 
 function pieceFromSaved(saved: SavedScore): LoadedPiece {

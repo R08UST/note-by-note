@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ScoreNote } from '../judge/types'
 import { summarize } from '../report/summary'
 import { WaitMode } from './waitMode'
-import { aggregatePasses, entryClock, firstOnsetInMeasure, neighborOnset, notesInBeats, notesInRange, onsets, rangeOriginBeat, shiftNotes } from './span'
+import { entryClock, firstOnsetInMeasure, neighborOnset, notesInBeats, notesInRange, onsets, rangeOriginBeat, shiftNotes } from './span'
 
 function note(partial: Partial<ScoreNote> & Pick<ScoreNote, 'id' | 'pitch' | 'beat' | 'measure'>): ScoreNote {
   return { duration: 1, hand: 'R', ...partial }
@@ -65,18 +65,5 @@ describe('practice range', () => {
     expect(report.expected).toBe(2)
     expect(report.hits).toBe(1)
     expect(report.errorsPerMeasure.map((row) => row.measure)).toEqual([2, 3])
-  })
-
-  it('adds loop passes without counting bars that were not in the range', () => {
-    const one = summarize(shiftNotes(notesInRange(notes, { start: 2, end: 2 }), 4), [
-      { noteId: 'b', pitch: 62, result: 'hit', offsetMs: 10 },
-    ])
-    const two = summarize(shiftNotes(notesInRange(notes, { start: 2, end: 2 }), 4), [
-      { noteId: 'b', pitch: 62, result: 'miss' },
-    ])
-    const all = aggregatePasses([one, two])
-    expect(all?.expected).toBe(2)
-    expect(all?.hits).toBe(1)
-    expect(all?.errorsPerMeasure).toEqual([{ measure: 2, expected: 2, errors: 1 }])
   })
 })

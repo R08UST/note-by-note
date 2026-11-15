@@ -240,6 +240,7 @@ export function usePractice({
     setRunStatus(practiceTransition(statusRef.current, { type: 'finish' }))
     finishingRef.current = false
     if (judgementsRef.current.length > 0) {
+      const bars = runRef.current.notes.map((note) => note.measure)
       const record: RunRecord = {
         pieceId: runRef.current.pieceId,
         title: optionsRef.current.pieceTitle,
@@ -248,6 +249,9 @@ export function usePractice({
         meanOffsetMs: report.meanOffsetMs,
         mode: runRef.current.mode,
         errorsPerMeasure: report.errorsPerMeasure,
+        bpm: runRef.current.bpm,
+        hands: optionsRef.current.hands,
+        ...(bars.length > 0 && { measures: { start: Math.min(...bars), end: Math.max(...bars) } }),
       }
       savedAtRef.current = record.createdAt
       savedPieceRef.current = record.pieceId

@@ -3,7 +3,7 @@ import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { listPitchStats, listTrainRuns, rememberPitches, saveTrainRun, type PitchStatRecord, type TrainRunRecord } from '../storage/db'
-import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, migratedSightLevel, qualifyingCount, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
+import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, migratedSightLevel, qualifyingCount, shouldStepBack, unlockedThrough, weaknessMap, type TakeScore } from '../train/mastery'
 import { afterExercise, bankFileName, exerciseFromBank, nextHand } from '../train/bank'
 import { generateFlash, generateSightPhrase, SIGHT_LEVELS, sightLevel } from '../train/sight'
 import { BankBar } from './BankBar'
@@ -47,9 +47,11 @@ export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpo
   const [report, setReport] = useState<RunSummary | null>(null)
   const [hold, setHold] = useState<number | null>(null)
   const [session, setSession] = useState({ done: 0, clean: 0 })
-  const [offer, setOffer] = useState(false)
+  const [offer, setOffer] = useState<'up' | 'down' | null>(null)
   const scoreRef = useRef<ScoreHandle>(null)
   const declined = useRef<Set<number>>(new Set())
+  /** Scores of this session's takes at one level, for the three-strikes step-back offer. */
+  const strikes = useRef<{ level: number; scores: number[] }>({ level: 0, scores: [] })
   const attempted = useRef<Set<string>>(new Set())
   const retrying = useRef(false)
   const continuousRef = useRef(continuous)
@@ -146,11 +148,17 @@ export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpo
       })
       if (itemId) bank.finish(clean)
       setSession((value) => ({ done: value.done + 1, clean: value.clean + (clean ? 1 : 0) }))
+      if (strikes.current.level !== spec.id) strikes.current = { level: spec.id, scores: [] }
+      strikes.current.scores.push(timing === 'strict' ? Math.min(accuracy, onTime) : accuracy)
+      if (spec.id > 1 && shouldStepBack(strikes.current.scores)) {
+        strikes.current.scores = []
+        setOffer('down')
+      }
       if (firstAttempt && clean && !declined.current.has(spec.id) && spec.id < SIGHT_LEVELS.length) {
         const take: TakeScore = { level: spec.id, pitchAccuracy: accuracy, onTimeRate: timing === 'wait' ? 1 : onTime, scoredTiming: timing === 'strict', hand, itemId, firstAttempt: true }
         const before = qualifyingCount(takes, spec.id)
         const after = qualifyingCount([...takes, take], spec.id)
-        if (before < MASTERY_TAKES && after >= MASTERY_TAKES) setOffer(true)
+        if (before < MASTERY_TAKES && after >= MASTERY_TAKES) setOffer('up')
       }
       if (continuousRef.current) setHold(3)
       void rememberPitches(phrase.notes.map((note) => ({ pitch: note.pitch, hit: hitNote(note, judgements) }))).then(reload)
@@ -238,7 +246,7 @@ export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpo
 
   useEffect(() => {
     setSession({ done: 0, clean: 0 })
-    setOffer(false)
+    setOffer(null)
   }, [spec.id])
 
   useEffect(() => {
@@ -375,17 +383,19 @@ export function SightPanel({ active, latencyOffsetMs, onBind, onSaved, onCheckpo
           itemId={bank.current?.id}
           hold={hold}
           nextHandLabel={handName(nextHand(hand), spec.together)}
-          offer={offer}
+          offer={offer != null}
+          down={offer === 'down'}
           onAccept={() => {
-            setOffer(false)
+            const step = offer === 'down' ? -1 : 1
+            setOffer(null)
             setHold(null)
             setReport(null)
             if (bank.current) bank.commitRecent([...bank.recentIds(), bank.current.id].slice(-8))
-            setLevel((value) => Math.min(SIGHT_LEVELS.length, value + 1))
+            setLevel(Math.max(1, Math.min(SIGHT_LEVELS.length, spec.id + step)))
           }}
           onStay={() => {
-            declined.current.add(spec.id)
-            setOffer(false)
+            if (offer === 'up') declined.current.add(spec.id)
+            setOffer(null)
           }}
         />
       )}

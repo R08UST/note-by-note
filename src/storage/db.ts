@@ -37,6 +37,11 @@ export interface RunRecord {
   meanOffsetMs: number | null
   mode: PracticeMode
   errorsPerMeasure?: { measure: number; errors: number; expected: number }[]
+  /** Tempo the run was played at. Missing on runs saved before it was recorded. */
+  bpm?: number
+  hands?: HandSelection
+  /** First and last bar that had a judged note. */
+  measures?: { start: number; end: number }
 }
 
 export type UserLevel = '' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
