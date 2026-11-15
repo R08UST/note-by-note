@@ -314,8 +314,12 @@ export function usePractice({
         markNotes(selectHands(options.notes, options.hands), options.honorMarks, options.honorMarks || options.mode === 'wait'),
         options.span,
       )
-      const first = Math.min(...selected.map((note) => note.beat))
-      if (autoStarting.current || !allowAutoStartRef.current() || !selected.some((note) => note.beat === first && note.pitch === event.pitch)) return
+      // A grace strike is printed just before the note it decorates, but the note the
+      // player reads is the written one they share a column with. Start on that beat,
+      // so choosing a passage that opens on a graced note does not demand the grace first.
+      const onsetBeat = (note: ScoreNote) => note.anchorBeat ?? note.beat
+      const first = Math.min(...selected.map(onsetBeat))
+      if (autoStarting.current || !allowAutoStartRef.current() || !selected.some((note) => onsetBeat(note) === first && note.pitch === event.pitch)) return
       autoStarting.current = true
       void startRef.current().then(() => {
         autoStarting.current = false

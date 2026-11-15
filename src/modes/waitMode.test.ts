@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ScoreNote } from '../judge/types'
+import { markNotes } from './marks'
 import { WaitMode } from './waitMode'
 
 function note(partial: Partial<ScoreNote> & Pick<ScoreNote, 'id' | 'pitch' | 'beat'>): ScoreNote {
@@ -203,5 +204,64 @@ describe('WaitMode with grace notes', () => {
     engine.push(on(60))
     // The trill's alternation is not waited for.
     expect(engine.cursorBeat()).toBe(1)
+  })
+})
+
+describe('WaitMode with printed ornaments', () => {
+  const base = { duration: 1, hand: 'R' as const, measure: 1 }
+
+  it('accepts every alternation of a trill after the line has moved on', () => {
+    // A trill's alternations are spread across the whole written note, so the line is
+    // already on the next written note by the time most of them are played.
+    const marked = markNotes(
+      [
+        { ...base, id: 't', pitch: 60, beat: 0, duration: 4, ornament: { kind: 'trill', upper: 62, lower: 58, span: 4 } },
+        { ...base, id: 'end', pitch: 64, beat: 4 },
+      ],
+      true,
+    )
+    const engine = new WaitMode(marked)
+    const results = [...marked]
+      .sort((a, b) => a.beat - b.beat)
+      .flatMap((item) => engine.push(on(item.pitch)))
+    expect(results.filter((item) => item.result !== 'hit')).toEqual([])
+    expect(engine.done()).toBe(true)
+  })
+
+  it('accepts a mordent lead-in played before the written note the line stands on', () => {
+    const marked = markNotes(
+      [
+        { ...base, id: 'a', pitch: 60, beat: 0 },
+        { ...base, id: 'm', pitch: 62, beat: 2, ornament: { kind: 'mordent', upper: 64, lower: 60 } },
+        { ...base, id: 'z', pitch: 65, beat: 3 },
+      ],
+      true,
+    )
+    const engine = new WaitMode(marked)
+    const results: ReturnType<WaitMode['push']> = []
+    results.push(...engine.push(on(60)))
+    // The lead-ins sit two groups before the written D4 the line already stands on.
+    const leadIns = marked.filter((item) => item.id.startsWith('m~')).sort((a, b) => a.beat - b.beat)
+    for (const item of leadIns) results.push(...engine.push(on(item.pitch)))
+    results.push(...engine.push(on(62)))
+    results.push(...engine.push(on(65)))
+    expect(results.filter((item) => item.result !== 'hit')).toEqual([])
+    expect(engine.done()).toBe(true)
+  })
+
+  it('still takes the written note when an optional strike shares its pitch', () => {
+    const marked = markNotes(
+      [
+        { ...base, id: 'a', pitch: 60, beat: 0 },
+        // A single-note tremolo shakes the written pitch against itself, so the same
+        // pitch is also a printed mark the cursor must not take for the written note.
+        { ...base, id: 't', pitch: 60, beat: 2, duration: 1, tremolo: { strokes: 1, kind: 'single' } },
+      ],
+      true,
+    )
+    const engine = new WaitMode(marked)
+    engine.push(on(60))
+    expect(engine.push(on(60))[0]).toMatchObject({ noteId: 't', result: 'hit' })
+    expect(engine.done()).toBe(true)
   })
 })

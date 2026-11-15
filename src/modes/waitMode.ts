@@ -106,15 +106,12 @@ export class WaitMode {
       this._judgements.push(extra)
       return [extra]
     }
-    // Prefer the attack the cursor stands on. A strike a printed mark added may
-    // belong to the group just behind the cursor (its lead-in sits before the
-    // written note) or just ahead of it (a trill's alternations land inside the
-    // next group's beat), so those are accepted too — but only the optional ones,
-    // so a written note is never consumed out of turn.
-    const match =
-      this.matchIn(this.groups[this.index], event.pitch) ??
-      this.matchIn(this.groups[this.index - 1], event.pitch, true) ??
-      this.matchIn(this.groups[this.index + 1], event.pitch, true)
+    // Prefer the attack the cursor stands on. A strike a printed mark added can land
+    // anywhere around the cursor: a mordent's lead-ins sit several groups before the
+    // written note the line stands on, and a trill's alternations walk across the whole
+    // note. Only the optional ones are accepted out of turn, so a written note is never
+    // consumed by a key meant for another beat.
+    const match = this.matchIn(this.groups[this.index], event.pitch) ?? this.matchMark(event.pitch)
     if (match) {
       this.hit.add(match.id)
       const judgement: Judgement = { noteId: match.id, pitch: event.pitch, result: 'hit' }
@@ -129,10 +126,29 @@ export class WaitMode {
     return [wrong]
   }
 
-  private matchIn(group: ScoreNote[] | undefined, pitch: number, optionalOnly = false): ScoreNote | undefined {
-    return group?.find(
-      (note) => !this.hit.has(note.id) && note.pitch === pitch && (!optionalOnly || note.optional),
-    )
+  private matchIn(group: ScoreNote[] | undefined, pitch: number): ScoreNote | undefined {
+    return group?.find((note) => !this.hit.has(note.id) && note.pitch === pitch)
+  }
+
+  /**
+   * A strike a printed mark added, anywhere in the score.
+   *
+   * These strikes are optional, so the cursor never waits on one and the line has
+   * usually moved past the group it sits in by the time the player strikes it: a
+   * mordent's lead-ins are several groups before the written note, and a trill's
+   * alternations run across the whole note. Matching one is a hit and skipping one is
+   * never a miss, so taking one wherever it is played cannot consume a written note
+   * out of turn. A grace note is left out, because wait mode reads that small
+   * notehead in its own order.
+   */
+  private matchMark(pitch: number): ScoreNote | undefined {
+    for (const group of this.groups) {
+      const found = group.find(
+        (note) => note.optional && !note.fromGrace && !this.hit.has(note.id) && note.pitch === pitch,
+      )
+      if (found) return found
+    }
+    return undefined
   }
 
   /** Step forward over every group whose required notes are all hit. */
