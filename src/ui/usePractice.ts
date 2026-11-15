@@ -191,7 +191,21 @@ export function usePractice({
     }
     if (runRef.current.mode === 'wait' && engine) {
       const beat = engine.cursorBeat()
-      if (beat != null) scoreRef.current?.setBeat(runRef.current.originBeat + beat)
+      if (beat != null) {
+        // A grace strike is waited for, so the line stands on its own small note.
+        const target = engine.currentNotes().find((note) => note.fromGrace)
+        scoreRef.current?.setBeat(
+          runRef.current.originBeat + beat,
+          target
+            ? {
+                pitch: target.pitch,
+                measure: target.measure,
+                ...(target.localBeat != null && { localBeat: target.localBeat }),
+                fromGrace: true,
+              }
+            : undefined,
+        )
+      }
     }
     setCurrent(engine?.currentNotes() ?? [])
   }

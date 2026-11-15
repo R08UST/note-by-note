@@ -11,8 +11,17 @@ import { scrollCursorIntoView } from './scoreScroll'
 
 export interface ScoreHandle {
   prepare(hands: HandSelection, beat: number): void
-  setBeat(beat: number): void
+  setBeat(beat: number, target?: CursorTarget): void
   colorNote(noteId: string, color: string): void
+}
+
+/** Where the line should stand when the note being waited for is a printed grace note. */
+export interface CursorTarget {
+  pitch: number
+  measure: number
+  /** The written note's beat inside its bar, matching the frame the grace head is drawn in. */
+  localBeat?: number
+  fromGrace?: boolean
 }
 
 interface ScoreViewProps {
@@ -46,6 +55,29 @@ function noteElement(gnote: GraphicalNote): SVGGElement | null {
   return element ?? null
 }
 
+/** The drawn cursor is an absolutely placed image next to the SVG, not part of it. */
+function cursorImage(cursor: { cursorElement?: unknown }): HTMLElement | null {
+  const element = cursor.cursorElement
+  return element instanceof HTMLElement ? element : null
+}
+
+/**
+ * Stand the line on a printed grace note. OSMD steps by bar columns, and a grace note
+ * shares its written note's column, so the image must be nudged sideways to the small
+ * head; the shift is measured on screen and applied to the image's own left.
+ */
+function placeCursorOnGrace(image: HTMLElement, gnote: GraphicalNote) {
+  const head = noteElement(gnote)
+  if (!head || typeof head.getBoundingClientRect !== 'function') return
+  const headBox = head.getBoundingClientRect()
+  if (headBox.width === 0 && headBox.height === 0) return
+  const lineBox = image.getBoundingClientRect()
+  const dx = headBox.left + headBox.width / 2 - (lineBox.left + lineBox.width / 2)
+  const left = Number.parseFloat(image.style.left)
+  if (!Number.isFinite(left) || dx === 0) return
+  image.style.left = `${left + dx}px`
+}
+
 /** Keeps the cursor line clear of the sticky bars that cover the top of the frame. */
 function scrollFrame(cursor: HTMLElement) {
   scrollCursorIntoView(cursor)
@@ -61,6 +93,10 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
   /** Cursor steps already walked since the last reset, or -1 when unknown. */
   const walkedRef = useRef(-1)
   const entriesRef = useRef<Map<string, Entry>>(new Map())
+  /** The drawn head of each grace note, keyed by measure, written beat and pitch. */
+  const graceByKeyRef = useRef<Map<string, GraphicalNote>>(new Map())
+  /** The cursor image's own left, before a grace shift moved it, so the next seek can undo it. */
+  const cursorBaseLeftRef = useRef<string | null>(null)
   const notesRef = useRef(notes)
   const onReadyRef = useRef(onReady)
   const onErrorRef = useRef(onError)
@@ -97,30 +133,49 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     }
   }
 
-  const seek = (beat: number) => {
+  /** The drawn grace head a cursor target belongs to. */
+  const graceGraphic = (where: CursorTarget): GraphicalNote | undefined => {
+    if (where.localBeat == null) return undefined
+    return graceByKeyRef.current.get(`${where.measure}|${Math.round(where.localBeat * 64)}|${where.pitch}`)
+  }
+
+  const seek = (beat: number, where?: CursorTarget) => {
     const osmd = osmdRef.current
     const steps = stepsRef.current
     if (!osmd?.cursor || steps.length === 0) return
+    const cursor = osmd.cursor
+    const image = cursorImage(cursor)
+    // Put the image back where OSMD left it before walking again, so a repeated seek
+    // to the same grace note does not stack its sideways shift.
+    if (image && cursorBaseLeftRef.current != null) {
+      image.style.left = cursorBaseLeftRef.current
+      cursorBaseLeftRef.current = null
+    }
     beatRef.current = beat
     const index = cursorIndexForBeat(steps, beat)
-    const target = osmdStepsRef.current[index] ?? index
-    const cursor = osmd.cursor
+    const stepTarget = osmdStepsRef.current[index] ?? index
     // Playback walks the sheet forwards, so continue from where the cursor already
     // stands instead of rewinding to the first note on every beat. Rewinding would
     // walk up to a few hundred steps per call, which visibly lags behind the music.
     let from = walkedRef.current
-    if (from < 0 || from > target) {
+    if (from < 0 || from > stepTarget) {
       cursor.hide()
       cursor.reset()
       from = 0
     }
-    for (let step = from; step < target; step += 1) {
+    for (let step = from; step < stepTarget; step += 1) {
       if (cursor.Iterator?.EndReached) break
       cursor.next()
     }
-    walkedRef.current = target
+    walkedRef.current = stepTarget
     cursor.show()
     stepIndexRef.current = index
+    if (image) {
+      // OSMD placed the line on the column; keep that spot and shift off it only for a grace.
+      cursorBaseLeftRef.current = image.style.left
+      const grace = where?.fromGrace ? graceGraphic(where) : undefined
+      if (grace) placeCursorOnGrace(image, grace)
+    }
     const element = cursor.cursorElement
     if (element) requestAnimationFrame(() => scrollFrame(element))
   }
@@ -136,8 +191,8 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
       markSpan()
       this.setBeat(beat)
     },
-    setBeat(beat: number) {
-      seekRef.current(beat)
+    setBeat(beat: number, target?: CursorTarget) {
+      seekRef.current(beat, target)
     },
     colorNote(noteId, color) {
       const entry = entriesRef.current.get(noteId)
@@ -239,6 +294,16 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             if (source) beatByHead.set(source, beat)
           }
           entriesRef.current = entries
+          // Grace heads share their written note's column, so keep where each one is drawn
+          // and let the cursor stand on it while wait mode asks for that small note.
+          const graceByKey = new Map<string, GraphicalNote>()
+          for (const head of collected.heads) {
+            if (!head.grace) continue
+            const drawn = collected.graphics.get(head.key)
+            if (drawn) graceByKey.set(`${head.measure}|${Math.round(head.localBeat * 64)}|${head.pitch}`, drawn)
+          }
+          graceByKeyRef.current = graceByKey
+          cursorBaseLeftRef.current = null
 
           // A repeat mark makes the cursor walk the repeated bars a second time,
           // so the beats run 70, 71, 74, then drop back to 51 and climb again.
@@ -332,6 +397,8 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
       resize?.disconnect()
       osmdRef.current = null
       entriesRef.current = new Map()
+      graceByKeyRef.current = new Map()
+      cursorBaseLeftRef.current = null
       stepsRef.current = []
       osmdStepsRef.current = []
       try {
