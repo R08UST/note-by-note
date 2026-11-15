@@ -4,6 +4,7 @@ import type { Hand, ScoreNote } from '../judge/types'
 import type { HandSelection } from '../modes/hands'
 import { cursorIndexForBeat, foldRepeats } from '../score/cursorBeat'
 import { mapNotesToHeads, UNDRAWN_MEASURE } from '../score/mapNotes'
+import { markNotes } from '../modes/marks'
 import { collectHeads } from '../score/osmdHeads'
 import { normalizeForOsmd } from '../score/mxl'
 import { scrollCursorIntoView } from './scoreScroll'
@@ -34,6 +35,8 @@ interface Entry {
   gnotes: GraphicalNote[]
   hand: Hand
   beat: number
+  /** For a grace strike, the written note it decorates. */
+  anchorBeat?: number
 }
 
 const INK = { applyToNoteheads: true, applyToStem: true }
@@ -83,7 +86,13 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
     const low = selected ? Math.min(selected.startBeat, selected.endBeat) : null
     const high = selected ? Math.max(selected.startBeat, selected.endBeat) : null
     for (const entry of entriesRef.current.values()) {
-      const on = low != null && high != null && entry.beat >= low - 1e-3 && entry.beat <= high + 1e-3
+      // A grace strike's beat sits before the written note it decorates, so test its anchor too.
+      const anchor = entry.anchorBeat ?? entry.beat
+      const on =
+        low != null &&
+        high != null &&
+        Math.max(entry.beat, anchor) >= low - 1e-3 &&
+        Math.min(entry.beat, anchor) <= high + 1e-3
       for (const gnote of entry.gnotes) noteElement(gnote)?.classList.toggle('is-practice-note', on)
     }
   }
@@ -207,7 +216,11 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           }
           stepIndexRef.current = 0
           const collected = collectHeads(osmd.Sheet, (note) => osmd.EngravingRules.GNote(note as never))
-          const mapped = mapNotesToHeads(notesRef.current, collected.heads)
+          // Grace notes are judged as strikes of their own, so the sheet has to know
+          // which small head each strike is drawn on. The other printed marks have no
+          // head of their own, so only the grace strikes take part in the mapping.
+          const drawnNotes = markNotes(notesRef.current, false, true)
+          const mapped = mapNotesToHeads(drawnNotes, collected.heads)
           const entries = new Map<string, Entry>()
           const beatByHead = new Map<object, number>()
           for (const [id, keys] of mapped.heads) {
@@ -216,9 +229,9 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
               return drawn ? [drawn] : []
             })
             if (gnotes.length === 0) continue
-            const note = notesRef.current.find((item) => item.id === id)
+            const note = drawnNotes.find((item) => item.id === id)
             const beat = note?.beat ?? 0
-            entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat })
+            entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat, ...(note?.anchorBeat != null && { anchorBeat: note.anchorBeat }) })
             const primary = collected.graphics.get(keys[0])
             if (!primary) continue
             beatByHead.set(primary, beat)
@@ -279,7 +292,7 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
           if (!cancelled) {
             onReadyRef.current({
               matched: entries.size,
-              total: notesRef.current.length,
+              total: drawnNotes.length,
               undrawnIds: mapped.unmatched.filter((item) => item.reason === UNDRAWN_MEASURE).map((item) => item.id),
             })
           }

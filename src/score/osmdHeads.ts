@@ -14,6 +14,20 @@ interface OsmdEntry {
   Notes: OsmdNote[]
 }
 
+interface OsmdStaffEntry {
+  VoiceEntries?: OsmdEntry[]
+}
+
+interface OsmdContainer {
+  StaffEntries?: OsmdStaffEntry[]
+}
+
+interface OsmdMeasure {
+  MeasureNumberXML?: number
+  MeasureNumber?: number
+  VerticalSourceStaffEntryContainers?: OsmdContainer[]
+}
+
 interface OsmdNote {
   halfTone: number
   IsCueNote: boolean
@@ -42,8 +56,7 @@ function voiceOf(note: OsmdNote): string {
 /** Every drawn head in the sheet, including other voices, ties, grace notes and cue notes. */
 export function collectHeads(
   sheet: {
-    Instruments?: { Voices: { VoiceEntries: OsmdEntry[] }[] }[]
-    SourceMeasures?: { MeasureNumberXML?: number }[]
+    SourceMeasures?: OsmdMeasure[]
   },
   gnote: (note: OsmdNote) => GraphicalNote | undefined,
 ): CollectedHeads {
@@ -79,41 +92,47 @@ export function collectHeads(
     return positions.get(source) ?? source.MeasureNumber ?? 0
   }
 
-  for (const instrument of sheet.Instruments ?? []) {
-    for (const voice of instrument.Voices ?? []) {
-      for (const entry of voice.VoiceEntries ?? []) {
-        for (const note of entry.Notes ?? []) {
-          if (!note || note.PrintObject === false || note.isRest()) continue
-          const tie = note.NoteTie
-          const voice = String(entry.ParentVoice?.VoiceId ?? '')
-          // A tie continuation is not a separate attack, so only its start is a head. The one
-          // exception is a tie that jumps voices: OSMD merges the two printed heads into one tie,
-          // but the parser only joins a tie stop to a start in the same voice, so the printed
-          // note would otherwise be a judged attack with no head to color.
-          if (tie && tie.StartNote !== note && String(tie.StartNote?.ParentVoiceEntry?.ParentVoice?.VoiceId ?? '') === voice) continue
-          const key = keyOf(note)
-          const later = tie?.Notes ?? []
-          const from = Math.max(0, later.indexOf(note) + 1)
-          // Only the later heads of the same voice are this attack's continuation. A tie that
-          // crosses into another voice is drawn as one tie by OSMD, but that voice's head is its
-          // own printed note and has to stay free for it.
-          const tails = later
-            .slice(from)
-            .filter((item) => item !== note && voiceOf(item) === voice)
-            .map((item) => keyOf(item))
-          heads.push({
-            key,
-            pitch: osmdHalfToneToMidi(note.halfTone),
-            measure: measureOf(note),
-            voice,
-            localBeat: (entry.Timestamp?.RealValue ?? 0) * 4,
-            hand: handOf(note.ParentStaff?.Id),
-            grace: Boolean(entry.IsGrace),
-            cue: Boolean(note.IsCueNote),
-            tieTails: tails,
-          })
-        }
+  // A grace note is not in its voice's own entry list: OSMD keeps it in the measure's
+  // vertical staff entry beside the note it decorates. Walking the bars covers both.
+  const entries: OsmdEntry[] = []
+  for (const measure of measures) {
+    for (const container of measure?.VerticalSourceStaffEntryContainers ?? []) {
+      for (const staffEntry of container?.StaffEntries ?? []) {
+        entries.push(...(staffEntry?.VoiceEntries ?? []))
       }
+    }
+  }
+  for (const entry of entries) {
+    for (const note of entry.Notes ?? []) {
+      if (!note || note.PrintObject === false || note.isRest()) continue
+      const tie = note.NoteTie
+      const voice = String(entry.ParentVoice?.VoiceId ?? '')
+      // A tie continuation is not a separate attack, so only its start is a head. The one
+      // exception is a tie that jumps voices: OSMD merges the two printed heads into one tie,
+      // but the parser only joins a tie stop to a start in the same voice, so the printed
+      // note would otherwise be a judged attack with no head to color.
+      if (tie && tie.StartNote !== note && String(tie.StartNote?.ParentVoiceEntry?.ParentVoice?.VoiceId ?? '') === voice) continue
+      const key = keyOf(note)
+      const later = tie?.Notes ?? []
+      const from = Math.max(0, later.indexOf(note) + 1)
+      // Only the later heads of the same voice are this attack's continuation. A tie that
+      // crosses into another voice is drawn as one tie by OSMD, but that voice's head is its
+      // own printed note and has to stay free for it.
+      const tails = later
+        .slice(from)
+        .filter((item) => item !== note && voiceOf(item) === voice)
+        .map((item) => keyOf(item))
+      heads.push({
+        key,
+        pitch: osmdHalfToneToMidi(note.halfTone),
+        measure: measureOf(note),
+        voice,
+        localBeat: (entry.Timestamp?.RealValue ?? 0) * 4,
+        hand: handOf(note.ParentStaff?.Id),
+        grace: Boolean(entry.IsGrace),
+        cue: Boolean(note.IsCueNote),
+        tieTails: tails,
+      })
     }
   }
   return { heads, graphics }

@@ -950,7 +950,11 @@ export function PracticeApp() {
                         zoom={scoreZoom}
                         layoutKey={focusMode ? 'focus' : 'page'}
                         onNote={(id, shift) => {
-                          const note = notes.find((item) => item.id === id)
+                          // A grace strike is clicked through its own small notehead, so fall back
+                          // to the written note it decorates.
+                          const note =
+                            notes.find((item) => item.id === id) ??
+                            notes.find((item) => item.id === (id.split('~')[0] ?? id))
                           if (!note) return
                           if (shift) {
                             const low = Math.min(cursorBeat, note.beat)
