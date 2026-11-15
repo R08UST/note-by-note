@@ -15,14 +15,22 @@ import type { ScoreNote } from '../judge/types'
  * articulations, slurs, fermatas, breath marks and pedals change how long or how
  * loud a key is held rather than adding a strike, so they add nothing here.
  */
-export function markNotes(notes: readonly ScoreNote[], honor: boolean): ScoreNote[] {
-  if (!honor) return [...notes]
+export function markNotes(notes: readonly ScoreNote[], honor: boolean, includeGraces = honor): ScoreNote[] {
+  if (!honor && !includeGraces) return [...notes]
   const result: ScoreNote[] = []
   for (const note of notes) {
     result.push(note)
     const extras = extrasFor(note)
     if (!extras) continue
     for (const [index, extra] of extras.entries()) {
+      // A grace note is printed as a notehead of its own, so wait mode holds the
+      // cursor on it. It also sits on its written note's measure position, which is
+      // where the drawn grace head lives, so the score can colour it. The other
+      // marks land between beats and stay free to skip.
+      const fromGrace = extra.kind === 'grace'
+      // Wait mode reads grace notes even when the other printed marks are left off,
+      // because they are written noteheads the player is meant to play.
+      if (fromGrace ? !includeGraces : !honor) continue
       result.push({
         ...note,
         id: `${note.id}~m${index}`,
@@ -32,7 +40,12 @@ export function markNotes(notes: readonly ScoreNote[], honor: boolean): ScoreNot
         beat: Math.max(0, note.beat + extra.offset),
         duration: extra.gate,
         optional: true,
-        localBeat: note.localBeat == null ? undefined : Math.max(0, note.localBeat + extra.offset),
+        localBeat: fromGrace
+          ? note.localBeat
+          : note.localBeat == null
+            ? undefined
+            : note.localBeat + extra.offset,
+        ...(fromGrace && { fromGrace: true, anchorBeat: note.beat }),
         graces: undefined,
         ornament: undefined,
         tremolo: undefined,

@@ -16,6 +16,8 @@ export interface ExtraAttack {
   offset: number
   /** How long the key is held, in beats. */
   gate: number
+  /** Which printed mark asked for this strike, so practice can treat a grace note as a real notehead. */
+  kind?: 'grace' | 'ornament' | 'tremolo'
 }
 
 /** One note ready to be handed to the sampler. */
@@ -268,14 +270,17 @@ export function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
         pitch,
         offset: -step * (graces.length - index),
         gate: Math.min(step * 0.85, GRACE_LEAD * 0.85),
+        kind: 'grace',
       })
     })
   }
-  if (note.ornament) attacks.push(...ornamentExtras(note.ornament, note.pitch, note.duration))
+  if (note.ornament) {
+    attacks.push(...ornamentExtras(note.ornament, note.pitch, note.duration).map((attack) => ({ ...attack, kind: 'ornament' as const })))
+  }
   // The first half of a two-note tremolo already plays the whole shake, so the
   // second half must not add a second one on top of it.
   if (note.tremolo && note.tremolo.role !== 'answer') {
-    attacks.push(...tremoloExtras(note.tremolo, note.pitch, note.duration))
+    attacks.push(...tremoloExtras(note.tremolo, note.pitch, note.duration).map((attack) => ({ ...attack, kind: 'tremolo' as const })))
   }
   if (attacks.length === 0) return undefined
   return attacks.sort((a, b) => a.offset - b.offset)

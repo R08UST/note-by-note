@@ -67,3 +67,22 @@ describe('practice range', () => {
     expect(report.errorsPerMeasure.map((row) => row.measure)).toEqual([2, 3])
   })
 })
+
+describe('passages that open on a grace note', () => {
+  const line = [
+    note({ id: 'grace', pitch: 58, beat: 3.9, measure: 2, optional: true, fromGrace: true, anchorBeat: 4 }),
+    note({ id: 'main', pitch: 60, beat: 4, measure: 2 }),
+    note({ id: 'later', pitch: 62, beat: 5, measure: 2 }),
+  ]
+
+  it('keeps the grace printed before the first written note of the passage', () => {
+    expect(notesInBeats(line, { startBeat: 4, endBeat: 5 }).map((item) => item.id)).toEqual(['grace', 'main', 'later'])
+  })
+
+  it('moves the anchor with the passage clock', () => {
+    const shifted = shiftNotes(line.slice(0, 2), 4)
+    expect(shifted.map((item) => item.anchorBeat)).toEqual([0, undefined])
+    expect(shifted[0]?.beat).toBeCloseTo(-0.1)
+    expect(shifted[1]?.beat).toBeCloseTo(0)
+  })
+})

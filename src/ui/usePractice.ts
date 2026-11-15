@@ -296,7 +296,10 @@ export function usePractice({
       // Playing the first written note starts wait mode, so hands can stay on the keys.
       // Any other key is ignored, so noodling between takes does not start or log a run.
       const options = optionsRef.current
-      const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
+      const selected = notesInBeats(
+        markNotes(selectHands(options.notes, options.hands), options.honorMarks, options.honorMarks || options.mode === 'wait'),
+        options.span,
+      )
       const first = Math.min(...selected.map((note) => note.beat))
       if (autoStarting.current || !allowAutoStartRef.current() || !selected.some((note) => note.beat === first && note.pitch === event.pitch)) return
       autoStarting.current = true
@@ -407,7 +410,10 @@ export function usePractice({
     })
     if (seamless && nextStatus !== 'playing' && nextStatus !== 'countin') return
     const options = optionsRef.current
-    const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
+    const selected = notesInBeats(
+      markNotes(selectHands(options.notes, options.hands), options.honorMarks, options.honorMarks || options.mode === 'wait'),
+      options.span,
+    )
     if (selected.length === 0) return
     const entry = Math.min(options.span.startBeat, options.span.endBeat)
     const perBar = quarterBeatsPerMeasureAt(options.timeSignatures, entry, options.timeSignature)

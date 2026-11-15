@@ -32,7 +32,16 @@ export interface BeatSpan {
 export function notesInBeats(notes: readonly ScoreNote[], span: BeatSpan): ScoreNote[] {
   const low = Math.min(span.startBeat, span.endBeat)
   const high = Math.max(span.startBeat, span.endBeat)
-  return notes.filter((note) => note.beat >= low - 1e-3 && note.beat <= high + 1e-3)
+  return notes.filter((note) => {
+    // A grace-note strike is printed before the note it decorates but belongs to
+    // that note's passage. When the passage starts on the written note, the grace
+    // still has to be played, so count the anchor too.
+    const anchor = note.anchorBeat
+    return (
+      (note.beat >= low - 1e-3 && note.beat <= high + 1e-3) ||
+      (anchor != null && anchor >= low - 1e-3 && anchor <= high + 1e-3)
+    )
+  })
 }
 
 /**
@@ -89,7 +98,12 @@ export function lastOnsetInMeasure(groups: readonly Onset[], measure: number): O
 
 /** Copy notes so the range begins at beat 0. Ids stay the same. */
 export function shiftNotes(notes: readonly ScoreNote[], originBeat: number): ScoreNote[] {
-  return notes.map((note) => ({ ...note, beat: note.beat - originBeat }))
+  return notes.map((note) => {
+    const shifted: ScoreNote = { ...note, beat: note.beat - originBeat }
+    // A grace strike's anchor is an absolute beat too, so it must move with the note.
+    if (note.anchorBeat != null) shifted.anchorBeat = note.anchorBeat - originBeat
+    return shifted
+  })
 }
 
 export function neighborMeasure(current: number, direction: -1 | 1, range: MeasureRange): number {

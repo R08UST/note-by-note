@@ -75,7 +75,13 @@ export function mapNotesToHeads(notes: readonly ScoreNote[], heads: readonly Gra
     const voice = voiceOf(note)
     const exact = `${note.measure}|${voice}|${localOf(note)}|${note.pitch}`
     const pool = buckets.get(exact) ?? []
-    let head = take(pool.find((item) => !item.grace && !item.cue && !used.has(item.key)))
+    // A grace strike is drawn as a small head of its own, so take a grace head;
+    // the written note it decorates keeps the ordinary head.
+    let head = take(
+      note.fromGrace
+        ? pool.find((item) => item.grace && !used.has(item.key))
+        : pool.find((item) => !item.grace && !item.cue && !used.has(item.key)),
+    )
     if (!head) head = take(pool.find((item) => !used.has(item.key)))
     if (!head && voice) {
       const anyVoice = heads.filter(

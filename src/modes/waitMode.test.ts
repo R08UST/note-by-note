@@ -160,3 +160,48 @@ describe('WaitMode with a trill printed on the current note', () => {
     expect(engine.push({ pitch: 64, velocity: 90, timeMs: 20, type: 'on' })[0]?.result).not.toBe('hit')
   })
 })
+
+describe('WaitMode with grace notes', () => {
+  const base = { duration: 1, hand: 'R' as const, measure: 1 }
+  const score = [
+    { ...base, id: 'g0', pitch: 58, beat: 0.9, optional: true, fromGrace: true, anchorBeat: 1 },
+    { ...base, id: 'g1', pitch: 59, beat: 0.95, optional: true, fromGrace: true, anchorBeat: 1 },
+    { ...base, id: 'n', pitch: 60, beat: 1 },
+    { ...base, id: 'next', pitch: 62, beat: 2 },
+  ]
+
+  it('holds the cursor on the written note until the grace and the note are played', () => {
+    const engine = new WaitMode(score)
+    // The line stands on the written notehead, never on the note before it.
+    expect(engine.cursorBeat()).toBe(1)
+    expect(engine.currentNotes().map((note) => note.id)).toEqual(['g0'])
+    engine.push(on(58))
+    expect(engine.cursorBeat()).toBe(1)
+    expect(engine.currentNotes().map((note) => note.id)).toEqual(['g1'])
+    engine.push(on(59))
+    expect(engine.cursorBeat()).toBe(1)
+    expect(engine.currentNotes().map((note) => note.id)).toEqual(['n'])
+    engine.push(on(60))
+    expect(engine.cursorBeat()).toBe(2)
+  })
+
+  it('does not step to the note before when the grace is skipped with the arrow key', () => {
+    const engine = new WaitMode(score)
+    engine.advance()
+    engine.advance()
+    expect(engine.cursorBeat()).toBe(1)
+    expect(engine.currentNotes().map((note) => note.id)).toEqual(['n'])
+  })
+
+  it('skips an optional mark the player may leave out', () => {
+    const engine = new WaitMode([
+      { ...base, id: 'w', pitch: 60, beat: 0 },
+      { ...base, id: 'w~m0', pitch: 62, beat: 0.5, optional: true },
+      { ...base, id: 'x', pitch: 64, beat: 1 },
+    ])
+    expect(engine.cursorBeat()).toBe(0)
+    engine.push(on(60))
+    // The trill's alternation is not waited for.
+    expect(engine.cursorBeat()).toBe(1)
+  })
+})

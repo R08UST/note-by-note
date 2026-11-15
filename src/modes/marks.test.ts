@@ -23,6 +23,18 @@ describe('markNotes', () => {
     expect(marked.filter((item) => !item.optional).map((item) => item.id)).toEqual(['a'])
   })
 
+  it('marks a grace strike as one wait mode holds the cursor on', () => {
+    const notes = [note({ id: 'a', pitch: 60, beat: 1, graces: [58, 59], localBeat: 1 })]
+    const marked = markNotes(notes, true)
+    const graces = marked.filter((item) => item.fromGrace)
+    expect(graces.map((item) => item.pitch).sort((x, y) => x - y)).toEqual([58, 59])
+    // The line holds on the written notehead, and the grace head is drawn there too.
+    expect(graces.every((item) => item.anchorBeat === 1)).toBe(true)
+    expect(graces.every((item) => item.localBeat === 1)).toBe(true)
+    // Ornaments and tremolos stay free to skip.
+    expect(marked.filter((item) => item.optional && !item.fromGrace)).toHaveLength(0)
+  })
+
   it('turns a trill into alternations that are optional', () => {
     const notes = [note({ id: 't', pitch: 60, beat: 0, ornament: { kind: 'trill', upper: 62, lower: 58 } })]
     const marked = markNotes(notes, true)
@@ -50,5 +62,15 @@ describe('markNotes', () => {
       note({ id: 'l', pitch: 65, beat: 3, slur: 1 }),
     ]
     expect(markNotes(notes, true)).toHaveLength(notes.length)
+  })
+})
+
+describe('grace notes wait mode reads alone', () => {
+  it('adds grace strikes even when the other printed marks are left off', () => {
+    const notes = [note({ id: 'a', pitch: 60, beat: 1, graces: [58], ornament: { kind: 'trill', upper: 62, lower: 58 } })]
+    const marked = markNotes(notes, false, true)
+    expect(marked.map((item) => item.id)).toEqual(['a', 'a~m0'])
+    expect(marked[1]?.fromGrace).toBe(true)
+    expect(marked.filter((item) => item.optional && !item.fromGrace)).toHaveLength(0)
   })
 })

@@ -84,3 +84,17 @@ describe('map notes onto the engraved heads', () => {
     expect(unmatchedSummary(mapped.unmatched)).toBe('本小节没有这个音高 1')
   })
 })
+
+describe('grace strikes on the engraved heads', () => {
+  it('takes the small grace head for the grace strike and the ordinary head for the written note', () => {
+    const notes = [
+      note({ id: 'main', pitch: 62 }),
+      note({ id: 'main~m0', pitch: 62, optional: true, fromGrace: true }),
+    ]
+    const heads = [head({ key: 'main', pitch: 62 }), head({ key: 'grace', pitch: 62, grace: true })]
+    const mapped = mapNotesToHeads(notes, heads)
+    expect(mapped.matched).toBe(2)
+    expect(mapped.heads.get('main')).toEqual(['main'])
+    expect(mapped.heads.get('main~m0')).toEqual(['grace'])
+  })
+})

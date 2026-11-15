@@ -91,6 +91,18 @@ export interface ScoreNote {
    * never a miss, so the toggle can only help.
    */
   optional?: boolean
+  /**
+   * A grace note turned into a strike of its own. Unlike the other optional marks,
+   * wait mode holds the cursor on it: a grace note is printed as a notehead the
+   * player is meant to read, so it is the one optional strike that is waited for.
+   */
+  fromGrace?: boolean
+  /**
+   * Where the cursor should stand while waiting for this strike. A grace note is
+   * printed just before its written note but shares that note's measure position,
+   * so the line holds on the written notehead instead of stepping to the note before.
+   */
+  anchorBeat?: number
 }
 
 export interface PlayedEvent {

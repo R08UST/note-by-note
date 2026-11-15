@@ -51,6 +51,9 @@ export class WaitMode {
     this.groups = groupByOnset(notes)
     this.resetOnError = options.resetOnError ?? false
     this.measureStart = measureStarts(this.groups)
+    // A score can open on a printed mark the player may leave out. Those attacks are
+    // done before the player touches a key, so the line must not start on one.
+    this.advancePastFinished()
   }
 
   get judgements(): readonly Judgement[] {
@@ -69,7 +72,11 @@ export class WaitMode {
   }
 
   cursorBeat(): number | null {
-    return this.groups[this.index]?.[0]?.beat ?? null
+    const first = this.groups[this.index]?.[0]
+    if (!first) return null
+    // A grace strike sits a hair before its written note. The line holds on the
+    // written notehead so the player can see which note the grace belongs to.
+    return first.anchorBeat ?? first.beat
   }
 
   currentNotes(): ScoreNote[] {
@@ -78,12 +85,18 @@ export class WaitMode {
     return group.filter((note) => !this.hit.has(note.id))
   }
 
+  /** Optional marks the player may leave out. A grace note is optional in rhythm mode but waited for here. */
+  private isFree(note: ScoreNote): boolean {
+    return Boolean(note.optional) && !note.fromGrace
+  }
+
   /**
-   * The group is finished once every required note is hit. A note a printed mark
-   * added is optional: hitting it counts, but the cursor does not wait for it.
+   * The group is finished once every required note is hit. A mark a printed note
+   * added is optional: hitting it counts, but the cursor does not wait for it. A
+   * grace note is the exception: it is a notehead of its own, so the cursor waits.
    */
   private groupDone(group: ScoreNote[]): boolean {
-    return group.every((note) => note.optional || this.hit.has(note.id))
+    return group.every((note) => this.isFree(note) || this.hit.has(note.id))
   }
 
   push(event: PlayedEvent): Judgement[] {
@@ -134,6 +147,7 @@ export class WaitMode {
   /** Skip ahead one attack without marking the current one missed. */
   advance(): void {
     if (this.index < this.groups.length - 1) this.index += 1
+    this.advancePastFinished()
   }
 
   /** Move to the previous attack. Hits on the attack you leave are dropped, so the report only keeps what you replay. */
@@ -143,7 +157,14 @@ export class WaitMode {
     // attack to replay and stepping back would skip a group for nothing.
     if (this.index > 0 && current?.every((note) => !this.hit.has(note.id))) {
       this.index -= 1
-    }    const group = this.groups[this.index]
+      // Optional marks the player may leave out are not attacks to land on.
+      while (this.index > 0) {
+        const group = this.groups[this.index]
+        if (!group.every((note) => !this.hit.has(note.id) && this.isFree(note))) break
+        this.index -= 1
+      }
+    }
+    const group = this.groups[this.index]
     if (!group) return
     const ids = new Set(group.map((note) => note.id))
     for (const note of group) this.hit.delete(note.id)
