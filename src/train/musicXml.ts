@@ -163,6 +163,11 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
             duration: note.ticks / TICKS,
             hand,
             measure: number,
+            // The same voice and bar-relative time the parser would read back from this XML. The
+            // sheet map pairs judged notes with drawn heads by these two, so leaving them off
+            // made every training note unmatched and parked the cursor at the start of the sheet.
+            voice: staff === 2 ? '2' : '1',
+            localBeat: local / TICKS,
           }
           if (note.finger != null) attack.finger = note.finger
           attacks.push(attack)
