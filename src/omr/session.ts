@@ -15,6 +15,7 @@ import { modelsForBackend, type ModelChoice } from './models'
 import { openPdf } from './pdfPage'
 import { pdfRenderScale } from './pageGeometry'
 import { readPage, type PageReading } from './readPage'
+import { repairVoiceTiming } from './repairVoiceTiming'
 import { writeTextsIntoMusicXml } from './textMarks'
 
 export interface ModelTimings {
@@ -195,9 +196,12 @@ export async function readFile(
   }
 
   if (results.length === 0) throw new Error(failed[0] ?? '没有一页识别成功。')
+  const merged = results.length === 1 ? (results[0]?.xml ?? '') : mergeMusicXml(results)
   return {
     failed,
-    musicXml: results.length === 1 ? (results[0]?.xml ?? '') : mergeMusicXml(results),
+    // homr sometimes drops a <backup> between the hands; re-timing each voice puts those bars back.
+    // It runs after merging because homr writes the time signature only on the page that prints it.
+    musicXml: repairVoiceTiming(merged).xml,
     pages: results.length,
   }
 }
