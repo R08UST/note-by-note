@@ -2,11 +2,11 @@ import { useMemo, useRef, useState } from 'react'
 import { parseMusicXml } from '../score/parseMusicXml'
 import { saveUserScore } from '../storage/db'
 import { ScoreView } from '../ui/ScoreView'
-import { ensureModelWorker, prepareModels } from './cacheModels'
 import { explainRecognitionFailure } from './errors'
 import { mergeMusicXml, pageRange } from './mergeMusicXml'
-import { modelsForBackend } from './models'
-import { renderPdfPages } from './pdfPage'
+import { backendAdvice } from './models'
+import { overfullMeasures } from './overfullMeasures'
+import { openSession, readFile, type ModelTimings } from './session'
 
 interface OmrTabProps {
   onPractice: (xml: string, title: string) => void
@@ -16,37 +16,16 @@ interface OmrTabProps {
 interface SheetPage {
   key: string
   label: string
-  blob: Blob
-  thumbUrl: string
+  file: File
   selected: boolean
+  thumbUrl: string
 }
 
 interface PageTiming {
   label: string
-  status: 'ok' | 'failed' | 'cancelled'
-  inferenceMs: number
   note: string
+  status: 'ok' | 'failed'
 }
-
-interface Timings {
-  downloadMs: number | null
-  initMs: number | null
-  inferenceMs: number | null
-  backend: string | null
-  backendReason: string | null
-  cacheHit: boolean | null
-  threads: number | null
-}
-
-const emptyTimings = (): Timings => ({
-  downloadMs: null,
-  initMs: null,
-  inferenceMs: null,
-  backend: null,
-  backendReason: null,
-  cacheHit: null,
-  threads: null,
-})
 
 export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
   const [pages, setPages] = useState<SheetPage[]>([])
@@ -54,7 +33,8 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
   const [phase, setPhase] = useState('先选择图片或 PDF。')
   const [download, setDownload] = useState({ loaded: 0, total: 0 })
   const [stage, setStage] = useState('')
-  const [timings, setTimings] = useState<Timings>(emptyTimings)
+  const [ocr, setOcr] = useState(true)
+  const [timings, setTimings] = useState<ModelTimings | null>(null)
   const [pageTimings, setPageTimings] = useState<PageTiming[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +53,16 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
       return err instanceof Error ? err.message : '读不了这份 MusicXML。'
     }
   }, [xml])
+  const suspectBars = useMemo(() => (xml ? overfullMeasures(xml) : []), [xml])
   const notes = parsed && typeof parsed !== 'string' ? parsed.notes : []
-  const title = parsed && typeof parsed !== 'string' && parsed.title !== 'Untitled' ? parsed.title : saveTitle || '识别结果'
+  const foundTitle = parsed && typeof parsed !== 'string' && parsed.title !== 'Untitled' ? parsed.title.trim() : ''
+  const title = foundTitle || saveTitle || '识别结果'
   const selectedCount = pages.filter((page) => page.selected).length
+  const advice = timings ? backendAdvice(timings.backend, timings.backendReason) : null
 
   const replacePages = (next: SheetPage[]) => {
     for (const url of thumbs.current) URL.revokeObjectURL(url)
-    thumbs.current = next.map((page) => page.thumbUrl).filter((url) => url.startsWith('blob:'))
+    thumbs.current = next.map((page) => page.thumbUrl)
     setPages(next)
     setRange('')
     setXml(null)
@@ -88,37 +71,17 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
     setLog('')
   }
 
-  const onFiles = async (list: FileList | null) => {
+  const onFiles = (list: FileList | null) => {
     if (!list || list.length === 0) return
-    const next: SheetPage[] = []
-    let index = 1
-    for (const file of list) {
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-      if (isPdf) {
-        const rendered = await renderPdfPages(file)
-        for (const page of rendered) {
-          next.push({
-            key: `${file.name}-${page.index}`,
-            label: `${file.name} 第 ${page.index} 页`,
-            blob: page.png,
-            thumbUrl: page.thumbUrl,
-            selected: true,
-          })
-          index += 1
-        }
-      } else {
-        next.push({
-          key: `${file.name}-${index}`,
-          label: list.length > 1 ? `${index}. ${file.name}` : file.name,
-          blob: file,
-          thumbUrl: URL.createObjectURL(file),
-          selected: true,
-        })
-        index += 1
-      }
-    }
+    const next: SheetPage[] = [...list].map((file, index) => ({
+      key: `${file.name}-${file.lastModified}-${index}`,
+      label: list.length > 1 ? `${index + 1}. ${file.name}` : file.name,
+      file,
+      selected: true,
+      thumbUrl: URL.createObjectURL(file),
+    }))
     replacePages(next)
-    setPhase(next.length > 1 ? `已准备 ${next.length} 页。可以取消不需要的页，再开始识别。` : '已准备 1 页。')
+    setPhase(next.length > 1 ? `已准备 ${next.length} 个文件。可以取消不需要的，再开始识别。` : '已准备 1 个文件。')
     if (!saveTitle) setSaveTitle(list[0]?.name.replace(/\.[^.]+$/, '') ?? '')
   }
 
@@ -137,106 +100,56 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
     setXml(null)
     setLog('')
     setPageTimings([])
-    setTimings(emptyTimings())
-    const startedDownload = performance.now()
+    setDownload({ loaded: 0, total: 0 })
     try {
-      setPhase('正在确认显卡…')
-      const gpu = await hasWebGpu()
-      const wanted = gpu ? 'webgpu' : 'wasm'
-      setPhase(gpu ? '正在下载 WebGPU 模型…' : '这台机器不能跑 fp16 的 WebGPU 模型，改为下载 WebAssembly 模型…')
-      await ensureModelWorker()
-      let files = modelsForBackend(wanted)
-      const first = await prepareModels(files, (loaded, total) => setDownload({ loaded, total }))
-      let downloadMs = first.downloadMs
-      let cacheHit = first.cacheHit
-      setTimings((prev) => ({ ...prev, downloadMs, cacheHit }))
-
-      setPhase('正在启动识别器，模型只加载这一次…')
-      const initStarted = performance.now()
-      const { createRecognizer } = await import('homr-web')
-      const recognizer = await createRecognizer({
-        baseUrl: new URL('models/homr/', document.baseURI),
-        prefer: gpu ? 'webgpu' : crossOriginIsolated ? 'wasm-threads' : 'wasm',
-      })
-      const initMs = Math.round(performance.now() - initStarted)
-      if (recognizer.backend !== 'webgpu' && wanted === 'webgpu') {
-        setPhase('WebGPU 不可用，改为下载 WebAssembly 模型…')
-        const extra = modelsForBackend('wasm').filter((file) => !files.some((have) => have.sha256 === file.sha256))
-        if (extra.length > 0) {
-          const more = await prepareModels(extra, (loaded, total) => setDownload({ loaded, total }))
-          downloadMs += more.downloadMs
-          cacheHit = cacheHit && more.cacheHit
-        }
-      }
-      setTimings({
-        downloadMs,
-        initMs,
-        inferenceMs: null,
-        backend: recognizer.backend,
-        backendReason: recognizer.backendReason,
-        cacheHit,
-        threads: recognizer.numThreads,
-      })
-
-      const recognized: { label: string; xml: string }[] = []
-      const timingsOut: PageTiming[] = []
-      let inferenceTotal = 0
+      setPhase('正在确认模型…')
+      const session = await openSession({ ocr }, (loaded, total) => setDownload({ loaded, total }), controller.signal)
+      setTimings(session.timings)
+      setPhase(ocr ? '模型就绪，开始识别（含和弦与标题文字）…' : '模型就绪，开始识别（跳过文字）…')
+      const done: PageTiming[] = []
+      const failed: string[] = []
+      const parts: { label: string; xml: string }[] = []
       for (let index = 0; index < chosen.length; index += 1) {
-        const sheet = chosen[index]
-        if (!sheet) continue
-        if (controller.signal.aborted) {
-          timingsOut.push({ label: sheet.label, status: 'cancelled', inferenceMs: 0, note: '已取消' })
-          continue
-        }
-        setPhase(`正在识别第 ${index + 1} / ${chosen.length} 页：${sheet.label}`)
-        const started = performance.now()
-        const result = await recognizer.recognizePage(sheet.blob, {
-          ocr: false,
-          signal: controller.signal,
-          onProgress: (progress) => {
-            setStage(`第 ${index + 1} 页 ${progress.stage} ${progress.done}/${progress.total}`)
-          },
-        })
-        const inferenceMs = Math.round(performance.now() - started)
-        inferenceTotal += inferenceMs
-        setTimings((prev) => ({ ...prev, inferenceMs: inferenceTotal }))
-        if (result.ok && result.musicXml) {
-          recognized.push({ label: sheet.label, xml: result.musicXml })
-          timingsOut.push({ label: sheet.label, status: 'ok', inferenceMs, note: '已识别' })
-        } else {
-          timingsOut.push({
-            label: sheet.label,
-            status: result.error === 'cancelled' ? 'cancelled' : 'failed',
-            inferenceMs,
-            note: explainRecognitionFailure(result.error, result.log),
+        const page = chosen[index]
+        if (!page) continue
+        if (controller.signal.aborted) break
+        setPhase(`正在识别第 ${index + 1} / ${chosen.length} 个文件：${page.file.name}`)
+        try {
+          const result = await readFile(session.recognizer, page.file, {
+            ocr,
+            onProgress: (progress) => setStage(`${progress.stage} ${progress.done}/${progress.pages} 页`),
+            signal: controller.signal,
           })
+          parts.push({ label: page.label, xml: result.musicXml })
+          done.push({ label: page.file.name, note: result.failed.length === 0 ? '已识别' : `部分页未收入：${result.failed.join('；')}`, status: result.failed.length === 0 ? 'ok' : 'failed' })
+          failed.push(...result.failed)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '识别失败。'
+          done.push({ label: page.file.name, note: explainRecognitionFailure(message, ''), status: 'failed' })
+          failed.push(`${page.file.name}：${message}`)
         }
-        setPageTimings([...timingsOut])
+        setPageTimings([...done])
       }
-      await recognizer.dispose()
+      await session.dispose()
       cancelRef.current = null
-      if (recognized.length === 0) {
+      if (parts.length === 0) {
         setPhase('没有一页识别成功。')
-        setError(timingsOut.find((item) => item.status === 'failed')?.note ?? '没有可用的结果。')
+        setError(failed[0] ?? '没有可用的结果。')
         return
       }
-      const merged = mergeMusicXml(recognized)
-      setXml(merged)
-      const failed = timingsOut.filter((item) => item.status !== 'ok')
-      setLog(failed.map((item) => `${item.label}: ${item.note}`).join('\n'))
+      setXml(parts.length === 1 ? (parts[0]?.xml ?? '') : mergeMusicXml(parts))
+      setLog(failed.join('\n'))
       setPhase(
         failed.length === 0
-          ? `已合并 ${recognized.length} 页。`
-          : `已合并 ${recognized.length} 页，${failed.length} 页未收入。`,
+          ? `已识别 ${parts.length} 个文件。`
+          : `已识别 ${parts.length} 个文件，${failed.length} 页未收入。`,
       )
-      void startedDownload
     } catch (err) {
-      setPhase('已停止。')
-      setError(err instanceof Error ? err.message : '识别失败。')
-      setTimings((prev) => ({
-        ...prev,
-        downloadMs: prev.downloadMs ?? Math.round(performance.now() - startedDownload),
-      }))
+      if (controller.signal.aborted) setPhase('已停止。')
+      else {
+        setPhase('识别失败。')
+        setError(err instanceof Error ? err.message : '识别失败。')
+      }
     } finally {
       setBusy(false)
     }
@@ -255,7 +168,6 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
 
   const saveToLibrary = async () => {
     if (!xml) return
-    const title = saveTitle.trim() || '未命名识谱'
     const id = await saveUserScore(title, xml)
     if (id == null) {
       setSaveNote('没有写进本机曲库。')
@@ -278,13 +190,13 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
             multiple
             accept="image/png,image/jpeg,.png,.jpg,.jpeg,application/pdf,.pdf"
             onChange={(event) => {
-              void onFiles(event.target.files)
+              onFiles(event.target.files)
               event.target.value = ''
             }}
           />
         </label>
         <button type="button" className="button primary" disabled={selectedCount === 0 || busy} onClick={() => void run()}>
-          {busy ? '识别中…' : `识别选中的 ${selectedCount} 页`}
+          {busy ? '识别中…' : `识别选中的 ${selectedCount} 个文件`}
         </button>
         {busy && (
           <button
@@ -298,7 +210,16 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
             取消
           </button>
         )}
+        <label className="check">
+          <input type="checkbox" checked={ocr} disabled={busy} onChange={(event) => setOcr(event.target.checked)} />
+          读和弦、标题与力度文字
+        </label>
       </div>
+      <p className="device-note">
+        {ocr
+          ? '会多下载约 32 MB 的文字模型，每页多几秒；曲名、力度和速度记进谱里。'
+          : '不读文字：曲名留空，和线上那些「识别出来的谱子没名字」一样。'}
+      </p>
       {pages.length > 0 && (
         <>
           <div className="omr-actions">
@@ -309,11 +230,11 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
               全不选
             </button>
             <label className="field search">
-              <span>页码</span>
+              <span>序号</span>
               <input value={range} placeholder="例如 1-3, 5" onChange={(event) => setRange(event.target.value)} />
             </label>
             <button type="button" className="button ghost" onClick={applyRange}>
-              应用页码
+              应用序号
             </button>
           </div>
           <ul className="page-thumbs">
@@ -330,7 +251,7 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
                         setPages((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, selected } : item)))
                       }}
                     />
-                    {index + 1}. {page.label}
+                    {index + 1}. {page.file.name}
                   </span>
                 </label>
               </li>
@@ -347,44 +268,41 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
       {stage && <p className="device-note">{stage}</p>}
       <details className="settings-more">
         <summary>技术信息</summary>
-      <dl className="timings">
-        <div>
-          <dt>后端</dt>
-          <dd>{timings.backend ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>缓存</dt>
-          <dd>{timings.cacheHit == null ? '—' : timings.cacheHit ? '命中' : '已下载'}</dd>
-        </div>
-        <div>
-          <dt>下载</dt>
-          <dd>{timings.downloadMs == null ? '—' : `${timings.downloadMs} ms`}</dd>
-        </div>
-        <div>
-          <dt>初始化</dt>
-          <dd>{timings.initMs == null ? '—' : `${timings.initMs} ms`}</dd>
-        </div>
-        <div>
-          <dt>识别合计</dt>
-          <dd>{timings.inferenceMs == null ? '—' : `${timings.inferenceMs} ms`}</dd>
-        </div>
-        <div>
-          <dt>线程</dt>
-          <dd>{timings.threads ?? '—'}</dd>
-        </div>
-      </dl>
-      {pageTimings.length > 0 && (
-        <ul className="page-times">
-          {pageTimings.map((item) => (
-            <li key={item.label} className={item.status === 'ok' ? 'tone-good' : 'tone-bad'}>
-              {item.label} · {item.note} · {item.inferenceMs} ms
-            </li>
-          ))}
-        </ul>
-      )}
-      {timings.backendReason && <p className="device-note">{timings.backendReason}</p>}
-      {log && <pre className="omr-log">{log}</pre>}
+        <dl className="timings">
+          <div>
+            <dt>后端</dt>
+            <dd>{timings?.backend ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>线程</dt>
+            <dd>{timings?.threads ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>缓存</dt>
+            <dd>{timings == null ? '—' : timings.cacheHit ? '命中' : '已下载'}</dd>
+          </div>
+          <div>
+            <dt>下载</dt>
+            <dd>{timings == null ? '—' : `${timings.downloadMs} ms`}</dd>
+          </div>
+          <div>
+            <dt>初始化</dt>
+            <dd>{timings == null ? '—' : `${timings.initMs} ms`}</dd>
+          </div>
+        </dl>
+        {pageTimings.length > 0 && (
+          <ul className="page-times">
+            {pageTimings.map((item) => (
+              <li key={item.label} className={item.status === 'ok' ? 'tone-good' : 'tone-bad'}>
+                {item.label} · {item.note}
+              </li>
+            ))}
+          </ul>
+        )}
+        {timings?.backendReason && <p className="device-note">{timings.backendReason}</p>}
+        {log && <pre className="omr-log">{log}</pre>}
       </details>
+      {advice && <p className="device-note warn">{advice}</p>}
       {error && <p className="score-status error">{error}</p>}
       {xml && (
         <div className="omr-result">
@@ -397,13 +315,18 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
             </button>
             <label className="field search">
               <span>曲名</span>
-              <input value={saveTitle} onChange={(event) => setSaveTitle(event.target.value)} />
+              <input value={saveTitle} placeholder={foundTitle || '识别结果'} onChange={(event) => setSaveTitle(event.target.value)} />
             </label>
             <button type="button" className="button ghost" onClick={() => void saveToLibrary()}>
               保存到曲库
             </button>
           </div>
           {saveNote && <p className="device-note">{saveNote}</p>}
+          {suspectBars.length > 0 && (
+            <p className="device-note warn">
+              有 {suspectBars.length} 个小节的拍数超出了拍号，节奏多半读错了（音高通常是对的）：第 {suspectBars.join('、')} 小节。练之前对照原谱看看这几处。
+            </p>
+          )}
           {typeof parsed === 'string' ? (
             <p className="score-status error">{parsed}</p>
           ) : (
@@ -415,20 +338,10 @@ export default function OmrTab({ onPractice, onSaved }: OmrTabProps) {
       )}
       <footer className="omr-license">
         识别使用 <a href="https://github.com/jymen/homr-web">homr-web</a>（AGPL-3.0），移植自{' '}
-        <a href="https://github.com/liebharc/homr">homr</a>（Christian Liebhardt，同样是 AGPL-3.0）。和弦文字识别已关闭。生成的
+        <a href="https://github.com/liebharc/homr">homr</a>（Christian Liebhardt，同样是 AGPL-3.0）。文字识别可以在上面关掉。生成的
         MusicXML 归你。
       </footer>
     </section>
   )
 }
 
-async function hasWebGpu(): Promise<boolean> {
-  const gpu = navigator.gpu
-  if (!gpu) return false
-  try {
-    const adapter = await gpu.requestAdapter()
-    return adapter?.features.has('shader-f16') ?? false
-  } catch {
-    return false
-  }
-}

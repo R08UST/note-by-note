@@ -1,10 +1,33 @@
-/** Homr's published pages are about 300 dpi. A PDF point is 1/72 inch. */
-export const PDF_RENDER_DPI = 300
+/**
+ * A PDF as pixels homr can read.
+ *
+ * Every page is rendered at the width homr's own resize step takes a page to
+ * (1920 px), not at a fixed dpi: a 300 dpi A4 page is 2480 px wide and homr
+ * shrinks it to 1920 before segmentation, so those extra pixels were thrown
+ * away again and only cost time. At 1920 the page the model sees is the page
+ * the browser drew.
+ */
+import type { PixelBytes } from './pageGeometry'
+import type { RasterImage } from './pageImage'
+import { pdfRenderScale } from './pageGeometry'
+
+/** A4 width in points. A PDF whose pages do not report a width is laid out as A4. */
+const A4_WIDTH_POINTS = 595
 
 export interface RenderedPage {
-  index: number
+  image: RasterImage
   png: Blob
-  thumbUrl: string
+}
+
+export interface PdfDocument {
+  dispose: () => Promise<void>
+  /** Drop a page's render once it has been read, so a long PDF does not keep every page in memory. */
+  release: (pageIndex: number) => void
+  /** The rendered size of each page, which bands are cut from. */
+  sizeOf: (pageIndex: number) => Promise<{ height: number; width: number }>
+  readonly pageCount: number
+  /** A whole page as pixels and as a PNG. */
+  render: (pageIndex: number) => Promise<RenderedPage>
 }
 
 async function loadPdf() {
@@ -14,32 +37,30 @@ async function loadPdf() {
   return pdfjs
 }
 
-function thumbFrom(canvas: HTMLCanvasElement): string {
-  const scale = Math.min(1, 160 / canvas.width)
-  const thumb = document.createElement('canvas')
-  thumb.width = Math.max(1, Math.round(canvas.width * scale))
-  thumb.height = Math.max(1, Math.round(canvas.height * scale))
-  const context = thumb.getContext('2d')
-  if (!context) return canvas.toDataURL('image/png')
-  context.drawImage(canvas, 0, 0, thumb.width, thumb.height)
-  return thumb.toDataURL('image/jpeg', 0.7)
-}
-
 async function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('无法把这一页存成图片。')
   return blob
 }
 
-/** Every page of a PDF, at the resolution homr is built for. */
-export async function renderPdfPages(file: File): Promise<RenderedPage[]> {
+function rasterOf(context: CanvasRenderingContext2D, width: number, height: number): RasterImage {
+  const { data } = context.getImageData(0, 0, width, height)
+  return { data: data as PixelBytes, height, width }
+}
+
+/** Open a PDF. Each page is rendered on first use and kept, so a band and the whole page share one render. */
+export async function openPdf(file: File): Promise<PdfDocument> {
   const pdfjs = await loadPdf()
   const data = new Uint8Array(await file.arrayBuffer())
   const doc = await pdfjs.getDocument({ data }).promise
-  const pages: RenderedPage[] = []
-  for (let index = 1; index <= doc.numPages; index += 1) {
-    const page = await doc.getPage(index)
-    const viewport = page.getViewport({ scale: PDF_RENDER_DPI / 72 })
+  const canvases = new Map<number, HTMLCanvasElement>()
+
+  const renderPage = async (pageIndex: number) => {
+    const known = canvases.get(pageIndex)
+    if (known) return known
+    const page = await doc.getPage(pageIndex)
+    const base = page.getViewport({ scale: 1 })
+    const viewport = page.getViewport({ scale: pdfRenderScale(base.width || A4_WIDTH_POINTS) })
     const canvas = document.createElement('canvas')
     canvas.width = Math.ceil(viewport.width)
     canvas.height = Math.ceil(viewport.height)
@@ -48,7 +69,40 @@ export async function renderPdfPages(file: File): Promise<RenderedPage[]> {
     context.fillStyle = '#ffffff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     await page.render({ canvas, canvasContext: context, viewport }).promise
-    pages.push({ index, png: await toPng(canvas), thumbUrl: thumbFrom(canvas) })
+    canvases.set(pageIndex, canvas)
+    return canvas
   }
-  return pages
+
+  return {
+    get pageCount() {
+      return doc.numPages
+    },
+    release: (pageIndex: number) => {
+      const canvas = canvases.get(pageIndex)
+      if (!canvas) return
+      canvas.width = 0
+      canvas.height = 0
+      canvases.delete(pageIndex)
+    },
+    sizeOf: async (pageIndex: number) => {
+      const canvas = await renderPage(pageIndex)
+      return { height: canvas.height, width: canvas.width }
+    },
+    render: async (pageIndex: number) => {
+      const canvas = await renderPage(pageIndex)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('这个浏览器画不出 PDF 页面。')
+      return { image: rasterOf(context, canvas.width, canvas.height), png: await toPng(canvas) }
+    },
+    dispose: async () => {
+      canvases.clear()
+      await doc.cleanup()
+    },
+  }
+}
+
+/** A URL for a page's thumbnail: the page as the picker shows it. */
+export async function pdfThumbUrl(doc: PdfDocument, pageIndex: number): Promise<string> {
+  const { png } = await doc.render(pageIndex)
+  return URL.createObjectURL(png)
 }

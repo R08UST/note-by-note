@@ -45,7 +45,9 @@ The dev server and `vite preview` send those headers. Without them the recognize
 
 The OMR tab lazy-loads [`homr-web`](https://github.com/jymen/homr-web) (AGPL-3.0-only), a browser port of [homr](https://github.com/liebharc/homr) by Christian Liebhardt, also AGPL-3.0. Serving this app conveys that library. The source of the unmodified library is that repository; this repository is the source of the integration. MusicXML a person produces with it is theirs.
 
-OCR is disabled (`ocr: false`), so the ~32 MB RapidOCR models are not fetched and titles are left blank. The weights that are fetched, their hashes, and where they come from are listed in `public/models/homr/README.md`. The tab prefers WebGPU, falls back to WebAssembly, caches the files in Cache Storage, and shows download, init, and inference times plus whether the cache already held them.
+The chord and title text is read too (`ocr: true`), which downloads the ~32 MB RapidOCR models on the first page. The title becomes `work-title`; a tempo number and a dynamic (such as `♩=96` and `mf`) are written into the first measure as a `<direction>` with `<words>`, which prints without sounding, so the part plays exactly as the notes say. The 读和弦、标题与力度文字 switch turns this off, and the import panel in 练习 always reads it.
+
+A PDF is rendered at the 1920 px width homr reads at rather than at 300 dpi, since homr shrinks anything wider before segmentation; a picture narrower than that is enlarged to it first. The weights that are fetched, their hashes, and where they come from are listed in `public/models/homr/README.md`. The tab prefers WebGPU, falls back to WebAssembly, caches the files in Cache Storage, and shows download, init, and inference times plus whether the cache already held them. When the browser hands homr one WebAssembly thread because the page is not cross-origin isolated, the tab says so.
 
 ## Pieces
 

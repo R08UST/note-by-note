@@ -14,4 +14,13 @@ describe('modelsForBackend', () => {
     expect(wasm.some((name) => name === 'PP-OCRv6_rec_small.onnx')).toBe(true)
     expect(gpu.some((name) => name === 'PP-OCRv6_det_small.onnx')).toBe(true)
   })
+
+  it('leaves the RapidOCR and tablature files to the engine when OCR is off', () => {
+    const off = modelsForBackend('webgpu', { ocr: false }).map((file) => file.file)
+    expect(off.some((name) => name.includes('PP-OCRv6'))).toBe(false)
+    expect(off.some((name) => name.includes('ppocr'))).toBe(false)
+    expect(off).not.toContain('tab-digits-037fac028e12.onnx')
+    expect(off.some((name) => name.startsWith('segnet'))).toBe(true)
+    expect(off.some((name) => name.startsWith('decoder_'))).toBe(true)
+  })
 })

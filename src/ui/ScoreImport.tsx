@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { explainRecognitionFailure } from '../omr/errors'
-import { mergeMusicXml } from '../omr/mergeMusicXml'
-import { modelsForBackend } from '../omr/models'
-import { ensureModelWorker, prepareModels } from '../omr/cacheModels'
-import { renderPdfPages } from '../omr/pdfPage'
+import { openSession, readFile } from '../omr/session'
 import { readScoreFile } from '../score/mxl'
 import { defaultHands, inspectMidi, midiToMusicXml, type MidiOverview } from '../score/midiScore'
 import { assertPlayableMusicXml, exportScoresZip, readScoresZip } from '../score/scoreBackup'
@@ -273,43 +269,21 @@ function isPicture(file: File): boolean {
   return file.type.startsWith('image/') || name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.pdf') || file.type === 'application/pdf'
 }
 
+/**
+ * A picture or a PDF read by homr, with the chord and title text on: the
+ * import is the one place a musician hands over a score and expects its name
+ * back, so this is where the OCR is always worth its six seconds a page.
+ */
 async function recognizeFile(file: File, progress: (detail: string) => void): Promise<string> {
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-  const pages = isPdf ? await renderPdfPages(file) : [{ index: 1, png: file, thumbUrl: '' }]
-  progress(`共 ${pages.length} 页`)
-  const gpu = await hasWebGpu()
-  await ensureModelWorker()
-  const wanted = gpu ? 'webgpu' : 'wasm'
-  await prepareModels(modelsForBackend(wanted), () => {})
-  const { createRecognizer } = await import('homr-web')
-  const recognizer = await createRecognizer({
-    baseUrl: new URL('models/homr/', document.baseURI),
-    prefer: gpu ? 'webgpu' : crossOriginIsolated ? 'wasm-threads' : 'wasm',
-  })
-  const recognized: { label: string; xml: string }[] = []
+  progress('正在准备模型…')
+  const session = await openSession({ ocr: true })
   try {
-    for (let index = 0; index < pages.length; index += 1) {
-      const page = pages[index]
-      if (!page) continue
-      progress(`第 ${index + 1} / ${pages.length} 页`)
-      const result = await recognizer.recognizePage(page.png, { ocr: false })
-      if (result.ok && result.musicXml) recognized.push({ label: `${file.name} 第 ${index + 1} 页`, xml: result.musicXml })
-      else throw new Error(explainRecognitionFailure(result.error, result.log))
-    }
+    const result = await readFile(session.recognizer, file, {
+      ocr: true,
+      onProgress: (progress2) => progress(progress2.pages > 1 ? `第 ${progress2.page} / ${progress2.pages} 页` : progress2.stage),
+    })
+    return result.musicXml
   } finally {
-    await recognizer.dispose()
-  }
-  if (recognized.length === 0) throw new Error('没有一页识别成功。')
-  return mergeMusicXml(recognized)
-}
-
-async function hasWebGpu(): Promise<boolean> {
-  const gpu = navigator.gpu
-  if (!gpu) return false
-  try {
-    const adapter = await gpu.requestAdapter()
-    return adapter?.features.has('shader-f16') ?? false
-  } catch {
-    return false
+    await session.dispose()
   }
 }
