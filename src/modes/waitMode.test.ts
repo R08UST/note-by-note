@@ -45,6 +45,44 @@ describe('WaitMode', () => {
     expect(mode.done()).toBe(true)
   })
 
+  it('does not undo a chord when a tone the player already struck is pressed again', () => {
+    const mode = new WaitMode(
+      [
+        note({ id: 'c', pitch: 60, beat: 0 }),
+        note({ id: 'e', pitch: 64, beat: 0 }),
+        note({ id: 'g', pitch: 67, beat: 1 }),
+      ],
+      { resetOnError: true },
+    )
+    // One hand lands the C first, so the cursor waits on the same chord for the E.
+    expect(mode.push(on(60))[0]).toMatchObject({ noteId: 'c', result: 'hit' })
+    // Both hands then strike the chord: the C is a tone already played, not a slip,
+    // so it must not drop the hit or rewind the measure.
+    expect(mode.push(on(60))).toEqual([])
+    expect(mode.cursorBeat()).toBe(0)
+    expect(mode.currentNotes().map((item) => item.id)).toEqual(['e'])
+    expect(mode.push(on(64))[0]).toMatchObject({ result: 'hit' })
+    expect(mode.cursorBeat()).toBe(1)
+  })
+
+  it('ignores the repeated tone that arrives after the chord has completed', () => {
+    const mode = new WaitMode(
+      [
+        note({ id: 'c', pitch: 60, beat: 0 }),
+        note({ id: 'e', pitch: 64, beat: 0 }),
+        note({ id: 'g', pitch: 67, beat: 1 }),
+      ],
+      { resetOnError: true },
+    )
+    mode.push(on(64))
+    mode.push(on(60))
+    expect(mode.cursorBeat()).toBe(1)
+    // The line has left the chord, so the same C pressed again is the chord tone
+    // still held down, not a wrong note that sends the line back a measure.
+    expect(mode.push(on(60))).toEqual([])
+    expect(mode.cursorBeat()).toBe(1)
+  })
+
   it('calls notes after the piece extra', () => {
     const mode = new WaitMode([note({ id: 'c', pitch: 60, beat: 0 })])
     mode.push(on(60))

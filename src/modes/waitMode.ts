@@ -119,6 +119,10 @@ export class WaitMode {
       this.advancePastFinished()
       return [judgement]
     }
+    // A tone already struck here is the same key pressed again, not a slip. A chord
+    // is often played one hand first and both hands after, and that second press of
+    // a tone still down must not drop the hits and send the line back a measure.
+    if (this.struckOnCurrentAttack(event.pitch)) return []
     const measure = this.groups[this.index]?.[0]?.measure
     const wrong: Judgement = { pitch: event.pitch, result: 'wrong', ...(measure != null && { measure }) }
     this._judgements.push(wrong)
@@ -128,6 +132,19 @@ export class WaitMode {
 
   private matchIn(group: ScoreNote[] | undefined, pitch: number): ScoreNote | undefined {
     return group?.find((note) => !this.hit.has(note.id) && note.pitch === pitch)
+  }
+
+  /**
+   * Whether this pitch was already hit on the attack the cursor stands on, or on the
+   * one it just left. When the chord completes on the last missing tone, the line
+   * steps to the next attack before that same tone's key-up and re-strike arrive, so
+   * both attacks count as "already played" instead of a wrong note.
+   */
+  private struckOnCurrentAttack(pitch: number): boolean {
+    for (const group of [this.groups[this.index], this.groups[this.index - 1]]) {
+      if (group?.some((note) => note.pitch === pitch && this.hit.has(note.id))) return true
+    }
+    return false
   }
 
   /**
