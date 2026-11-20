@@ -130,24 +130,65 @@ function attributes(score: WrittenScore): string {
   return `<attributes><divisions>${TICKS}</divisions><key><fifths>${score.fifths}</fifths></key><time><beats>${score.time.beats}</beats><beat-type>${score.time.beatType}</beat-type></time>${clefs}</attributes>`
 }
 
+/**
+ * Cut one hand's written notes into bars of `perMeasure` ticks.
+ *
+ * A stored exercise can hold more than a bar's worth of notes under one measure
+ * number, and a library excerpt can keep the source piece's own numbering. Laying
+ * those notes out by their number would let a bar run past its last beat, so the
+ * next bar would start before the previous one ended and two bars would share a
+ * beat. Wait mode groups strikes by beat, so that overlap put the second bar's
+ * notes into the first bar's judgement. Re-cutting by the note values keeps every
+ * bar exactly one measure long and numbers them from 1.
+ */
+function cutBars(notes: readonly WrittenNote[], perMeasure: number): WrittenNote[][] {
+  const bars: WrittenNote[][] = []
+  let current: WrittenNote[] = []
+  let local = 0
+  for (const note of notes) {
+    if (!note.chord && current.length > 0 && local + note.ticks > perMeasure) {
+      bars.push(current)
+      current = []
+      local = 0
+    }
+    current.push(note)
+    if (!note.chord) local += note.ticks
+  }
+  if (current.length > 0) bars.push(current)
+  return bars
+}
+
 /** MusicXML plus the attacks a player must play. Rests and tie endings are not attacks. */
 export function materialize(score: WrittenScore): { xml: string; notes: ScoreNote[] } {
   const perMeasure = measureTicks(score.time)
-  const measures = new Map<number, WrittenNote[]>()
+  // Keep the written measure boundaries first: an alternating drill puts the
+  // right hand in bar 1 and the left in bar 2, so cutting each hand on its own
+  // would slide the two hands' bars together. Only a measure that holds more
+  // than a bar's worth of notes is cut further.
+  const written = new Map<number, WrittenNote[]>()
   for (const note of score.notes) {
-    const list = measures.get(note.measure) ?? []
+    const list = written.get(note.measure) ?? []
     list.push(note)
-    measures.set(note.measure, list)
+    written.set(note.measure, list)
   }
-  const numbers = [...measures.keys()].sort((a, b) => a - b)
+  const bars: { right: WrittenNote[]; left: WrittenNote[] }[] = []
+  for (const number of [...written.keys()].sort((a, b) => a - b)) {
+    const notes = written.get(number) ?? []
+    const rightBars = cutBars(notes.filter((note) => note.hand === 'R'), perMeasure)
+    const leftBars = cutBars(notes.filter((note) => note.hand === 'L'), perMeasure)
+    const count = Math.max(rightBars.length, leftBars.length)
+    for (let index = 0; index < count; index += 1) {
+      bars.push({ right: rightBars[index] ?? [], left: leftBars[index] ?? [] })
+    }
+  }
   const attacks: ScoreNote[] = []
   let nextId = 1
   let measureStart = 0
   const bodies: string[] = []
-  numbers.forEach((number, index) => {
-    const notes = measures.get(number) ?? []
-    const right = notes.filter((note) => note.hand === 'R')
-    const left = notes.filter((note) => note.hand === 'L')
+  for (let index = 0; index < bars.length; index += 1) {
+    const number = index + 1
+    const right = bars[index]?.right ?? []
+    const left = bars[index]?.left ?? []
     const chunks: string[] = []
     if (index === 0) chunks.push(attributes(score))
     const writeStaff = (staffNotes: WrittenNote[], staff: number | null, hand: Hand) => {
@@ -192,7 +233,7 @@ export function materialize(score: WrittenScore): { xml: string; notes: ScoreNot
     }
     bodies.push(`<measure number="${number}">${chunks.join('')}</measure>`)
     measureStart += perMeasure / TICKS
-  })
+  }
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
   <work><work-title>${escapeXml(score.title)}</work-title></work>

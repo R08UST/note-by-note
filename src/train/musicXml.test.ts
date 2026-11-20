@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { ScoreNote } from '../judge/types'
 import { mapNotesToHeads, type GraphicHead } from '../score/mapNotes'
 import { parseMusicXml } from '../score/parseMusicXml'
+import { exerciseFromBank, type BankFile } from './bank'
 import { generateRhythmLine, generateSight } from './generate'
 import { techLevels } from './technique'
 
@@ -63,5 +65,42 @@ describe('training sheet', () => {
     const item = techLevels('chord')[0]?.items[0]
     if (!item) throw new Error('no chord drill')
     expectEveryAttackDrawn(item)
+  })
+
+  it('cuts a stored bar that runs past its last beat into the next bar', () => {
+    const item = {
+      id: 'test',
+      fifths: 0,
+      beats: 4,
+      beatType: 4,
+      source: '',
+      // Five quarter notes under measure 1: one beat too many for the bar.
+      notes: Array.from({ length: 5 }, (_, index) => ({ p: 60 + index, t: 12, h: 'R' as const, m: 1 })),
+    }
+    const built = exerciseFromBank(item, 'test', 'R')
+    expect(built.notes.map((note) => note.measure)).toEqual([1, 1, 1, 1, 2])
+    expect(built.notes.map((note) => note.beat)).toEqual([0, 1, 2, 3, 4])
+    expect(built.notes.at(-1)?.localBeat).toBe(0)
+  })
+
+  it('keeps every beat in one bar across the stored sight bank', () => {
+    // The bank stores a whole phrase under one measure number in places. Laying
+    // that out by the number made the next bar start before the first ended, so
+    // wait mode asked for the second bar's notes while the player was in the first.
+    for (const hand of ['r', 'l'] as const) {
+      const file = JSON.parse(readFileSync(`src/train/banks/s3-${hand}.json`, 'utf8')) as BankFile
+      for (const item of file.items) {
+        const built = exerciseFromBank(item, item.id, hand === 'r' ? 'R' : 'L')
+        const barsByBeat = new Map<number, Set<number>>()
+        for (const note of built.notes) {
+          const beat = Math.round(note.beat * 1000)
+          const bar = barsByBeat.get(beat) ?? new Set<number>()
+          bar.add(note.measure)
+          barsByBeat.set(note.beat, bar)
+        }
+        for (const bar of barsByBeat.values()) expect(bar.size).toBe(1)
+        for (const note of built.notes) expect(note.localBeat ?? 0).toBeLessThan(4)
+      }
+    }
   })
 })
