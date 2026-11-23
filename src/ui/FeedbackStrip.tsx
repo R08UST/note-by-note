@@ -6,6 +6,7 @@ import type { RunStatus } from './usePractice'
 interface FeedbackStripProps {
   status: RunStatus
   modeLabel: string
+  liveBpm?: number | null
   last: Judgement | null
   recent: Judgement[]
   current: ScoreNote[]
@@ -18,6 +19,7 @@ interface FeedbackStripProps {
 export function FeedbackStrip({
   status,
   modeLabel,
+  liveBpm = null,
   last,
   recent,
   current,
@@ -43,6 +45,7 @@ export function FeedbackStrip({
       <div className="feedback-copy">
         <p className="feedback-kicker">
           {modeLabel}
+          {status === 'playing' && liveBpm != null ? ` · 约 ${liveBpm} BPM` : ''}
           {measure ? ` · 第 ${measure} 小节` : ''}
         </p>
         <p className="feedback-headline">{headline}</p>

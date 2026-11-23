@@ -71,6 +71,9 @@ export function Controls({
         <button type="button" aria-pressed={mode === 'wait'} disabled={locked} onClick={() => onMode('wait')}>
           等我
         </button>
+        <button type="button" aria-pressed={mode === 'free'} disabled={locked} onClick={() => onMode('free')}>
+          自由拍
+        </button>
         <button type="button" aria-pressed={mode === 'rhythm'} disabled={locked} onClick={() => onMode('rhythm')}>
           跟拍
         </button>
@@ -96,7 +99,9 @@ export function Controls({
       <p className="control-hint">
         {mode === 'wait'
           ? '等我：直接弹谱上的第一个音就开始，不用点按钮。光标停在当前音，弹对了才往前走。'
-          : '跟拍：点开始，先数一小节，再跟着节拍器弹。'}
+          : mode === 'free'
+            ? '自由拍：直接弹第一个音就开始，按自己的速度自由通奏，弹错或漏音不卡住，结束后自动算拍速、连贯度与节奏稳定性。'
+            : '跟拍：点开始，先数一小节，再跟着节拍器弹。'}
         {loop ? ' 走到结尾会再来一遍。' : ''}
       </p>
     </div>

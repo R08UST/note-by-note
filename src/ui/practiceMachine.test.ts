@@ -25,6 +25,9 @@ describe('practice run transitions', () => {
 
   it('keeps a stopped run stopped, and a loop stays inside the run', () => {
     expect(practiceTransition('idle', { type: 'seek', mode: 'wait' })).toBe('idle')
+    expect(practiceTransition('idle', { type: 'start', mode: 'free' })).toBe('playing')
+    expect(practiceTransition('playing', { type: 'seek', mode: 'free' })).toBe('playing')
+    expect(practiceTransition('playing', { type: 'loop', mode: 'free' })).toBe('playing')
     expect(practiceTransition('finished', { type: 'seek', mode: 'rhythm' })).toBe('finished')
     expect(practiceTransition('playing', { type: 'loop', mode: 'wait' })).toBe('playing')
     expect(practiceTransition('playing', { type: 'loop', mode: 'rhythm' })).toBe('countin')

@@ -1,5 +1,5 @@
 export type PracticeStatus = 'idle' | 'countin' | 'playing' | 'finished'
-export type PracticeRunMode = 'wait' | 'rhythm'
+export type PracticeRunMode = 'wait' | 'free' | 'rhythm'
 
 export type PracticeEvent =
   | { type: 'start'; mode: PracticeRunMode }

@@ -42,6 +42,10 @@ export interface RunRecord {
   hands?: HandSelection
   /** First and last bar that had a judged note. */
   measures?: { start: number; end: number }
+  /** Free-tempo continuity score in [0, 1]. */
+  fluency?: number | null
+  /** Free-tempo rhythm proportion stability score in [0, 1]. */
+  stability?: number | null
 }
 
 export type UserLevel = '' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5'

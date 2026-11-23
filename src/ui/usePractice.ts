@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 import { pitchForCode } from '../midi/keyboardMap'
 import { selectHands, type HandSelection } from '../modes/hands'
+import { FreeMode } from '../modes/freeMode'
 import type { PracticeMode } from '../modes/practiceMode'
 import { RhythmMode } from '../modes/rhythmMode'
 import { markNotes } from '../modes/marks'
 import { WaitMode } from '../modes/waitMode'
 import { entryClock, notesInBeats, shiftNotes, type BeatSpan } from '../modes/span'
+import { analyzeFreeTempo, estimateRecentBpm } from '../report/freeTempo'
 import { summarize, type RunSummary } from '../report/summary'
 import type { TimeSignature, TimeSignatureChange } from '../score/parseMusicXml'
 import { quarterBeatsPerMeasureAt } from '../score/parseMusicXml'
@@ -53,7 +55,7 @@ interface PracticeOptions {
   allowAutoStart?: () => boolean
 }
 
-type Engine = WaitMode | RhythmMode
+type Engine = WaitMode | FreeMode | RhythmMode
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -92,6 +94,7 @@ export function usePractice({
   const [judgements, setJudgements] = useState<Judgement[]>([])
   const [summary, setSummary] = useState<RunSummary | null>(null)
   const [countBeat, setCountBeat] = useState<number | null>(null)
+  const [liveBpm, setLiveBpm] = useState<number | null>(null)
   const [previous, setPrevious] = useState<RunRecord | null>(null)
 
   const statusRef = useRef<RunStatus>('idle')
@@ -189,7 +192,7 @@ export function usePractice({
       }, 700)
       flashTimers.current.push(timer)
     }
-    if (runRef.current.mode === 'wait' && engine) {
+    if ((runRef.current.mode === 'wait' || runRef.current.mode === 'free') && engine) {
       const beat = engine.cursorBeat()
       if (beat != null) {
         // A grace strike is waited for, so the line stands on its own small note.
@@ -205,6 +208,9 @@ export function usePractice({
               }
             : undefined,
         )
+      }
+      if (engine instanceof FreeMode) {
+        setLiveBpm(estimateRecentBpm(runRef.current.notes, engine.hitTimes))
       }
     }
     setCurrent(engine?.currentNotes() ?? [])
@@ -226,7 +232,11 @@ export function usePractice({
     stopMetronome()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = 0
-    const report = summarize(runRef.current.notes, judgementsRef.current, runRef.current.perfectMs)
+    const baseReport = summarize(runRef.current.notes, judgementsRef.current, runRef.current.perfectMs)
+    const report: RunSummary =
+      engine instanceof FreeMode
+        ? { ...baseReport, freeTempo: analyzeFreeTempo(runRef.current.notes, engine.hitTimes) }
+        : baseReport
     const options = optionsRef.current
     const continuing =
       reason === 'done' &&
@@ -250,6 +260,7 @@ export function usePractice({
     setSummary(report)
     setCurrent([])
     setCountBeat(null)
+    setLiveBpm(null)
     engineRef.current = null
     setRunStatus(practiceTransition(statusRef.current, { type: 'finish' }))
     finishingRef.current = false
@@ -263,9 +274,13 @@ export function usePractice({
         meanOffsetMs: report.meanOffsetMs,
         mode: runRef.current.mode,
         errorsPerMeasure: report.errorsPerMeasure,
-        bpm: runRef.current.bpm,
+        bpm: report.freeTempo ? (report.freeTempo.bpm ?? undefined) : runRef.current.bpm,
         hands: optionsRef.current.hands,
         ...(bars.length > 0 && { measures: { start: Math.min(...bars), end: Math.max(...bars) } }),
+        ...(report.freeTempo && {
+          fluency: report.freeTempo.fluency,
+          stability: report.freeTempo.stability,
+        }),
       }
       savedAtRef.current = record.createdAt
       savedPieceRef.current = record.pieceId
@@ -306,8 +321,12 @@ export function usePractice({
       else next.delete(event.pitch)
       return next
     })
-    if (event.type === 'on' && (statusRef.current === 'idle' || statusRef.current === 'finished') && optionsRef.current.mode === 'wait') {
-      // Playing the first written note starts wait mode, so hands can stay on the keys.
+    if (
+      event.type === 'on' &&
+      (statusRef.current === 'idle' || statusRef.current === 'finished') &&
+      (optionsRef.current.mode === 'wait' || optionsRef.current.mode === 'free')
+    ) {
+      // Playing the first written note starts wait or free-tempo mode, so hands can stay on the keys.
       // Any other key is ignored, so noodling between takes does not start or log a run.
       const options = optionsRef.current
       const selected = notesInBeats(
@@ -330,7 +349,12 @@ export function usePractice({
     if (event.type !== 'on' || statusRef.current !== 'playing') return
     const engine = engineRef.current
     if (!engine) return
-    const timeMs = runRef.current.mode === 'rhythm' ? scoreNow(event.timeMs) : 0
+    const timeMs =
+      runRef.current.mode === 'rhythm'
+        ? scoreNow(event.timeMs)
+        : runRef.current.mode === 'free'
+          ? event.timeMs
+          : 0
     if (runRef.current.mode === 'rhythm' && timeMs < 0) return
     const produced = engine.push({ ...event, timeMs })
     rememberRef.current(produced)
@@ -400,6 +424,7 @@ export function usePractice({
     setLast(null)
     setCurrent([])
     setCountBeat(null)
+    setLiveBpm(null)
     return () => {
       cancel = true
     }
@@ -446,6 +471,7 @@ export function usePractice({
     setJudgements([])
     if (!seamless) setSummary(null)
     setLast(null)
+    setLiveBpm(null)
     finishingRef.current = false
     const runId = (runIdRef.current += 1)
     const countInBeats = quarterBeatsPerMeasureAt(options.timeSignatures, clock.downbeat, options.timeSignature)
@@ -463,12 +489,14 @@ export function usePractice({
     const engine: Engine =
       options.mode === 'wait'
         ? new WaitMode(active, { resetOnError: options.resetOnError })
-        : new RhythmMode(active, {
-            bpm: options.bpm,
-            latencyOffsetMs: options.latencyOffsetMs,
-            earlyMs: windows.earlyMs,
-            lateMs: windows.lateMs,
-          })
+        : options.mode === 'free'
+          ? new FreeMode(active)
+          : new RhythmMode(active, {
+              bpm: options.bpm,
+              latencyOffsetMs: options.latencyOffsetMs,
+              earlyMs: windows.earlyMs,
+              lateMs: windows.lateMs,
+            })
     engineRef.current = engine
     scoreRef.current?.prepare(options.hands, runRef.current.entryBeat)
     setCurrent(engine.currentNotes())
@@ -557,7 +585,7 @@ export function usePractice({
 
   const stepOnset = (direction: -1 | 1): boolean => {
     const engine = engineRef.current
-    if (!(engine instanceof WaitMode) || statusRef.current !== 'playing') return false
+    if (!(engine instanceof WaitMode || engine instanceof FreeMode) || statusRef.current !== 'playing') return false
     if (direction < 0) engine.retreat()
     else engine.advance()
     judgementsRef.current = [...engine.judgements]
@@ -567,6 +595,9 @@ export function usePractice({
     const showing = engine.currentNotes()
     for (const note of showing) scoreRef.current?.colorNote(note.id, '#241c16')
     setCurrent(showing)
+    if (engine instanceof FreeMode) {
+      setLiveBpm(estimateRecentBpm(runRef.current.notes, engine.hitTimes))
+    }
     return true
   }
 
@@ -580,6 +611,7 @@ export function usePractice({
     summary,
     passes,
     countBeat,
+    liveBpm,
     previous,
     handleInput,
     start,

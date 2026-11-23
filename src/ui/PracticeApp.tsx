@@ -735,7 +735,7 @@ export function PracticeApp() {
                       setCursorBeat(first.beat)
                       jumpTo(first.beat)
                     }}><Glyph d="M4 3 V13 M6 4 L12 8 L6 12 Z" /></IconButton>
-                    {mode === 'wait' && (
+                    {(mode === 'wait' || mode === 'free') && (
                       <IconButton label="退一音" disabled={practice.status !== 'playing'} onClick={practice.stepBack}><Glyph d="M11 3 L5 8 L11 13 M5 3 V13" /></IconButton>
                     )}
                   </div>
@@ -882,7 +882,8 @@ export function PracticeApp() {
                 </div>
                 <FeedbackStrip
                   status={practice.status}
-                  modeLabel={mode === 'wait' ? '等待' : '节奏'}
+                  modeLabel={mode === 'wait' ? '等待' : mode === 'free' ? '自由拍' : '节奏'}
+                  liveBpm={practice.liveBpm}
                   last={practice.last}
                   recent={practice.judgements.slice(-8)}
                   current={practice.status === 'idle' ? hintNotes : practice.current}
@@ -899,6 +900,11 @@ export function PracticeApp() {
                     collapsed={reportCollapsed}
                     onToggleCollapsed={() => setReportCollapsed((value) => !value)}
                     onClose={() => setReportOpen(false)}
+                    onUseTempo={(nextBpm) => {
+                      setBpm(nextBpm)
+                      setMode('rhythm')
+                      setReportOpen(false)
+                    }}
                     onJump={(measure) => {
                       const target = firstOnsetInMeasure(groups, measure)
                       if (!target) return
@@ -1267,7 +1273,7 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
               <th>方式</th>
               <th>速度 · 手 · 小节</th>
               <th>命中率</th>
-              <th>平均偏差</th>
+              <th>节奏</th>
               <th />
             </tr>
           </thead>
@@ -1276,10 +1282,10 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
               <tr key={run.id ?? run.createdAt}>
                 <td>{new Date(run.createdAt).toLocaleString()}</td>
                 <td>{run.title || run.pieceId}</td>
-                <td>{run.mode === 'wait' ? '等我' : run.mode === 'rhythm' ? '跟拍' : run.mode}</td>
+                <td>{run.mode === 'wait' ? '等我' : run.mode === 'free' ? '自由拍' : run.mode === 'rhythm' ? '跟拍' : run.mode}</td>
                 <td>{runSetup(run)}</td>
                 <td>{Math.round(run.hitRate * 100)}%</td>
-                <td>{run.meanOffsetMs == null ? '—' : `${Math.round(run.meanOffsetMs)} ms`}</td>
+                <td>{runTiming(run)}</td>
                 <td>{canOpen(run.pieceId) && <button type="button" className="button ghost" onClick={() => onOpen(run.pieceId)}>再练</button>}</td>
               </tr>
             ))}
@@ -1290,10 +1296,22 @@ function HistoryPanel({ runs, trainRuns, canOpen, onOpen }: { runs: RunRecord[];
   )
 }
 
+/** Timing summary cell for saved runs across rhythm and free-tempo modes. */
+function runTiming(run: RunRecord): string {
+  if (run.mode === 'free') {
+    const parts = [
+      run.fluency == null ? null : `连贯 ${Math.round(run.fluency * 100)}%`,
+      run.stability == null ? null : `稳定 ${Math.round(run.stability * 100)}%`,
+    ].filter(Boolean)
+    return parts.length === 0 ? '—' : parts.join(' · ')
+  }
+  return run.meanOffsetMs == null ? '—' : `${Math.round(run.meanOffsetMs)} ms`
+}
+
 /** Tempo, hand and bars of a saved run. Older runs did not record them and show a dash. */
 function runSetup(run: RunRecord): string {
   const parts = [
-    run.bpm == null ? null : `${run.bpm}`,
+    run.bpm == null ? null : run.mode === 'free' ? `约 ${run.bpm} BPM` : `${run.bpm}`,
     run.hands == null ? null : run.hands === 'both' ? '双手' : run.hands === 'R' ? '右手' : '左手',
     run.measures == null ? null : run.measures.start === run.measures.end ? `第 ${run.measures.start} 小节` : `${run.measures.start}–${run.measures.end} 小节`,
   ].filter(Boolean)

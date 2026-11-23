@@ -1,5 +1,6 @@
 import { isOnTime } from '../judge/judge'
 import { BEGINNER_TOLERANCE, type Judgement, type ScoreNote } from '../judge/types'
+import type { FreeTempoReport } from './freeTempo'
 
 export interface MeasureReport {
   measure: number
@@ -26,6 +27,8 @@ export interface RunSummary {
   perfects: number
   timedHits: number
   errorsPerMeasure: MeasureReport[]
+  /** Present on free-tempo runs: inferred self-paced BPM, fluency, and rhythm stability. */
+  freeTempo?: FreeTempoReport
 }
 
 function mean(values: number[]): number | null {

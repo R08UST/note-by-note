@@ -1,1 +1,1 @@
-export type PracticeMode = 'wait' | 'rhythm'
+export type PracticeMode = 'wait' | 'free' | 'rhythm'
