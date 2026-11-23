@@ -1,11 +1,24 @@
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 
+/** Optional marks the player may leave out. A grace note is optional in rhythm mode but waited for here. */
+function isFree(note: ScoreNote): boolean {
+  return Boolean(note.optional) && !note.fromGrace
+}
+
 function groupByOnset(notes: ScoreNote[]): ScoreNote[][] {
-  const sorted = [...notes].sort((a, b) => a.beat - b.beat || a.pitch - b.pitch || a.id.localeCompare(b.id))
+  // Sort by anchorBeat first so a grace note always stays in front of its written note
+  // and never slips ahead of a fast subdivision at the end of the previous measure.
+  const sorted = [...notes].sort(
+    (a, b) =>
+      (a.anchorBeat ?? a.beat) - (b.anchorBeat ?? b.beat) ||
+      a.beat - b.beat ||
+      a.pitch - b.pitch ||
+      a.id.localeCompare(b.id),
+  )
   const groups: ScoreNote[][] = []
   for (const note of sorted) {
     const last = groups[groups.length - 1]
-    if (!last || Math.abs(note.beat - last[0].beat) > 1e-3) groups.push([note])
+    if (!last || Math.abs(note.beat - last[0].beat) > 1e-3 || note.measure !== last[0].measure) groups.push([note])
     else last.push(note)
   }
   return groups
@@ -39,6 +52,8 @@ export interface WaitModeOptions {
  */
 export class WaitMode {
   private readonly groups: ScoreNote[][]
+  /** Optional ornament and tremolo strikes accepted out of turn without blocking the cursor. */
+  private readonly optionalMarks: ScoreNote[]
   private readonly resetOnError: boolean
   private readonly measureStart: number[]
   private index = 0
@@ -48,12 +63,16 @@ export class WaitMode {
   private resetIds: string[] = []
 
   constructor(notes: ScoreNote[], options: WaitModeOptions = {}) {
-    this.groups = groupByOnset(notes)
+    const playable: ScoreNote[] = []
+    const optional: ScoreNote[] = []
+    for (const note of notes) {
+      if (isFree(note)) optional.push(note)
+      else playable.push(note)
+    }
+    this.groups = groupByOnset(playable)
+    this.optionalMarks = optional.sort((a, b) => a.beat - b.beat || a.pitch - b.pitch || a.id.localeCompare(b.id))
     this.resetOnError = options.resetOnError ?? false
     this.measureStart = measureStarts(this.groups)
-    // A score can open on a printed mark the player may leave out. Those attacks are
-    // done before the player touches a key, so the line must not start on one.
-    this.advancePastFinished()
   }
 
   get judgements(): readonly Judgement[] {
@@ -85,18 +104,13 @@ export class WaitMode {
     return group.filter((note) => !this.hit.has(note.id))
   }
 
-  /** Optional marks the player may leave out. A grace note is optional in rhythm mode but waited for here. */
-  private isFree(note: ScoreNote): boolean {
-    return Boolean(note.optional) && !note.fromGrace
-  }
-
   /**
-   * The group is finished once every required note is hit. A mark a printed note
-   * added is optional: hitting it counts, but the cursor does not wait for it. A
-   * grace note is the exception: it is a notehead of its own, so the cursor waits.
+   * The group is finished once every note in it is hit. Optional ornament strikes
+   * live outside `groups`, so every entry here is a written note or grace note that
+   * the cursor waits for.
    */
   private groupDone(group: ScoreNote[]): boolean {
-    return group.every((note) => this.isFree(note) || this.hit.has(note.id))
+    return group.every((note) => this.hit.has(note.id))
   }
 
   push(event: PlayedEvent): Judgement[] {
@@ -159,13 +173,7 @@ export class WaitMode {
    * notehead in its own order.
    */
   private matchMark(pitch: number): ScoreNote | undefined {
-    for (const group of this.groups) {
-      const found = group.find(
-        (note) => note.optional && !note.fromGrace && !this.hit.has(note.id) && note.pitch === pitch,
-      )
-      if (found) return found
-    }
-    return undefined
+    return this.optionalMarks.find((note) => !this.hit.has(note.id) && note.pitch === pitch)
   }
 
   /** Step forward over every group whose required notes are all hit. */
@@ -190,12 +198,6 @@ export class WaitMode {
     // attack to replay and stepping back would skip a group for nothing.
     if (this.index > 0 && current?.every((note) => !this.hit.has(note.id))) {
       this.index -= 1
-      // Optional marks the player may leave out are not attacks to land on.
-      while (this.index > 0) {
-        const group = this.groups[this.index]
-        if (!group.every((note) => !this.hit.has(note.id) && this.isFree(note))) break
-        this.index -= 1
-      }
     }
     const group = this.groups[this.index]
     if (!group) return
@@ -218,6 +220,25 @@ export class WaitMode {
     for (let group = start; group <= this.index; group += 1) {
       for (const note of this.groups[group]) {
         if (this.hit.delete(note.id)) ids.add(note.id)
+      }
+    }
+    const currentMeasure = this.groups[start]?.[0]?.measure
+    if (currentMeasure != null) {
+      const firstNote = this.groups[start][0]
+      const firstBeat = firstNote.anchorBeat ?? firstNote.beat
+      let nextGroup = start + 1
+      while (nextGroup < this.groups.length && this.measureStart[nextGroup] === start) nextGroup += 1
+      const nextNote = this.groups[nextGroup]?.[0]
+      const nextBeat = nextNote ? (nextNote.anchorBeat ?? nextNote.beat) : Number.POSITIVE_INFINITY
+      for (const note of this.optionalMarks) {
+        if (
+          note.measure === currentMeasure &&
+          note.beat >= firstBeat - 0.5 &&
+          note.beat < nextBeat &&
+          this.hit.delete(note.id)
+        ) {
+          ids.add(note.id)
+        }
       }
     }
     if (ids.size === 0 && start === this.index) return

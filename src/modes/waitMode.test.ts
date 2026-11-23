@@ -302,4 +302,92 @@ describe('WaitMode with printed ornaments', () => {
     expect(engine.push(on(60))[0]).toMatchObject({ noteId: 't', result: 'hit' })
     expect(engine.done()).toBe(true)
   })
+
+  it('rewinds to the first written note of a measure that opens on a mordent, never to its lead-in', () => {
+    const marked = markNotes(
+      [
+        { ...base, id: 'm1a', pitch: 60, beat: 0, measure: 1 },
+        { ...base, id: 'm1b', pitch: 62, beat: 3.5, measure: 1 },
+        {
+          ...base,
+          id: 'm2a',
+          pitch: 64,
+          beat: 4,
+          measure: 2,
+          ornament: { kind: 'inverted-mordent', upper: 65, lower: 62 },
+        },
+        { ...base, id: 'm2b', pitch: 67, beat: 5, measure: 2 },
+      ],
+      true,
+    )
+    const engine = new WaitMode(marked, { resetOnError: true })
+    engine.push(on(60))
+    engine.push(on(62))
+    expect(engine.cursorBeat()).toBe(4)
+    // A wrong note on the first attack of measure 2 must keep the line on beat 4,
+    // not fall back onto the mordent's 3.8 lead-in (which maps to beat 3.5 on the sheet).
+    expect(engine.push(on(70))[0]).toEqual({ pitch: 70, result: 'wrong', measure: 2 })
+    expect(engine.cursorBeat()).toBe(4)
+    expect(engine.currentNotes().map((item) => item.id)).toEqual(['m2a'])
+    // Playing the lead-in and first note, then slipping on beat 5, rewinds cleanly to beat 4.
+    expect(engine.push(on(65))[0]).toMatchObject({ result: 'hit' })
+    expect(engine.push(on(64))[0]).toMatchObject({ noteId: 'm2a', result: 'hit' })
+    expect(engine.cursorBeat()).toBe(5)
+    expect(engine.push(on(70))[0]).toEqual({ pitch: 70, result: 'wrong', measure: 2 })
+    expect(engine.cursorBeat()).toBe(4)
+    expect(engine.currentNotes().map((item) => item.id)).toEqual(['m2a'])
+    expect(engine.consumeReset()).toContain('m2a')
+  })
+
+  it('keeps the previous measure intact when the next measure opens on a turn before its last 16th', () => {
+    const marked = markNotes(
+      [
+        { ...base, id: 'm1a', pitch: 60, beat: 0, measure: 1 },
+        { ...base, id: 'm1b', pitch: 62, beat: 3.75, measure: 1 },
+        {
+          ...base,
+          id: 'm2a',
+          pitch: 64,
+          beat: 4,
+          measure: 2,
+          ornament: { kind: 'turn', upper: 65, lower: 62 },
+        },
+      ],
+      true,
+    )
+    const engine = new WaitMode(marked, { resetOnError: true })
+    engine.push(on(60))
+    expect(engine.cursorBeat()).toBe(3.75)
+    // Measure 2's turn starts at beat 3.7, ahead of measure 1's last 16th at 3.75,
+    // yet an error on beat 3.75 must still rewind all the way to beat 0 of measure 1.
+    engine.push(on(70))
+    expect(engine.cursorBeat()).toBe(0)
+    expect(engine.currentNotes().map((item) => item.id)).toEqual(['m1a'])
+  })
+
+  it('keeps a measure-opening grace note in its own measure even after a 64th note', () => {
+    const marked = markNotes(
+      [
+        { ...base, id: 'm1a', pitch: 60, beat: 0, measure: 1 },
+        { ...base, id: 'm1b', pitch: 62, beat: 3.9375, duration: 0.0625, measure: 1 },
+        { ...base, id: 'm2a', pitch: 64, beat: 4, measure: 2, graces: [61, 62, 63] },
+        { ...base, id: 'm2b', pitch: 67, beat: 5, measure: 2 },
+      ],
+      false,
+      true,
+    )
+    const engine = new WaitMode(marked, { resetOnError: true })
+    engine.push(on(60))
+    expect(engine.cursorBeat()).toBe(3.9375)
+    engine.push(on(62))
+    expect(engine.cursorBeat()).toBe(4)
+    engine.push(on(61))
+    engine.push(on(62))
+    engine.push(on(63))
+    engine.push(on(64))
+    expect(engine.cursorBeat()).toBe(5)
+    engine.push(on(70))
+    expect(engine.cursorBeat()).toBe(4)
+    expect(engine.currentNotes().map((item) => item.id)).toEqual(['m2a~m0'])
+  })
 })

@@ -289,9 +289,12 @@ export function ScoreView({ xml, notes, ref, span, onReady, onError, onMeasure, 
             entries.set(id, { gnotes, hand: note?.hand ?? 'R', beat, ...(note?.anchorBeat != null && { anchorBeat: note.anchorBeat }) })
             const primary = collected.graphics.get(keys[0])
             if (!primary) continue
-            beatByHead.set(primary, beat)
+            // A grace head is drawn in its written note's column, so the step keeps the
+            // written beat rather than the lead-in beat that sits ahead of the barline.
+            const columnBeat = note?.anchorBeat ?? beat
+            beatByHead.set(primary, columnBeat)
             const source = (primary as { sourceNote?: object }).sourceNote
-            if (source) beatByHead.set(source, beat)
+            if (source) beatByHead.set(source, columnBeat)
           }
           entriesRef.current = entries
           // Grace heads share their written note's column, so keep where each one is drawn
