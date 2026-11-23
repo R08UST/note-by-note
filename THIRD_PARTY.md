@@ -56,3 +56,7 @@ Not imported from that shortlist: duplicate editions Bach 983, 493, and 1015, an
 The 16 remaining pieces are Noctave's own engravings (15) plus one score a user supplied. Licenses are per piece: 730 are `CC0-1.0` or `PDM-1.0`, and 146 are `CC BY 2.5`, `CC BY 3.0`, `CC BY-SA 2.5`, `CC BY-SA 3.0`, or `CC BY-SA 4.0`. Those 146 need the composer, the upstream collection, and the license kept with any copy, and their cards say so. Share-alike applies to the derived MusicXML files.
 
 Scores longer than 400 measures were left out (27 in all, mostly complete symphonies arranged for solo piano, up to 1558 measures), because a single practice session cannot hold them. Duplicate engravings of a piece already in the library were skipped too.
+
+`public/pieces/pdmx.json` holds scores whose MusicXML comes from the [Vivace Music](https://vivace-music.org/) library. Vivace republishes public-domain MuseScore transcriptions taken from [PDMX](https://github.com/pnlong/PDMX) under the license each page states, and serves the MusicXML itself.
+
+- George Frideric Handel, Passacaglia in G minor, HWV 432, piano arrangement by the MuseScore user pental (`https://musescore.com/user/4887176/scores/5912365`). CC0 1.0, via PDMX, typeset for Vivace Music. The composition is in the public domain. The file is used as Vivace ships it: `https://vivace-music.org/library/passacaglia-in-g-minor-hwv-432-handel-piano/musicxml/passacaglia-in-g-minor-hwv-432-handel.mxl`.

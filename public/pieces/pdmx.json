@@ -1,0 +1,17 @@
+[
+  {
+    "id": "pdmx-handel-passacaglia-hwv-432",
+    "level": "L4",
+    "title": "Passacaglia in G minor, HWV 432",
+    "title_zh": "G 小调帕萨卡利亚，HWV 432",
+    "composer": "George Frideric Handel",
+    "license": "CC0-1.0",
+    "attribution": "公有领域原作（HWV 432 第六乐章）。MuseScore 用户 pental 的钢琴改编，CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
+    "source_url": "https://vivace-music.org/sheets/passacaglia-in-g-minor-hwv-432-handel-piano.html",
+    "file": "pieces/pdmx-handel-passacaglia-hwv-432.mxl",
+    "hands": "two",
+    "measures": 65,
+    "key": "B♭",
+    "time": "4/4"
+  }
+]

@@ -220,3 +220,27 @@ const withNoctave = JSON.parse(readFileSync(path.join(root, 'public/pieces/manif
 withNoctave.pieces = withNoctave.pieces.filter((piece) => !String(piece.id).startsWith('noc-')).concat(noctave)
 writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withNoctave))
 console.log(`noctave kept ${noctave.length}`)
+
+const pdmxPath = path.join(root, 'public/pieces/pdmx.json')
+const pdmx = JSON.parse(readFileSync(pdmxPath, 'utf8'))
+const pdmxJobs = pdmx.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
+const pdmxList = path.join(tmpdir(), 'library-pdmx.json')
+writeFileSync(pdmxList, JSON.stringify(pdmxJobs))
+const pdmxChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), pdmxList], {
+  encoding: 'utf8',
+  maxBuffer: 32 * 1024 * 1024,
+})
+if (pdmxChild.status !== 0) {
+  console.error(pdmxChild.stderr)
+  throw new Error('pdmx audit failed')
+}
+const pdmxChecked = new Map(JSON.parse(pdmxChild.stdout).map((item) => [item.id, item]))
+const pdmxFailed = pdmx.filter((piece) => pdmxChecked.get(piece.id)?.error || pdmxChecked.get(piece.id)?.notes < 1)
+if (pdmxFailed.length) {
+  console.log(JSON.stringify(pdmxFailed.map((piece) => ({ id: piece.id, error: pdmxChecked.get(piece.id)?.error }))))
+  throw new Error('a pdmx piece did not parse')
+}
+const withPdmx = JSON.parse(readFileSync(path.join(root, 'public/pieces/manifest.json'), 'utf8'))
+withPdmx.pieces = withPdmx.pieces.filter((piece) => !String(piece.id).startsWith('pdmx-')).concat(pdmx)
+writeFileSync(path.join(root, 'public/pieces/manifest.json'), JSON.stringify(withPdmx))
+console.log(`pdmx kept ${pdmx.length}`)
