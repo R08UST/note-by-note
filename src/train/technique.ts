@@ -1,4 +1,5 @@
-import type { Hand } from '../judge/types'
+import type { Hand, ScoreNote } from '../judge/types'
+import { noteName } from '../score/pitch'
 import { materialize, measureTicks, TICKS, type WrittenNote, type WrittenScore } from './musicXml'
 
 /** Early-grade finger work, scales and chords. Each level cites the syllabus line it follows. */
@@ -21,6 +22,9 @@ export interface TechBuilt {
   time: { beats: number; beatType: number }
   low: number
   high: number
+  fifths: number
+  /** Written spelling per note id, so a drill cut from this one keeps its sharps and flats. */
+  spell: Record<string, { step: string; alter: number } | undefined>
 }
 
 type Mode = 'major' | 'natural' | 'harmonic'
@@ -297,11 +301,19 @@ function toScore(title: string, fifths: number, hits: Hit[], clef: WrittenScore[
   const made = materialize(score)
   const pitches = made.notes.map((note) => note.pitch)
   if (pitches.length === 0) pitches.push(60)
+  const spelled = new Map<string, WrittenNote['spelling']>()
+  hits.forEach((hit, index) => {
+    if (hit.pitch != null) spelled.set(`${hit.hand}:${(slotStart.get(hit.at) ?? 0) / TICKS}:${hit.pitch}`, notes[index]?.spelling)
+  })
+  const spell: TechBuilt['spell'] = {}
+  for (const note of made.notes) spell[note.id] = spelled.get(`${note.hand}:${note.beat}:${note.pitch}`)
   return {
     id: title,
     title,
     xml: made.xml,
     notes: made.notes,
+    fifths,
+    spell,
     time: TIME,
     low: Math.min(...pitches),
     high: Math.max(...pitches),
@@ -638,4 +650,58 @@ export function scaleShape(keyName: 'C' | 'F', octaves: 1 | 2, hand: Hand): { pi
   const key = keyName === 'C' ? C : F
   const hits = scaleHits(key, octaves, hand, key.tonic).filter((hit) => hit.hand === hand && hit.pitch != null && hit.finger != null)
   return { pitches: hits.map((hit) => hit.pitch as number), fingers: hits.map((hit) => hit.finger as number) }
+}
+
+/** A short drill cut from `item`: the notes of `path` in one hand, as eighths, ending on a quarter. */
+function spotItem(item: TechBuilt, path: ScoreNote[], title: string, id: string): TechBuilt {
+  const hand = path[0]?.hand ?? 'R'
+  const hits: Hit[] = path.map((note, at) => ({
+    pitch: note.pitch,
+    hand,
+    finger: note.finger,
+    at,
+    letter: null,
+    key: C,
+    spelling: item.spell[note.id],
+    ticks: at === path.length - 1 ? TICKS : TICKS / 2,
+  }))
+  const built = toScore(title, item.fifths, hits, hand === 'L' ? 'bass' : 'treble')
+  built.id = id
+  return built
+}
+
+function handLine(item: TechBuilt, hand: Hand): ScoreNote[] {
+  return item.notes.filter((note) => note.hand === hand).sort((a, b) => a.beat - b.beat)
+}
+
+/** One thumb crossing with a note either side, there and back four times. */
+export function crossingSpot(item: TechBuilt, aId: string, bId: string): TechBuilt | null {
+  const a = item.notes.find((note) => note.id === aId)
+  if (!a) return null
+  const line = handLine(item, a.hand)
+  const ia = line.findIndex((note) => note.id === aId)
+  if (ia < 0 || line[ia + 1]?.id !== bId) return null
+  const window = line.slice(Math.max(0, ia - 1), ia + 3)
+  const back = window.slice(1, -1).reverse()
+  const first = window[0]
+  if (!first) return null
+  const path = [0, 1, 2, 3].flatMap(() => [...window, ...back]).concat(first)
+  const b = line[ia + 1] as ScoreNote
+  return spotItem(item, path, `穿指单练 ${noteName(a.pitch)}→${noteName(b.pitch)}`, `${item.id}~cross-${a.pitch}-${b.pitch}`)
+}
+
+/** The first place in `item` where `finger` steps to a neighbouring finger, alternated eight times. */
+export function fingerSpot(item: TechBuilt, hand: Hand, finger: number): TechBuilt | null {
+  const line = handLine(item, hand)
+  for (let index = 0; index + 1 < line.length; index += 1) {
+    const x = line[index] as ScoreNote
+    const y = line[index + 1] as ScoreNote
+    if (x.finger == null || y.finger == null || x.beat === y.beat || x.pitch === y.pitch) continue
+    if (Math.abs(x.finger - y.finger) !== 1 || (x.finger !== finger && y.finger !== finger)) continue
+    const [weak, other] = x.finger === finger ? [x, y] : [y, x]
+    const path = [0, 1, 2, 3, 4, 5, 6, 7].flatMap(() => [weak, other]).concat(weak)
+    const name = hand === 'R' ? '右手' : '左手'
+    return spotItem(item, path, `${name} ${finger}-${other.finger} 指交替`, `${item.id}~finger-${hand}${finger}-${other.finger}`)
+  }
+  return null
 }

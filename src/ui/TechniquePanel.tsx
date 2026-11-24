@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Judgement, PlayedEvent } from '../judge/types'
 import { noteName } from '../score/pitch'
 import { listTrainRuns, saveTrainRun, type TrainRunRecord } from '../storage/db'
 import { MASTERY_TAKES, PITCH_GATE, TIME_GATE, levelStars, qualifyingCount, unlockedThrough, type TakeScore } from '../train/mastery'
 import { EMPTY_STREAK, LADDER_RUN, LADDER_STEP, bestCleanBpm, nextBpm, startBpm, type LadderStreak } from '../train/ladder'
-import { techLevels, type TechKind } from '../train/technique'
-import { analyzeTouch, touchLine, type TouchReport } from '../train/touch'
+import { DAILY_TRIES } from '../train/daily'
+import { crossingSpot, fingerSpot, techLevels, type TechBuilt, type TechKind } from '../train/technique'
+import { analyzeTouch, touchLine, unevenTrend, type TouchReport } from '../train/touch'
 import { ContinueBar } from './ContinueBar'
 import { DemoBar } from './DemoBar'
 import type { ScoreHandle } from './ScoreView'
@@ -23,12 +24,19 @@ interface TechniquePanelProps {
   onRange: (low: number, high: number) => void
   continuous: boolean
   onContinuous: (value: boolean) => void
+  /** Set while the 今日基本功 warm-up runs: which item to open and how to move on. */
+  routine?: { level: number; index: number; step: number; total: number; onFinish: () => void }
 }
 
-export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved, onRange, continuous, onContinuous }: TechniquePanelProps) {
+export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved, onRange, continuous, onContinuous, routine }: TechniquePanelProps) {
   const levels = techLevels(kind)
-  const [level, setLevel] = useState(1)
-  const [index, setIndex] = useState(0)
+  const [place] = useState(() => routine ?? loadPlace(kind))
+  /** The warm-up step is done and the next Enter or countdown moves to the next kind. */
+  const routineDone = useRef(false)
+  const [level, setLevel] = useState(place.level)
+  const [index, setIndex] = useState(place.index)
+  const [spot, setSpot] = useState<TechBuilt | null>(null)
+  useEffect(() => savePlace(kind, level, index), [kind, level, index])
   const [bpm, setBpm] = useState(66)
   const [timing, setTiming] = useState<'wait' | 'strict'>('strict')
   const [metronome, setMetronome] = useState(true)
@@ -86,7 +94,7 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
   const unlocked = unlockedThrough(takes, levels.length)
   const spec = levels[Math.min(level, unlocked) - 1] ?? levels[0]
   const item = spec?.items[index] ?? spec?.items[0]
-  const exercise = useMemo(() => item, [item])
+  const exercise = spot ?? item
   const kindRuns = runs.filter((run) => run.mode === kind)
   const best = bestCleanBpm(kindRuns, exercise?.id)
 
@@ -127,7 +135,8 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
       const accuracy = summary.expected === 0 ? 0 : summary.hits / summary.expected
       const retry = retrying.current
       retrying.current = false
-      const firstAttempt = !retry && !attempted.current.has(exercise.id)
+      // A spot drill is a few notes cut from an item, so it never counts toward passing a level.
+      const firstAttempt = !spot && !retry && !attempted.current.has(exercise.id)
       attempted.current.add(exercise.id)
       const clean = accuracy >= PITCH_GATE && (timing === 'wait' || onTime >= TIME_GATE)
       void saveTrainRun({
@@ -165,7 +174,8 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
         const take: TakeScore = { level: spec.id, pitchAccuracy: accuracy, onTimeRate: timing === 'wait' ? 1 : onTime, scoredTiming: timing === 'strict', itemId: exercise.id, firstAttempt: true }
         if (qualifyingCount(takes, spec.id) < MASTERY_TAKES && qualifyingCount([...takes, take], spec.id) >= MASTERY_TAKES) setOffer(true)
       }
-      if (loopRef.current || continuousRef.current) setHold(3)
+      if (routine && !spot) routineDone.current = clean || session.done + 1 >= DAILY_TRIES
+      if (loopRef.current || continuousRef.current || spot || routine) setHold(3)
     },
   })
 
@@ -180,7 +190,11 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
     setReport('')
     setHold(null)
     setOffer(false)
-    if (loopRef.current) {
+    if (routine && !spot && (routineDone.current || !auto)) {
+      routine.onFinish()
+      return
+    }
+    if (loopRef.current || spot || routine) {
       if (auto) void startRef.current()
       return
     }
@@ -232,14 +246,18 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
   const noun = NOUN[kind]
   const busy = drill.status === 'playing' || drill.status === 'countin'
   const lastBeat = Math.max(...exercise.notes.map((note) => note.beat + note.duration))
-  const pickLevel = (next: number) => { setLevel(next); setIndex(0); setReport(''); setHold(null) }
+  const pickLevel = (next: number) => { setSpot(null); setLevel(next); setIndex(0); setReport(''); setHold(null) }
+  const openSpot = (next: TechBuilt | null) => { if (next) { setSpot(next); setReport(''); setHold(null) } }
+  const crossSpot = !spot && item && touch?.crossings?.worstIds ? crossingSpot(item, ...touch.crossings.worstIds) : null
+  const weakSpot = !spot && item && touch?.weakFinger ? fingerSpot(item, touch.weakFinger.hand, touch.weakFinger.finger) : null
+  const trend = unevenTrend(kindRuns, exercise.id)
 
   return (
     <div className="train-pane">
       <LevelRail count={levels.length} prefix={PREFIX[kind]} value={spec.id} unlocked={unlocked} stars={(id) => levelStars(takes, id)} onChange={pickLevel} />
       <div className="recent" aria-label="这一级的条目">
         {spec.items.map((entry, entryIndex) => (
-          <button key={entry.id} type="button" aria-pressed={entry.id === exercise.id} onClick={() => { setIndex(entryIndex); setReport(''); setHold(null) }}>
+          <button key={entry.id} type="button" aria-pressed={entry.id === item?.id} onClick={() => { setSpot(null); setIndex(entryIndex); setReport(''); setHold(null) }}>
             {entry.title}
           </button>
         ))}
@@ -261,6 +279,17 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
           <span className="device-note">{best == null ? '这一条还没有干净的跟拍记录' : `这一条最快干净 ${best}`}</span>
         </details>
       </div>
+      {routine && (
+        <p className="device-note">
+          今日基本功 第 {routine.step}/{routine.total} 条：弹干净一遍，或弹满 {DAILY_TRIES} 遍，就自动换下一条。按「下一题」可以直接跳过。
+        </p>
+      )}
+      {spot && (
+        <p className="device-note">
+          正在单练「{spot.title}」，弹完会自动再来一遍。{' '}
+          <button type="button" onClick={() => { setSpot(null); setReport(''); setHold(null) }}>回到整条</button>
+        </p>
+      )}
       <DrillHint status={drill.status} timing={timing} countBeat={drill.countBeat} />
       <div className="score-frame train-score">
         <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
@@ -274,6 +303,13 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
           {touch.tips.map((tip) => <li key={tip}>{tip}</li>)}
         </ul>
       )}
+      {report && (crossSpot || weakSpot) && (
+        <div className="recent" aria-label="单练">
+          {crossSpot && <button type="button" onClick={() => openSpot(crossSpot)}>单练这个穿指</button>}
+          {weakSpot && <button type="button" onClick={() => openSpot(weakSpot)}>单练{weakSpot.title}</button>}
+        </div>
+      )}
+      {report && trend.length >= 2 && <p className="device-note">这一条最近的间隔波动：{trend.map((value) => `${value}%`).join(' → ')}</p>}
       {report && ladderNote && <p className="device-note">{ladderNote}</p>}
       <ContinueBar
         continuous={continuous}
@@ -320,7 +356,27 @@ export function TechniquePanel({ kind, active, latencyOffsetMs, onBind, onSaved,
   )
 }
 
-const NOUN: Record<TechKind, string> = { scale: '音阶', chord: '和弦', finger: '指法' }
+/** Last level and item per kind, so the panel reopens where the player left off. Lost storage just starts at level 1. */
+function loadPlace(kind: TechKind): { level: number; index: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`technique-place-${kind}`) ?? 'null') as { level?: unknown; index?: unknown } | null
+    const level = typeof saved?.level === 'number' ? saved.level : 1
+    const index = typeof saved?.index === 'number' ? saved.index : 0
+    return { level, index }
+  } catch {
+    return { level: 1, index: 0 }
+  }
+}
+
+function savePlace(kind: TechKind, level: number, index: number): void {
+  try {
+    localStorage.setItem(`technique-place-${kind}`, JSON.stringify({ level, index }))
+  } catch {
+    // Private windows can refuse storage; the panel still works.
+  }
+}
+
+const NOUN: Record<TechKind, string> ={ scale: '音阶', chord: '和弦', finger: '指法' }
 const PREFIX: Record<TechKind, string> = { scale: '音', chord: '和', finger: '指' }
 const RULE: Record<TechKind, string> = {
   scale: '跟拍模式按拍子看每个音准不准、匀不匀。',

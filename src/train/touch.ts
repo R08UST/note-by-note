@@ -24,6 +24,8 @@ export interface CrossingReport {
   velocityDelta: number
   /** The crossing that arrived latest, such as "E4→F4". */
   worst: string | null
+  /** Note ids of that crossing, so the panel can build a drill on just this spot. */
+  worstIds: [string, string] | null
 }
 
 export interface FingerLoudness {
@@ -183,7 +185,7 @@ export function analyzeTouch(notes: readonly ScoreNote[], played: readonly Touch
   const plain = mean(plainRatios) ?? 1
   const crossIndexes = all.map((step, index) => (step.crossing ? index : -1)).filter((index) => index >= 0)
   if (pulse && crossIndexes.length > 0 && plainRatios.length > 0) {
-    let worst: { label: string; extra: number } | null = null
+    let worst: { label: string; ids: [string, string]; extra: number } | null = null
     const extras: number[] = []
     const deltas: number[] = []
     for (const index of crossIndexes) {
@@ -193,13 +195,14 @@ export function analyzeTouch(notes: readonly ScoreNote[], played: readonly Touch
       const extra = (ratio - plain) * pulse * step.beats
       extras.push(extra)
       if (hasVelocity) deltas.push(step.tb.velocity - (handMean.get(step.hand) ?? step.tb.velocity))
-      if (!worst || extra > worst.extra) worst = { label: `${noteName(step.a.pitch)}→${noteName(step.b.pitch)}`, extra }
+      if (!worst || extra > worst.extra) worst = { label: `${noteName(step.a.pitch)}→${noteName(step.b.pitch)}`, ids: [step.a.id, step.b.id], extra }
     }
     crossings = {
       count: extras.length,
       extraMs: mean(extras) ?? 0,
       velocityDelta: mean(deltas) ?? 0,
       worst: worst && worst.extra > 0 ? worst.label : null,
+      worstIds: worst && worst.extra > 0 ? worst.ids : null,
     }
   }
 
@@ -275,4 +278,13 @@ export function touchLine(report: TouchReport): string {
   }
   if (report.joins > 0) parts.push(`连奏断开 ${report.detached}/${report.joins}`)
   return parts.join(' · ')
+}
+
+/** Interval spread of one item's last few takes, oldest first, rounded to whole percent. */
+export function unevenTrend(runs: readonly { itemId?: string; createdAt: number; unevenPct?: number | null }[], itemId: string, count = 5): number[] {
+  return runs
+    .filter((run) => run.itemId === itemId && run.unevenPct != null)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .slice(-count)
+    .map((run) => Math.round(run.unevenPct ?? 0))
 }
