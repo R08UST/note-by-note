@@ -578,7 +578,7 @@ export function parseMusicXml(xml: string): ParsedScore {
     const openPedals = new Map<string, PedalSpan>()
     openByPart.push({ wedges: openWedges, pedals: openPedals })
     /** Grace pitches waiting for the next real note, keyed by staff and voice. */
-    const pendingGraces = new Map<string, number[]>()
+    const pendingGraces = new Map<string, { pitches: number[]; steps: number[] }>()
     /** Tremolo marks waiting to be paired with the note on the other side of the shake. */
     const tremoloMarks: { note: ScoreNote; strokes: number; type: string }[] = []
     /** Notes a `<arpeggiate>` printed on, grouped into rolls once the part is read. */
@@ -673,8 +673,11 @@ export function parseMusicXml(xml: string): ParsedScore {
           const gracePitch = readPitch(element)
           if (gracePitch == null) continue
           const key = `${staff ?? partIndex}|${voice}`
-          const list = pendingGraces.get(key) ?? []
-          list.push(gracePitch)
+          const list = pendingGraces.get(key) ?? { pitches: [], steps: [] }
+          // A grace with <chord/> sounds together with the grace before it, so it shares that strike.
+          const last = list.steps[list.steps.length - 1]
+          list.steps.push(last == null ? 0 : hasChild(element, 'chord') ? last : last + 1)
+          list.pitches.push(gracePitch)
           pendingGraces.set(key, list)
           continue
         }
@@ -758,7 +761,10 @@ export function parseMusicXml(xml: string): ParsedScore {
         if (slurId != null) note.slur = slurId
         if (readFermata(element)) note.fermata = true
         if (readBreath(element)) note.breath = true
-        if (graces && graces.length > 0 && !chord) note.graces = [...graces]
+        if (graces && graces.pitches.length > 0 && !chord) {
+          note.graces = [...graces.pitches]
+          if (graces.steps.some((step, index) => step !== index)) note.graceSteps = [...graces.steps]
+        }
         const ornament = readOrnament(element, pitch, fifths)
         if (ornament) note.ornament = ornament
         // A single note can carry its own loudness, which outranks the dynamic in force.

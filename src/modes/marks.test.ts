@@ -10,6 +10,15 @@ function note(partial: Partial<ScoreNote> & Pick<ScoreNote, 'id' | 'pitch' | 'be
 }
 
 describe('markNotes', () => {
+  it('lets wait mode take the keys of a grace chord in any order', () => {
+    const notes = [note({ id: 'a', pitch: 72, beat: 1, graces: [60, 64], graceSteps: [0, 0] })]
+    const wait = new WaitMode(markNotes(notes, false))
+    expect(wait.push({ type: 'on', pitch: 64, velocity: 80, timeMs: 0 })[0]?.result).toBe('hit')
+    expect(wait.push({ type: 'on', pitch: 60, velocity: 80, timeMs: 1 })[0]?.result).toBe('hit')
+    expect(wait.push({ type: 'on', pitch: 72, velocity: 80, timeMs: 2 })[0]?.result).toBe('hit')
+    expect(wait.done()).toBe(true)
+  })
+
   it('leaves ornaments and tremolos out when honor is off, while keeping printed grace notes by default', () => {
     const notes = [note({ id: 'a', pitch: 60, beat: 1, graces: [59], ornament: { kind: 'trill', upper: 62, lower: 58 } })]
     const marked = markNotes(notes, false)

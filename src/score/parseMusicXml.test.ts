@@ -348,6 +348,16 @@ describe('printed expression', () => {
     const parsed = parseMusicXml(score(measure(1, attributes + grace('D') + grace('E') + pitched('F', 4, 1))))
     expect(parsed.notes).toHaveLength(1)
     expect(parsed.notes[0]).toMatchObject({ pitch: 65, beat: 0, graces: [62, 64] })
+    expect(parsed.notes[0].graceSteps).toBeUndefined()
+  })
+
+  it('keeps a grace chord as one strike', () => {
+    const grace = (step: string, chord = '') =>
+      `<note><grace/>${chord}<pitch><step>${step}</step><octave>4</octave></pitch><type>16th</type></note>`
+    const parsed = parseMusicXml(
+      score(measure(1, attributes + grace('C') + grace('E', '<chord/>') + grace('G') + pitched('F', 4, 1))),
+    )
+    expect(parsed.notes[0]).toMatchObject({ graces: [60, 64, 67], graceSteps: [0, 0, 1] })
   })
 
   it('reads a printed ornament with its diatonic neighbours', () => {

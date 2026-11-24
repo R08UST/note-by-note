@@ -45,6 +45,7 @@ export function markNotes(notes: readonly ScoreNote[], honor: boolean, includeGr
             : note.localBeat + extra.offset,
         ...(fromGrace && { fromGrace: true, anchorBeat: note.beat }),
         graces: undefined,
+        graceSteps: undefined,
         ornament: undefined,
         tremolo: undefined,
         arpeggio: undefined,

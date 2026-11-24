@@ -69,6 +69,8 @@ export interface ScoreNote {
   fermata?: boolean
   /** Grace notes printed just before this one, low to high. Expanded into optional `fromGrace` strikes by `markNotes`. */
   graces?: number[]
+  /** Strike index of each grace when some are printed as a grace chord. Absent when every grace is its own strike. */
+  graceSteps?: number[]
   /** Printed ornament. The demo plays it out; judging ignores it. */
   ornament?: Ornament
   /** Printed tremolo. The demo shakes it; judging ignores it. */

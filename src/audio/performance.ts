@@ -264,11 +264,14 @@ export function extrasFor(note: ScoreNote): ExtraAttack[] | undefined {
   const attacks: ExtraAttack[] = []
   const graces = note.graces ?? []
   if (graces.length > 0) {
-    const step = GRACE_LEAD / (graces.length + 1)
+    // The keys of a grace chord share one strike, so they get the same lead-in offset.
+    const steps = note.graceSteps ?? graces.map((_, index) => index)
+    const strikes = steps[steps.length - 1] + 1
+    const step = GRACE_LEAD / (strikes + 1)
     graces.forEach((pitch, index) => {
       attacks.push({
         pitch,
-        offset: -step * (graces.length - index),
+        offset: -step * (strikes - steps[index]),
         gate: Math.min(step * 0.85, GRACE_LEAD * 0.85),
         kind: 'grace',
       })
