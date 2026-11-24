@@ -87,7 +87,8 @@ describe('question bank', () => {
     expect(files.length).toBeGreaterThanOrEqual(40)
     for (const file of files) {
       const bank = JSON.parse(readFileSync(`${directory}/${file}`, 'utf8')) as { items: BankItem[] }
-      expect(bank.items.length).toBeGreaterThanOrEqual(60)
+      // S1, R2 and R3 have so few note values that their banks are kept small on purpose.
+      expect(bank.items.length).toBeGreaterThanOrEqual(['s1-', 'r2.', 'r3.'].some((small) => file.startsWith(small)) ? 40 : 60)
       expect(bank.items.length).toBeLessThanOrEqual(100)
       const keys = bank.items.map((item) => noteKeys(item.notes))
       const rhythmOnly = file.startsWith('r')
@@ -106,6 +107,31 @@ describe('question bank', () => {
         }
       }
       if (!rhythmOnly && !file.includes('-b.')) expect(bank.items.some((item) => item.origin)).toBe(true)
+    }
+  })
+})
+
+describe('serving order', () => {
+  const bar = (m: number, pitches: number[], ticks: number[]) => pitches.map((p, index) => ({ p, t: ticks[index] ?? 12, h: 'R' as const, m }))
+  const item = (id: string, notes: ReturnType<typeof bar>) => ({ id, notes })
+  const a = item('A', [...bar(1, [60, 62, 64, 62], [12, 12, 12, 12]), ...bar(2, [60, 60], [24, 24])])
+  const nearA = item('B', [...bar(1, [60, 62, 64, 62], [12, 12, 12, 12]), ...bar(2, [62, 60], [24, 24])])
+  const other = item('C', [...bar(1, [64, 60], [24, 24]), ...bar(2, [62, 64, 62, 60], [12, 12, 12, 12])])
+
+  it('serves the unseen item least like the one just played, not the next in the file', () => {
+    expect(nextItem([a, nearA, other], new Set(['A']), ['A'])?.id).toBe('C')
+  })
+
+  it('keeps file order when there is nothing to compare with', () => {
+    expect(nextItem([a, nearA, other], new Set(), [])?.id).toBe('A')
+  })
+
+  it('never lets the left hand repeat a right-hand tune at the same level', () => {
+    const directory = `${process.cwd()}/src/train/banks`
+    for (let level = 1; level <= 10; level += 1) {
+      const load = (side: string) => (JSON.parse(readFileSync(`${directory}/s${level}-${side}.json`, 'utf8')) as { items: BankItem[] }).items.map((entry) => noteKeys(entry.notes))
+      const right = load('r')
+      for (const left of load('l')) expect(right.some((keys) => tooSimilar(left, keys))).toBe(false)
     }
   })
 })

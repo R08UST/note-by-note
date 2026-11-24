@@ -5,12 +5,22 @@
  */
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ScoreNote } from '../judge/types'
 import { noteKeys, tooSimilar, type BankItem, type StoredNote } from './bank'
 import { SIGHT_LEVELS, type SightLevel } from './curriculum'
 import { cellSpans as spansOf, CONTOURS, generateRhythmLine, generateSight, type BuiltExercise } from './generate'
 
 const TARGET = 80
+/**
+ * Levels with only a handful of note values cannot fill 80 items without repeating bars,
+ * so their banks stop sooner. S1 has five possible bar rhythms on three notes; R2 and R3
+ * have four to six cells.
+ */
+const SMALL_TARGET: Record<string, number> = { S1: 40, R2: 50, R3: 50 }
+const targetFor = (name: string) => SMALL_TARGET[name] ?? TARGET
 const ROOT = new URL('../../public/pieces/', import.meta.url)
 
 interface CatalogPiece {
@@ -167,8 +177,9 @@ function excerptsFor(level: SightLevel, pieces: readonly { piece: CatalogPiece; 
   return [
     ...takeDiverse(folk.filter((item) => item.hand === 'R'), 6),
     ...takeDiverse(studies.filter((item) => item.hand === 'R'), 6),
-    ...takeDiverse(folk.filter((item) => item.hand === 'L'), 6),
-    ...takeDiverse(studies.filter((item) => item.hand === 'L'), 6),
+    // More left-hand candidates: the ones that copy a right-hand excerpt are dropped later.
+    ...takeDiverse(folk.filter((item) => item.hand === 'L'), 30),
+    ...takeDiverse(studies.filter((item) => item.hand === 'L'), 30),
   ]
 }
 
@@ -244,13 +255,13 @@ function writeBank(name: string, items: BankItem[]) {
 function parsedNotes(catalog: CatalogPiece[]): { piece: CatalogPiece; notes: ScoreNote[] }[] {
   const jobs = catalog.map((piece) => ({
     id: piece.id,
-    path: new URL(`./${piece.file.replace('pieces/', '')}`, ROOT).pathname,
+    path: fileURLToPath(new URL(`./${piece.file.replace('pieces/', '')}`, ROOT)),
   }))
   const byId = new Map<string, ScoreNote[]>()
   for (let start = 0; start < jobs.length; start += 15) {
-    const list = `/tmp/bank-notes-${start}.json`
+    const list = join(tmpdir(), `bank-notes-${start}.json`)
     writeFileSync(list, JSON.stringify(jobs.slice(start, start + 15)))
-    const child = spawnSync(process.execPath, [new URL('../../scripts/dump-notes.mjs', import.meta.url).pathname, list], {
+    const child = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/dump-notes.mjs', import.meta.url)), list], {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     })
@@ -272,11 +283,16 @@ function main() {
   const libraryCount: Record<string, number> = {}
   for (const level of SIGHT_LEVELS) {
     const library = excerptsFor(level, parsed)
+    // The left hand must not get the right hand's tunes an octave lower: hand cycling serves them back to back.
+    const rightKeys: { rhythm: string; pitches: string }[] = []
     for (const hand of ['R', 'L', 'both'] as const) {
+      const rivals = hand === 'L' ? rightKeys : []
+      const fresh = (item: BankItem) => !rivals.some((other) => tooSimilar(noteKeys(item.notes), other))
       const side = hand === 'both' ? 'b' : hand.toLowerCase()
       const kept: { item: BankItem; keys: { rhythm: string; pitches: string } }[] = []
-      const pool = hand === 'both' ? [] : library.filter((item) => item.hand === hand).slice(0, 12)
+      const pool = hand === 'both' ? [] : library.filter((item) => item.hand === hand)
       for (const excerpt of pool) {
+        if (kept.length >= 12) break
         const label = excerpt.piece.title_zh || excerpt.piece.title
         const where = excerpt.echo ? `第 ${excerpt.start} 小节，再奏一次` : `第 ${excerpt.start}–${excerpt.start + excerpt.bars - 1} 小节`
         const octave = excerpt.transposed ? '，左手低八度' : ''
@@ -289,12 +305,12 @@ function main() {
           origin: excerpt.piece.id,
           notes: storedFromScore(excerpt.notes),
         }
-        if (!accept(item, kept, false, 24)) continue
+        if (!fresh(item) || !accept(item, kept, false, 24)) continue
         kept.push({ item, keys: noteKeys(item.notes) })
       }
       const phrases = ['echo', 'return', 'through'] as const
       let steps = 0
-      while (kept.length < TARGET && steps < 6000) {
+      while (kept.length < targetFor(`S${level.id}`) && steps < 6000) {
         const contour = CONTOURS[steps % CONTOURS.length] ?? 'arch'
         const phrase = phrases[steps % phrases.length] ?? 'echo'
         try {
@@ -310,7 +326,7 @@ function main() {
             phrase,
           })
           const item = fromExercise(exercise, `S${level.id}-${hand === 'both' ? 'B' : hand}-${pad(kept.length + 1)}`, level.source)
-          if (item && accept(item, kept, false, 24)) kept.push({ item, keys: noteKeys(item.notes) })
+          if (item && fresh(item) && accept(item, kept, false, 24)) kept.push({ item, keys: noteKeys(item.notes) })
         } catch {
           // This shape did not fit the level. The next seed tries another one.
         }
@@ -320,6 +336,7 @@ function main() {
         row.item.id = `S${level.id}-${hand === 'both' ? 'B' : hand}-${pad(index + 1)}`
       })
       writeBank(`s${level.id}-${side}`, kept.map((row) => row.item))
+      if (hand === 'R') rightKeys.push(...kept.map((row) => row.keys))
       const fromLibrary = kept.filter((row) => row.item.origin).length
       libraryCount[`S${level.id}-${side}`] = fromLibrary
       console.log(`S${level.id} ${hand} ${kept.length} library ${fromLibrary}`)
@@ -331,7 +348,7 @@ function main() {
     void spec
     const kept: { item: BankItem; keys: { rhythm: string; pitches: string } }[] = []
     let seed = 1
-    while (kept.length < TARGET && seed < 4000) {
+    while (kept.length < targetFor(`R${level}`) && seed < 4000) {
       try {
         const exercise = generateRhythmLine(level, seed, seed % 5 === 0 ? 2 : 4)
         const item = fromExercise(exercise, `R${level}-${pad(kept.length + 1)}`, exercise.source)

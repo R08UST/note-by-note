@@ -103,14 +103,39 @@ export function tooSimilar(left: { rhythm: string; pitches: string }, right: { r
   return rhythm >= SIMILARITY_LIMIT && pitch >= SIMILARITY_LIMIT
 }
 
-export function nextItem<T extends { id: string }>(items: readonly T[], seen: ReadonlySet<string>, recent: readonly string[]): T | undefined {
+/** How many of the last served items the next one is kept away from. */
+export const CONTRAST_WINDOW = 3
+
+/**
+ * Unseen first, never one of the recent ones. Among those, the item least like the last
+ * few served, so two neighbours in the file do not come back to back. Ties keep file order.
+ */
+export function nextItem<T extends { id: string; notes?: readonly StoredNote[] }>(items: readonly T[], seen: ReadonlySet<string>, recent: readonly string[]): T | undefined {
   if (items.length === 0) return undefined
   const blocked = new Set(recent.slice(-RECENT_WINDOW))
-  return (
-    items.find((item) => !seen.has(item.id) && !blocked.has(item.id)) ??
-    items.find((item) => !blocked.has(item.id)) ??
-    items[0]
-  )
+  const unseen = items.filter((item) => !seen.has(item.id) && !blocked.has(item.id))
+  const candidates = unseen.length > 0 ? unseen : items.filter((item) => !blocked.has(item.id))
+  if (candidates.length === 0) return items[0]
+  const byId = new Map(items.map((item) => [item.id, item]))
+  const last = recent
+    .slice(-CONTRAST_WINDOW)
+    .map((id) => byId.get(id)?.notes)
+    .filter((notes): notes is readonly StoredNote[] => notes != null)
+    .map((notes) => noteKeys(notes))
+  if (last.length === 0) return candidates[0]
+  let best = candidates[0]
+  let bestScore = Infinity
+  for (const item of candidates) {
+    if (!item.notes) continue
+    const keys = noteKeys(item.notes)
+    let score = 0
+    for (const other of last) score = Math.max(score, editSimilarity(keys.rhythm, other.rhythm) + editSimilarity(keys.pitches, other.pitches))
+    if (score < bestScore) {
+      bestScore = score
+      best = item
+    }
+  }
+  return best
 }
 
 export type PracticeHand = 'R' | 'L' | 'both'
