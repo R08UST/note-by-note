@@ -329,10 +329,7 @@ export function usePractice({
       // Playing the first written note starts wait or free-tempo mode, so hands can stay on the keys.
       // Any other key is ignored, so noodling between takes does not start or log a run.
       const options = optionsRef.current
-      const selected = notesInBeats(
-        markNotes(selectHands(options.notes, options.hands), options.honorMarks, options.honorMarks || options.mode === 'wait'),
-        options.span,
-      )
+      const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
       // A grace strike is printed just before the note it decorates, but the note the
       // player reads is the written one they share a column with. Start on that beat,
       // so choosing a passage that opens on a graced note does not demand the grace first.
@@ -453,10 +450,7 @@ export function usePractice({
     })
     if (seamless && nextStatus !== 'playing' && nextStatus !== 'countin') return
     const options = optionsRef.current
-    const selected = notesInBeats(
-      markNotes(selectHands(options.notes, options.hands), options.honorMarks, options.honorMarks || options.mode === 'wait'),
-      options.span,
-    )
+    const selected = notesInBeats(markNotes(selectHands(options.notes, options.hands), options.honorMarks), options.span)
     if (selected.length === 0) return
     const entry = Math.min(options.span.startBeat, options.span.endBeat)
     const perBar = quarterBeatsPerMeasureAt(options.timeSignatures, entry, options.timeSignature)

@@ -121,10 +121,60 @@ describe('FreeMode', () => {
       note({ id: 'a', pitch: 60, beat: 1 }),
       note({ id: 'b', pitch: 62, beat: 2 }),
     ])
-    // Skipping the optional grace note lands straight on the written note with no miss.
+    // Cursor starts on the grace note, and skipping it lands straight on the written note with no miss.
+    expect(mode.cursorBeat()).toBe(1)
+    expect(mode.currentNotes().map((item) => item.id)).toEqual(['g0'])
     expect(mode.push(on(60, 500))).toEqual([{ noteId: 'a', pitch: 60, result: 'hit' }])
     expect(mode.cursorBeat()).toBe(2)
     expect(mode.judgements.some((item) => item.result === 'miss')).toBe(false)
+  })
+
+  it('handles Chopin-style two-16th grace notes played before the beat without consuming the main note', () => {
+    // Measure 5 of Chopin Waltz in A minor: grace E5 + F5 decorating main E5 + LH C3, then D#5, then E5.
+    const mode = new FreeMode([
+      note({ id: 'g0', pitch: 76, beat: 0.85, hand: 'R', optional: true, fromGrace: true, anchorBeat: 1 }),
+      note({ id: 'g1', pitch: 77, beat: 0.92, hand: 'R', optional: true, fromGrace: true, anchorBeat: 1 }),
+      note({ id: 'rh', pitch: 76, beat: 1, hand: 'R' }),
+      note({ id: 'lh', pitch: 48, beat: 1, hand: 'L' }),
+      note({ id: 'ds', pitch: 75, beat: 1.5, hand: 'R' }),
+      note({ id: 'e2', pitch: 76, beat: 2, hand: 'R' }),
+    ])
+    expect(mode.currentNotes().map((item) => item.id)).toEqual(['g0'])
+    expect(mode.push(on(76, 400))).toEqual([{ noteId: 'g0', pitch: 76, result: 'hit' }])
+    expect(mode.currentNotes().map((item) => item.id)).toEqual(['g1'])
+    expect(mode.push(on(77, 460))).toEqual([{ noteId: 'g1', pitch: 77, result: 'hit' }])
+    expect(mode.currentNotes().map((item) => item.id).sort()).toEqual(['lh', 'rh'])
+    expect(mode.push(on(48, 520))).toEqual([{ noteId: 'lh', pitch: 48, result: 'hit' }])
+    expect(mode.push(on(76, 525))).toEqual([{ noteId: 'rh', pitch: 76, result: 'hit' }])
+    expect(mode.push(on(75, 775))).toEqual([{ noteId: 'ds', pitch: 75, result: 'hit' }])
+    expect(mode.push(on(76, 1025))).toEqual([{ noteId: 'e2', pitch: 76, result: 'hit' }])
+    expect(mode.done()).toBe(true)
+    expect(mode.judgements.every((item) => item.result === 'hit')).toBe(true)
+    // Grace strikes are excluded from tempo timestamps; written notes keep exact timestamps.
+    expect(mode.hitTimes.has('g0')).toBe(false)
+    expect(mode.hitTimes.has('g1')).toBe(false)
+    expect(mode.hitTimes.get('lh')).toBe(520)
+    expect(mode.hitTimes.get('rh')).toBe(525)
+  })
+
+  it('handles on-the-beat Chopin grace notes when the left hand lands with the first grace', () => {
+    const mode = new FreeMode([
+      note({ id: 'g0', pitch: 76, beat: 0.85, hand: 'R', optional: true, fromGrace: true, anchorBeat: 1 }),
+      note({ id: 'g1', pitch: 77, beat: 0.92, hand: 'R', optional: true, fromGrace: true, anchorBeat: 1 }),
+      note({ id: 'rh', pitch: 76, beat: 1, hand: 'R' }),
+      note({ id: 'lh', pitch: 48, beat: 1, hand: 'L' }),
+      note({ id: 'ds', pitch: 75, beat: 1.5, hand: 'R' }),
+    ])
+    // LH C3 lands first right on the beat; cursor stays on the RH grace notes.
+    expect(mode.push(on(48, 500))).toEqual([{ noteId: 'lh', pitch: 48, result: 'hit' }])
+    expect(mode.currentNotes().map((item) => item.id)).toEqual(['g0'])
+    expect(mode.push(on(76, 505))).toEqual([{ noteId: 'g0', pitch: 76, result: 'hit' }])
+    expect(mode.push(on(77, 565))).toEqual([{ noteId: 'g1', pitch: 77, result: 'hit' }])
+    expect(mode.push(on(76, 625))).toEqual([{ noteId: 'rh', pitch: 76, result: 'hit' }])
+    expect(mode.cursorBeat()).toBe(1.5)
+    expect(mode.push(on(75, 850))).toEqual([{ noteId: 'ds', pitch: 75, result: 'hit' }])
+    expect(mode.done()).toBe(true)
+    expect(mode.judgements.every((item) => item.result === 'hit')).toBe(true)
   })
 
   it('drops timestamps when retreating to replay an attack', () => {

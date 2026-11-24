@@ -1,8 +1,12 @@
 import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
 
-/** Grace and ornament strikes stay optional so they never block free-tempo flow. */
+/** Optional ornament/tremolo strikes stay out of `groups`. Printed grace notes join `groups` like wait mode, but remain optional to skip. */
 function isOptionalMark(note: ScoreNote): boolean {
-  return Boolean(note.optional)
+  return Boolean(note.optional) && !note.fromGrace
+}
+
+function isGraceGroup(group: readonly ScoreNote[] | undefined): boolean {
+  return Boolean(group && group.length > 0 && group.every((note) => Boolean(note.fromGrace)))
 }
 
 function groupByOnset(notes: ScoreNote[]): ScoreNote[][] {
@@ -95,9 +99,10 @@ export class FreeMode {
     }
 
     const currentGroup = this.groups[this.index]
-    const currentBeat = currentGroup[0].beat
+    const currentBeat = currentGroup[0].anchorBeat ?? currentGroup[0].beat
+    const onGrace = isGraceGroup(currentGroup)
 
-    // 1. Prefer an unhit note on the current attack.
+    // 1. Prefer an unhit note on the current attack (including printed grace notes in order).
     const direct = this.matchIn(currentGroup, event.pitch)
     if (direct) {
       this.recordHit(direct, event.timeMs)
@@ -107,10 +112,32 @@ export class FreeMode {
       return [judgement]
     }
 
+    // 1b. While standing on printed grace notes, allow the written anchor beat to land too:
+    // an accompaniment hand on the beat (e.g. LH bass under RH graces) is recorded in-place
+    // while keeping the cursor on the grace notes, whereas the same hand playing the written
+    // note skips the unplayed optional grace notes cleanly without marking them missed.
+    if (onGrace) {
+      const anchorIndex = this.anchorGroupIndex(this.index)
+      const anchorGroup = anchorIndex == null ? undefined : this.groups[anchorIndex]
+      const anchorMatch = this.matchIn(anchorGroup, event.pitch)
+      if (anchorMatch && anchorIndex != null && anchorGroup) {
+        const graceHand = currentGroup[0].hand
+        this.recordHit(anchorMatch, event.timeMs)
+        const judgement: Judgement = { noteId: anchorMatch.id, pitch: event.pitch, result: 'hit' }
+        this._judgements.push(judgement)
+        this.wrongsAtCurrent = 0
+        if (anchorMatch.hand === graceHand || this.groupDone(anchorGroup)) {
+          this.index = anchorIndex
+          this.advancePastFinished()
+        }
+        return [judgement]
+      }
+    }
+
     // 2. Ignore an immediate key bounce of a pitch already hit in the current chord.
     if (this.recentHitIn(currentGroup, event.pitch, event.timeMs, BOUNCE_MS)) return []
 
-    // 3. Optional lead-in or grace strike sitting at or before the current beat.
+    // 3. Optional ornament lead-in sitting at or before the current beat.
     const leadIn = this.matchOptional(event.pitch, currentBeat - 1.5, currentBeat + 0.25)
     if (leadIn) {
       this.hit.add(leadIn.id)
@@ -120,31 +147,35 @@ export class FreeMode {
     }
 
     // 4. Non-blocking lookahead: allow advancing past a missed note or incomplete chord.
+    // Printed grace groups are optional, so skipping them neither emits misses nor consumes lookahead budget.
     const inChordSettle = this.isSettlingChord(currentGroup, event.timeMs)
     if (!inChordSettle) {
-      const maxOffset = Math.min(MAX_LOOKAHEAD, 1 + this.wrongsAtCurrent)
-      for (let offset = 1; offset <= maxOffset; offset += 1) {
-        const targetGroup = this.groups[this.index + offset]
-        if (!targetGroup) break
+      const maxWrittenSkips = Math.min(MAX_LOOKAHEAD, 1 + this.wrongsAtCurrent)
+      let writtenSkips = isGraceGroup(currentGroup) ? 0 : 1
+      for (let targetIndex = this.index + 1; targetIndex < this.groups.length; targetIndex += 1) {
+        if (writtenSkips > maxWrittenSkips) break
+        const targetGroup = this.groups[targetIndex]
         const ahead = this.matchIn(targetGroup, event.pitch)
-        if (!ahead) continue
-        const produced: Judgement[] = []
-        for (let skipped = this.index; skipped < this.index + offset; skipped += 1) {
-          for (const missed of this.groups[skipped]) {
-            if (this.hit.has(missed.id)) continue
-            const miss: Judgement = { noteId: missed.id, pitch: missed.pitch, result: 'miss' }
-            this._judgements.push(miss)
-            produced.push(miss)
+        if (ahead) {
+          const produced: Judgement[] = []
+          for (let skipped = this.index; skipped < targetIndex; skipped += 1) {
+            for (const missed of this.groups[skipped]) {
+              if (this.hit.has(missed.id) || missed.optional) continue
+              const miss: Judgement = { noteId: missed.id, pitch: missed.pitch, result: 'miss' }
+              this._judgements.push(miss)
+              produced.push(miss)
+            }
           }
+          this.index = targetIndex
+          this.wrongsAtCurrent = 0
+          this.recordHit(ahead, event.timeMs)
+          const hit: Judgement = { noteId: ahead.id, pitch: event.pitch, result: 'hit' }
+          this._judgements.push(hit)
+          produced.push(hit)
+          this.advancePastFinished()
+          return produced
         }
-        this.index += offset
-        this.wrongsAtCurrent = 0
-        this.recordHit(ahead, event.timeMs)
-        const hit: Judgement = { noteId: ahead.id, pitch: event.pitch, result: 'hit' }
-        this._judgements.push(hit)
-        produced.push(hit)
-        this.advancePastFinished()
-        return produced
+        if (!isGraceGroup(targetGroup)) writtenSkips += 1
       }
     }
 
@@ -175,7 +206,21 @@ export class FreeMode {
 
   private recordHit(note: ScoreNote, timeMs: number): void {
     this.hit.add(note.id)
-    this._hitTimes.set(note.id, timeMs)
+    if (!note.fromGrace && !note.optional) this._hitTimes.set(note.id, timeMs)
+  }
+
+  /** Written group that the grace group at `fromIndex` decorates. */
+  private anchorGroupIndex(fromIndex: number): number | null {
+    const first = this.groups[fromIndex]?.[0]
+    if (!first?.fromGrace) return null
+    const anchor = first.anchorBeat ?? first.beat
+    for (let i = fromIndex + 1; i < this.groups.length; i += 1) {
+      const group = this.groups[i]
+      if (isGraceGroup(group)) continue
+      if (Math.abs(group[0].beat - anchor) <= 1e-3 && group[0].measure === first.measure) return i
+      break
+    }
+    return null
   }
 
   private matchIn(group: ScoreNote[] | undefined, pitch: number): ScoreNote | undefined {

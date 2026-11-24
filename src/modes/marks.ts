@@ -4,18 +4,16 @@ import type { ScoreNote } from '../judge/types'
 /**
  * Turn printed marks into extra judged strikes.
  *
- * With the toggle off the score is judged exactly as engraved: one strike per
- * written notehead, and a grace note or a trill's alternation counts as an extra
- * (a stray key). With it on, the marks that playback already plays out — grace
- * notes, ornaments and tremolo shakes — become strikes of their own, so playing
- * what the sheet asks for is accepted instead of being called a stray key.
+ * Grace notes are printed as noteheads of their own, so they are expanded by default
+ * for every practice mode (`includeGraces = true`). Symbols without their own noteheads
+ * — ornaments and tremolo shakes — are expanded only when `honor` is on.
  *
- * They are added as `optional` strikes: matching one scores a hit, but leaving it
- * out never becomes a miss, so turning the toggle on can only help. Dynamics,
- * articulations, slurs, fermatas, breath marks and pedals change how long or how
- * loud a key is held rather than adding a strike, so they add nothing here.
+ * All expanded strikes are marked `optional`: matching one scores a hit, and leaving
+ * it out never becomes a miss. Dynamics, articulations, slurs, fermatas, breath marks
+ * and pedals change how long or how loud a key is held rather than adding a strike, so
+ * they add nothing here.
  */
-export function markNotes(notes: readonly ScoreNote[], honor: boolean, includeGraces = honor): ScoreNote[] {
+export function markNotes(notes: readonly ScoreNote[], honor: boolean, includeGraces = true): ScoreNote[] {
   if (!honor && !includeGraces) return [...notes]
   const result: ScoreNote[] = []
   for (const note of notes) {

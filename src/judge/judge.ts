@@ -67,8 +67,12 @@ export function computeWindows(notes: ScoreNote[], options: JudgeOptions): NoteW
   ordered.sort((a, b) => a.expectedMs - b.expectedMs || a.index - b.index)
 
   return ordered.map((entry, index) => {
+    // An optional grace or ornament strike may be left out, so it must never narrow
+    // the timing window of a required written note next to it.
+    const ignoreOptional = !entry.note.optional
     let prevGap = Number.POSITIVE_INFINITY
     for (let i = index - 1; i >= 0; i--) {
+      if (ignoreOptional && ordered[i].note.optional) continue
       const gap = entry.expectedMs - ordered[i].expectedMs
       if (gap > resolved.chordSpreadMs) {
         prevGap = gap
@@ -77,6 +81,16 @@ export function computeWindows(notes: ScoreNote[], options: JudgeOptions): NoteW
     }
     let nextGap = Number.POSITIVE_INFINITY
     for (let i = index + 1; i < ordered.length; i++) {
+      if (ignoreOptional && ordered[i].note.optional) continue
+      // A grace note belongs to the beat of its anchor, so the anchor must not clip
+      // the grace's late edge when both share a pitch in rhythm mode.
+      if (
+        entry.note.fromGrace &&
+        entry.note.anchorBeat != null &&
+        Math.abs(ordered[i].note.beat - entry.note.anchorBeat) <= 1e-3
+      ) {
+        continue
+      }
       const gap = ordered[i].expectedMs - entry.expectedMs
       if (gap > resolved.chordSpreadMs) {
         nextGap = gap
@@ -149,7 +163,9 @@ export class Judge {
     const samePitch = inWindow.filter((note) => note.note.pitch === event.pitch)
     const waiting = inWindow.filter((note) => !note.matched)
     if (samePitch.length > 0) {
-      const hit = samePitch[0]
+      // Required written notes take priority over optional marks of the same pitch, so
+      // skipping a grace or ornament can never steal the written note and turn it into a miss.
+      const hit = samePitch.find((note) => !note.note.optional) ?? samePitch[0]
       hit.matched = true
       hit.hit = true
       produced.push({

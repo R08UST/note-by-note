@@ -67,7 +67,7 @@ export interface ScoreNote {
   slur?: number
   /** Printed fermata: the demo holds the note past its written value. */
   fermata?: boolean
-  /** Grace notes printed just before this one, low to high. They are not judged. */
+  /** Grace notes printed just before this one, low to high. Expanded into optional `fromGrace` strikes by `markNotes`. */
   graces?: number[]
   /** Printed ornament. The demo plays it out; judging ignores it. */
   ornament?: Ornament
