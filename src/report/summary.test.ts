@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Judgement, ScoreNote } from '../judge/types'
-import { summarize } from './summary'
+import { measureReach, measureTone, summarize } from './summary'
 
 const notes: ScoreNote[] = [
   { id: 'a', pitch: 60, beat: 0, duration: 1, hand: 'R', measure: 1 },
@@ -31,8 +31,8 @@ describe('summarize', () => {
     expect(summary.timingSpreadMs).toBeCloseTo(Math.sqrt(1800))
     expect(summary.perfects).toBe(2)
     expect(summary.errorsPerMeasure).toEqual([
-      { measure: 1, expected: 2, errors: 0 },
-      { measure: 2, expected: 2, errors: 2 },
+      { measure: 1, expected: 2, errors: 0, played: 2 },
+      { measure: 2, expected: 2, errors: 2, played: 2 },
     ])
   })
 
@@ -60,9 +60,21 @@ describe('summarize', () => {
     ])
     expect(summary.hitRate).toBeCloseTo(3 / 8)
     expect(summary.errorsPerMeasure).toEqual([
-      { measure: 1, expected: 2, errors: 4 },
-      { measure: 2, expected: 1, errors: 1 },
+      { measure: 1, expected: 2, errors: 4, played: 2 },
+      { measure: 2, expected: 1, errors: 1, played: 1 },
     ])
+  })
+
+  it('marks bars the run never reached as unplayed, not clean', () => {
+    // Stopped in bar 1 after a wrong key rewound the bar: bar 2 was never played.
+    const summary = summarize(notes, [{ pitch: 61, result: 'wrong', measure: 1 }])
+    expect(summary.errorsPerMeasure.map((bar) => measureTone(bar))).toEqual(['many', 'unplayed'])
+    expect(measureReach(summary.errorsPerMeasure)).toEqual({ reached: 1, total: 2, last: 1 })
+  })
+
+  it('treats a bar from a run saved before played existed as reached', () => {
+    expect(measureTone({ measure: 1, expected: 2, errors: 0 })).toBe('clean')
+    expect(measureTone({ measure: 1, expected: 2, errors: 0, played: 0 }, 1)).toBe('some')
   })
 
   it('returns a zero hit rate when nothing was judged', () => {

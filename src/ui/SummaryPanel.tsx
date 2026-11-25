@@ -1,4 +1,4 @@
-import type { RunSummary } from '../report/summary'
+import { measureReach, measureTone, type RunSummary } from '../report/summary'
 
 interface SummaryPanelProps {
   summary: RunSummary
@@ -10,14 +10,8 @@ interface SummaryPanelProps {
   onJump?: (measure: number) => void
   onPracticeAround?: (measure: number) => void
   onUseTempo?: (bpm: number) => void
-}
-
-function heatColor(errors: number, expected: number, stalls = 0): string {
-  if (expected <= 0) return '#7dbea4'
-  if (errors <= 0) return stalls > 0 ? '#e0b15a' : '#7dbea4'
-  const ratio = errors / expected
-  if (ratio < 0.34) return '#e0b15a'
-  return '#d4533a'
+  /** Wait mode sends a wrong key back to the start of its bar, which drops that bar's hits. */
+  rewindsOnError?: boolean
 }
 
 function formatDrift(driftBpm: number | null): string | null {
@@ -35,6 +29,7 @@ export function SummaryPanel({
   onJump,
   onPracticeAround,
   onUseTempo,
+  rewindsOnError = false,
 }: SummaryPanelProps) {
   const percent = Math.round(summary.hitRate * 100)
   const mean =
@@ -45,13 +40,16 @@ export function SummaryPanel({
   const stallsByMeasure = new Map(free?.perMeasure.map((item) => [item.measure, item.stalls]) ?? [])
   const driftText = formatDrift(free?.driftBpm ?? null)
   const clampedBpm = free?.bpm != null ? Math.min(160, Math.max(40, free.bpm)) : null
+  const reach = measureReach(summary.errorsPerMeasure)
+  const stoppedEarly = reach.total > 0 && reach.reached < reach.total
   return (
     <section className={collapsed ? 'summary is-collapsed' : 'summary'} aria-label="这次成绩">
       <div className="summary-head">
-        <p className="summary-kicker">命中率</p>
+        <p className="summary-kicker">{stoppedEarly && reach.last != null ? `停在第 ${reach.last} 小节 · 命中率` : '命中率'}</p>
         <p className="summary-percent">{percent}%</p>
         {!collapsed && (
           <p className="summary-sub">
+            {stoppedEarly ? `弹了 ${reach.reached}/${reach.total} 小节 · ` : ''}
             {summary.hits}/{summary.hits + summary.wrongs + summary.misses} 命中
             {summary.timedHits > 0 ? ` · 平均 ${mean}` : ''}
             {free?.bpm != null ? ` · 约 ${free.bpm} BPM` : ''}
@@ -115,14 +113,15 @@ export function SummaryPanel({
             {summary.errorsPerMeasure.map((measure) => {
               const stalls = stallsByMeasure.get(measure.measure) ?? 0
               const stallText = stalls > 0 ? `，卡顿 ${stalls} 处` : ''
+              const tone = measureTone(measure, stalls)
+              const what = tone === 'unplayed' ? '没弹到' : `错 ${measure.errors}/${measure.expected}${stallText}`
               return (
                 <button
                   key={measure.measure}
                   type="button"
-                  className="heat-cell"
-                  style={{ background: heatColor(measure.errors, measure.expected, stalls) }}
-                  title={`第 ${measure.measure} 小节，错 ${measure.errors}/${measure.expected}${stallText}。点一下跳过去，按住 Shift 再点就循环这一段。`}
-                  aria-label={`第 ${measure.measure} 小节，错 ${measure.errors} 个${stallText}`}
+                  className={`heat-cell is-${tone}`}
+                  title={`第 ${measure.measure} 小节，${what}。点一下跳过去，按住 Shift 再点就循环这一段。`}
+                  aria-label={`第 ${measure.measure} 小节，${what}`}
                   onClick={(event) => {
                     if (event.shiftKey) onPracticeAround?.(measure.measure)
                     else onJump?.(measure.measure)
@@ -133,8 +132,11 @@ export function SummaryPanel({
           </div>
           <p className="summary-note">
             {free
-              ? '绿是干净流畅，黄是有少量错音或卡顿，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'
-              : '绿是干净，黄是有错，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'}
+              ? '绿是干净流畅，黄是有少量错音或卡顿，红是错得多。'
+              : '绿是干净，黄是有错，红是错得多。'}
+            {stoppedEarly ? '空框是没弹到的小节。' : ''}
+            {rewindsOnError && summary.wrongs > 0 ? '弹错会回到这一小节开头，那一小节已弹对的音重新计。' : ''}
+            点一下跳到该小节，按住 Shift 再点就循环前后一小节。
             {free && free.stallMeasures.length > 0 ? ` 卡顿小节：第 ${free.stallMeasures.join('、')} 小节。` : ''}
             {passes.length > 1 ? ` 共 ${passes.length} 遍：${passes.map((pass) => `${Math.round(pass.hitRate * 100)}%`).join('、')}。` : ''}
           </p>

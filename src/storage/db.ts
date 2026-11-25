@@ -22,6 +22,8 @@ export interface SettingsRecord {
   keyboardOpen?: boolean
   /** 1 fits the score to the width. */
   scoreZoom?: number
+  /** A loaded piece opens score-first with the practice tools hidden. Default on. */
+  focusMode?: boolean
   /** Wait mode: a wrong pitch rewinds to the first note of the measure. Default on. */
   resetOnError?: boolean
   /** Practice counts the strikes printed marks imply, not just the noteheads. Default off. */

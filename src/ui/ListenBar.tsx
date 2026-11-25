@@ -41,13 +41,16 @@ interface ListenBarProps {
   /** Practice toolbar: only the play button stays inline. Extras go into this host. */
   toolbar?: boolean
   menuHost?: HTMLElement | null
+  /** Follow the practice loop instead of the bar's own 循环选区 box, which is then hidden. */
+  loop?: boolean
   ref?: Ref<ListenHandle>
 }
 
-export function ListenBar({ notes, pieceId = '', startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, expression, scoreTempo = true, onBeat, onPractice, onNext, showKeyboard = true, onSounding, toolbar = false, menuHost = null, ref }: ListenBarProps) {
+export function ListenBar({ notes, pieceId = '', startBeat, rangeStart, rangeEnd, bpm, onBpm, disabled, expression, scoreTempo = true, onBeat, onPractice, onNext, showKeyboard = true, onSounding, toolbar = false, menuHost = null, loop: sharedLoop, ref }: ListenBarProps) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
-  const [loop, setLoop] = useState(false)
+  const [ownLoop, setLoop] = useState(false)
+  const loop = sharedLoop ?? ownLoop
   const [continuous, setContinuous] = useState(false)
   const [followScoreTempo, setFollowScoreTempo] = useState(scoreTempo)
   const [offer, setOffer] = useState(false)
@@ -200,10 +203,12 @@ export function ListenBar({ notes, pieceId = '', startBeat, rangeStart, rangeEnd
           />
         </label>
       )}
-      <label className="check">
-        <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
-        循环选区
-      </label>
+      {sharedLoop === undefined && (
+        <label className="check">
+          <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
+          循环选区
+        </label>
+      )}
       {hasScoreTempo && (
         <label className="check">
           <input
@@ -247,7 +252,7 @@ export function ListenBar({ notes, pieceId = '', startBeat, rangeStart, rangeEnd
 
   return (
     <div className={toolbar ? 'listen-bar is-toolbar' : 'listen-bar'}>
-      <button type="button" className="button primary listen-play" title="从当前位置播放" disabled={disabled && !playing} onClick={() => void toggle()}>
+      <button type="button" className="button listen-play" title="从当前位置播放" disabled={disabled && !playing} onClick={() => void toggle()}>
         {playing && !paused ? '暂停' : '播放'}
       </button>
       {playing && <button type="button" className="button ghost" title="停止播放" onClick={stop}>停止</button>}

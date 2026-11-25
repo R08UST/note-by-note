@@ -6,14 +6,14 @@ import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
 import { filterCatalog, type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
-import { parseMusicXml, quarterBeatsPerMeasureAt, type ParsedScore } from '../score/parseMusicXml'
+import { parseMusicXml, type ParsedScore } from '../score/parseMusicXml'
 import { readScoreFile, unpackMxl } from '../score/mxl'
+import { measureReach } from '../report/summary'
 import { noteName } from '../score/pitch'
 import { TABS, hashOpensPicker, tabFromHash, type TabId } from './tabs'
 import { audioPrefs, setAudioPrefs } from '../audio/prefs'
 import type { Expression } from '../audio/performance'
 import { deleteUserScore, getUserScore, listRuns, listTrainRuns, listUserScores, loadPracticeRange, loadSettings, savePracticeRange, saveSettings, saveUserScore, updateUserScore, type RunRecord, type SavedScore, type TrainRunRecord } from '../storage/db'
-import { DemoBar } from './DemoBar'
 import { ListenBar, type ListenHandle } from './ListenBar'
 import { Controls } from './Controls'
 import { LibraryTab } from './LibraryTab'
@@ -91,7 +91,9 @@ export function PracticeApp() {
   const [keyboardEnabled, setKeyboardEnabled] = useState(true)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [scoreZoom, setScoreZoom] = useState(1)
-  const [focusMode, setFocusMode] = useState(false)
+  const [focusMode, setFocusMode] = useState(true)
+  /** Which voices 播放 sounds: both hands, one hand, or the hand you are not practising. */
+  const [listenVoice, setListenVoice] = useState<'both' | 'L' | 'R' | 'other'>('both')
   const [listenHands, setListenHands] = useState<Record<number, 'L' | 'R'>>({})
   const [undrawnIds, setUndrawnIds] = useState<readonly string[]>([])
   const [reportOpen, setReportOpen] = useState(false)
@@ -145,6 +147,11 @@ export function PracticeApp() {
   }, [piece])
 
   const notes = useMemo(() => parsed.score?.notes ?? [], [parsed.score])
+  const listenNotes = useMemo(() => {
+    if (listenVoice === 'both') return notes
+    if (listenVoice === 'other') return hands === 'both' ? notes : notes.filter((note) => note.hand !== hands)
+    return notes.filter((note) => note.hand === listenVoice)
+  }, [notes, listenVoice, hands])
   // Everything the score prints about how it should sound, handed to playback.
   const expression = useMemo<Expression>(
     () => ({
@@ -259,6 +266,7 @@ export function PracticeApp() {
       })
       setKeyboardOpen(settings.keyboardOpen === true)
       if (typeof settings.scoreZoom === 'number' && settings.scoreZoom >= 0.6 && settings.scoreZoom <= 2.2) setScoreZoom(settings.scoreZoom)
+      if (settings.focusMode === false) setFocusMode(false)
       setHydrated(true)
     })
     return () => {
@@ -282,10 +290,11 @@ export function PracticeApp() {
       metroVolume: sound.metro,
       keyboardOpen,
       scoreZoom,
+      focusMode,
       resetOnError,
       honorMarks,
     })
-  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom, resetOnError, honorMarks])
+  }, [hydrated, bpm, hands, mode, latencyOffsetMs, lastLibraryId, continuous, sound, keyboardOpen, scoreZoom, focusMode, resetOnError, honorMarks])
 
   useEffect(() => {
     if (!hydrated || !catalogReady || restoreSettled || userPicked.current) return
@@ -574,6 +583,8 @@ export function PracticeApp() {
   }, [piece?.id, rangeStart, rangeEnd, loopLimit, ramp, rangeReady, cursorBeat, endBeat])
 
   const lastMeasure = Math.max(1, ...notes.map((note) => note.measure))
+  // A pickup bar is numbered 0, so the first bar is read from the score, not assumed to be 1.
+  const firstMeasure = notes.length > 0 ? Math.min(...notes.map((note) => note.measure)) : 1
   const groups = onsets(active)
   const counts = countHands(notes)
   const runningNow = practice.status === 'playing' || practice.status === 'countin'
@@ -611,7 +622,11 @@ export function PracticeApp() {
   const wrongs = practice.judgements.filter((item) => item.result === 'wrong').length
   const misses = practice.judgements.filter((item) => item.result === 'miss').length
   const extras = practice.judgements.filter((item) => item.result === 'extra').length
+  const reach = practice.summary ? measureReach(practice.summary.errorsPerMeasure) : null
+  const stoppedAt = reach && reach.reached < reach.total ? reach.last : null
   const running = practice.status === 'playing' || practice.status === 'countin'
+  // Focus is the play view of a loaded piece; with no piece, or on another tab, the full chrome shows.
+  const focused = focusMode && tab === 'practice' && piece != null
   const canStart = !running && notesInBeats(active, { startBeat: cursorBeat, endBeat }).length > 0 && scoreState !== 'loading'
 
   useEffect(() => {
@@ -621,6 +636,18 @@ export function PracticeApp() {
       if (event.key === 'Escape' && reportOpen) {
         event.preventDefault()
         setReportOpen(false)
+        return
+      }
+      if (event.key === 'Escape' && focused) {
+        event.preventDefault()
+        setFocusMode(false)
+        return
+      }
+      // Space starts and stops a run, unless a focused button would take the press itself.
+      if (event.code === 'Space' && !event.repeat && !(event.target instanceof HTMLButtonElement) && piece) {
+        event.preventDefault()
+        if (running) practice.stop()
+        else if (canStart) void practice.start()
         return
       }
       if (event.altKey && event.key === 'ArrowLeft') {
@@ -648,12 +675,9 @@ export function PracticeApp() {
   })
 
   return (
-    <div className={`app${tab === 'practice' && piece ? ' is-practicing' : ''}${focusMode ? ' is-focus' : ''}`}>
+    <div className={`app${tab === 'practice' && piece ? ' is-practicing' : ''}${focused ? ' is-focus' : ''}`}>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">练习台</p>
-          <h1>Note by Note</h1>
-        </div>
+        <h1>Note by Note</h1>
         <MidiChip midi={midiStatus} keyboardEnabled={keyboardEnabled} />
       </header>
 
@@ -662,8 +686,7 @@ export function PracticeApp() {
           <a
             key={item.id}
             href={`#${item.id}`}
-            role="tab"
-            aria-selected={tab === item.id}
+            aria-current={tab === item.id ? 'page' : undefined}
             className={tab === item.id ? 'is-selected' : ''}
             onClick={() => {
               setTab(item.id)
@@ -775,11 +798,13 @@ export function PracticeApp() {
                     <span>起点</span>
                     <input
                       type="number"
-                      min={1}
+                      min={firstMeasure}
                       max={lastMeasure}
                       value={measureAtCursor(groups, cursorBeat)}
                       onChange={(event) => {
-                        const measure = Math.max(1, Math.min(lastMeasure, Number(event.target.value) || 1))
+                        const typed = Number(event.target.value)
+                        if (event.target.value === '' || Number.isNaN(typed)) return
+                        const measure = Math.max(firstMeasure, Math.min(lastMeasure, Math.round(typed)))
                         const target = firstOnsetInMeasure(groups, measure)
                         if (!target) return
                         setCursorBeat(target.beat)
@@ -812,7 +837,8 @@ export function PracticeApp() {
                     ref={listenRef}
                     pieceId={piece.id}
                     menuHost={menuHost}
-                    notes={notes}
+                    notes={listenNotes}
+                    loop={loop}
                     startBeat={cursorBeat}
                     rangeStart={cursorBeat}
                     rangeEnd={endBeat}
@@ -846,12 +872,7 @@ export function PracticeApp() {
                       else autoAdvance.current = false
                     }}
                   />
-                  <div className="toolbar-group zoom-controls" role="group" aria-label="乐谱缩放">
-                    <IconButton label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}><Glyph d="M3 8 H13" /></IconButton>
-                    <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
-                    <IconButton label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}><Glyph d="M8 3 V13 M3 8 H13" /></IconButton>
-                  </div>
-                  <button type="button" className="button ghost" onClick={() => setFocusMode(true)}>专注</button>
+                  <button type="button" className="button ghost" title="只留乐谱和下一个音（Esc 回来）" onClick={() => setFocusMode(true)}>专注</button>
                   {practice.summary && !reportOpen && (
                     <button type="button" className="button ghost" onClick={() => setReportOpen(true)}>成绩</button>
                   )}
@@ -859,17 +880,9 @@ export function PracticeApp() {
                     <summary className="button ghost">更多</summary>
                     <div className="more-panel">
                       <div className="toolbar-group">
-                        <label className="field">从
-                          <input type="number" min={1} max={lastMeasure} value={rangeStart} onChange={(event) => {
-                            const measure = Math.max(1, Number(event.target.value) || 1)
-                            setRangeStart(measure)
-                            const onset = firstOnsetInMeasure(groups, measure)
-                            if (onset) setCursorBeat(onset.beat)
-                          }} />
-                        </label>
-                        <label className="field">到
-                          <input type="number" min={1} max={lastMeasure} value={rangeEnd} onChange={(event) => {
-                            const measure = Math.max(1, Number(event.target.value) || 1)
+                        <label className="field" title="练习和循环到这一小节为止，起点在工具栏">终点
+                          <input type="number" min={rangeStart} max={lastMeasure} value={rangeEnd} onChange={(event) => {
+                            const measure = Math.max(rangeStart, Math.min(lastMeasure, Number(event.target.value) || rangeStart))
                             setRangeEnd(measure)
                             const onset = lastOnsetInMeasure(groups, measure)
                             if (onset) setEndBeat(onset.beat)
@@ -890,30 +903,29 @@ export function PracticeApp() {
                           弹错就回到这一小节开头
                         </label>
                       )}
-                      <p className="device-note">点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。播放中也可以点谱上的音或小节，音乐会从那里接着放。</p>
-                      <DemoBar
-                        notes={notes}
-                        bpm={bpm}
-                        startBeat={cursorBeat}
-                        endBeat={endBeat}
-                        practiceHands={hands}
-                        loop={loop}
-                        expression={expression}
-                        countInBeats={quarterBeatsPerMeasureAt(
-                          parsed.score?.timeSignatures ?? [],
-                          cursorBeat,
-                          parsed.score?.timeSignature ?? { beats: 4, beatType: 4 },
-                        )}
-                        disabled={practice.status === 'playing' || practice.status === 'countin'}
-                        onBeat={(beat) => scoreRef.current?.setBeat(beat)}
-                      />
-                      <div ref={setMenuHost} className="listen-menu-host" />
+                      <p className="device-note">空格开始或停止，专注时按 Esc 显示工具。点音符就从那个音重来。方向键换音，Alt+方向键换小节。按住 Shift 再点，选到那个音。循环遍数 0 表示一直循环。播放中也可以点谱上的音或小节，音乐会从那里接着放。</p>
+                      <div className="listen-menu-host">
+                        <span className="segmented-label">播放</span>
+                        <div className="segmented" role="group" aria-label="播放哪只手">
+                          {([
+                            ['both', '双手'],
+                            ['L', '左手'],
+                            ['R', '右手'],
+                            ['other', '另一只手'],
+                          ] as const).map(([id, label]) => (
+                            <button key={id} type="button" aria-pressed={listenVoice === id} onClick={() => setListenVoice(id)}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div ref={setMenuHost} />
+                      </div>
                     </div>
                   </details>
                 </div>
                 <FeedbackStrip
                   status={practice.status}
-                  modeLabel={mode === 'wait' ? '等待' : mode === 'free' ? '自由拍' : '节奏'}
+                  modeLabel={mode === 'wait' ? '等我' : mode === 'free' ? '自由拍' : '跟拍'}
                   liveBpm={practice.liveBpm}
                   last={practice.last}
                   recent={practice.judgements.slice(-8)}
@@ -922,12 +934,15 @@ export function PracticeApp() {
                   wrongs={wrongs}
                   misses={misses}
                   extras={extras}
+                  stoppedAt={stoppedAt}
+                  hint={mode === 'rhythm' ? '按空格或开始，先数一小节，再跟着节拍器弹。' : '直接弹这个音就开始，不用点按钮。'}
                 />
                 {practice.summary && reportOpen && (
                   <SummaryPanel
                     summary={practice.passes.length > 1 ? (practice.passes[practice.passes.length - 1] ?? practice.summary) : practice.summary}
                     passes={practice.passes}
                     saved={practice.judgements.length > 0}
+                    rewindsOnError={mode === 'wait' && resetOnError}
                     collapsed={reportCollapsed}
                     onToggleCollapsed={() => setReportCollapsed((value) => !value)}
                     onClose={() => setReportOpen(false)}
@@ -976,6 +991,11 @@ export function PracticeApp() {
                     {practice.status === 'idle' && practice.previous && (
                       <span>上次命中 {Math.round(practice.previous.hitRate * 100)}%</span>
                     )}
+                    <div className="score-zoom" role="group" aria-label="乐谱缩放">
+                      <IconButton label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}><Glyph d="M3 8 H13" /></IconButton>
+                      <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
+                      <IconButton label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}><Glyph d="M8 3 V13 M3 8 H13" /></IconButton>
+                    </div>
                   </div>
                   {parsed.score && (
                     <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
@@ -985,7 +1005,7 @@ export function PracticeApp() {
                         span={{ startBeat: cursorBeat, endBeat }}
                         ref={scoreRef}
                         zoom={scoreZoom}
-                        layoutKey={focusMode ? 'focus' : 'page'}
+                        layoutKey={focused ? 'focus' : 'page'}
                         onNote={(id, shift) => {
                           // A grace strike is clicked through its own small notehead, so fall back
                           // to the written note it decorates.
@@ -1046,7 +1066,7 @@ export function PracticeApp() {
                     </p>
                   )}
                   {practice.countBeat != null && (
-                    <div className="count-in" aria-hidden="true">
+                    <div className="count-in" role="status" aria-label={`预备 ${practice.countBeat}`}>
                       {practice.countBeat}
                     </div>
                   )}
@@ -1059,7 +1079,7 @@ export function PracticeApp() {
                     onClick={() => setKeyboardOpen((open) => !open)}
                   >
                     {keyboardOpen ? '收起键盘' : '键盘'}
-                    <span>右手 · 左手 · 当前音 · 下一音</span>
+                    <span className="key-legend"><i className="swatch is-r" />右手 <i className="swatch is-l" />左手 <i className="swatch is-now" />当前音 <i className="swatch is-next" />下一音</span>
                   </button>
                   {keyboardOpen && (
                     <Keyboard
@@ -1085,11 +1105,8 @@ export function PracticeApp() {
                   >
                     {practice.status === 'playing' || practice.status === 'countin' ? '停止' : '开始'}
                   </button>
-                  <button type="button" className="button ghost" aria-label="缩小" onClick={() => setScoreZoom((value) => Math.max(0.6, Math.round((value - 0.1) * 10) / 10))}>－</button>
-                  <button type="button" className="button ghost" onClick={() => setScoreZoom(1)}>适合宽度</button>
-                  <button type="button" className="button ghost" aria-label="放大" onClick={() => setScoreZoom((value) => Math.min(2.2, Math.round((value + 0.1) * 10) / 10))}>＋</button>
                   <button type="button" className="button ghost" onClick={() => setKeyboardOpen((open) => !open)}>{keyboardOpen ? '收起键盘' : '键盘'}</button>
-                  <button type="button" className="button ghost" onClick={() => setFocusMode(false)}>退出专注</button>
+                  <button type="button" className="button ghost" title="显示速度、手、模式和曲库（Esc）" onClick={() => setFocusMode(false)}>显示工具</button>
                 </div>
               </div>
             )}

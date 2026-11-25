@@ -6,6 +6,27 @@ export interface MeasureReport {
   measure: number
   expected: number
   errors: number
+  /** Written notes in the bar that were hit, missed, or played wrong. Absent on runs saved before it existed. */
+  played?: number
+}
+
+export type MeasureTone = 'unplayed' | 'clean' | 'some' | 'many'
+
+/**
+ * How a bar went. A bar the player never reached is 'unplayed', not clean:
+ * a run stopped in bar 1 must not paint bars 2 to 11 green.
+ */
+export function measureTone(report: MeasureReport, stalls = 0): MeasureTone {
+  const reached = report.played === undefined || report.played > 0 || report.errors > 0 || stalls > 0
+  if (!reached) return 'unplayed'
+  if (report.expected <= 0 || report.errors <= 0) return stalls > 0 ? 'some' : 'clean'
+  return report.errors / report.expected < 0.34 ? 'some' : 'many'
+}
+
+/** How far a run got: bars reached out of all bars, and the last bar reached. */
+export function measureReach(reports: readonly MeasureReport[]): { reached: number; total: number; last: number | null } {
+  const reachedBars = reports.filter((report) => measureTone(report) !== 'unplayed')
+  return { reached: reachedBars.length, total: reports.length, last: reachedBars.at(-1)?.measure ?? null }
 }
 
 export interface RunSummary {
@@ -68,13 +89,14 @@ export function summarize(
 
   const measures = [...new Set(notes.map((note) => note.measure))].sort((a, b) => a - b)
   const errorsPerMeasure = measures.map((measure) => {
-    const expected = required.filter((note) => note.measure === measure).length
+    const inBar = required.filter((note) => note.measure === measure)
     const errors = judgements.filter((item) => {
       if (item.result !== 'wrong' && item.result !== 'miss') return false
       const at = item.measure ?? (item.noteId ? byId.get(item.noteId)?.measure : undefined)
       return at === measure
     }).length
-    return { measure, expected, errors }
+    const played = inBar.filter((note) => judgedIds.has(note.id)).length
+    return { measure, expected: inBar.length, errors, played }
   })
 
   // Every wrong key counts against the rate. A wait-mode wrong takes no written

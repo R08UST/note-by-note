@@ -83,7 +83,7 @@ export function Keyboard({ low, high, pressed, flashes, targets, hints, hands = 
             onPointerUp={(event) => release(pitch, event)}
             onPointerCancel={(event) => release(pitch, event)}
           >
-            <span className="key-name">{noteName(pitch)}</span>
+            <span className={pitch % 12 === 0 ? 'key-name is-c' : 'key-name'}>{noteName(pitch)}</span>
             {keyLabel(pitch) && <kbd>{keyLabel(pitch)}</kbd>}
           </button>
         ))}

@@ -14,6 +14,10 @@ interface FeedbackStripProps {
   wrongs: number
   misses: number
   extras: number
+  /** The last bar reached when a run stopped before the end, so the strip does not claim the piece was finished. */
+  stoppedAt?: number | null
+  /** How to begin in the current mode, shown before the first key of a run. */
+  hint?: string
 }
 
 export function FeedbackStrip({
@@ -27,17 +31,19 @@ export function FeedbackStrip({
   wrongs,
   misses,
   extras,
+  stoppedAt = null,
+  hint = '',
 }: FeedbackStripProps) {
   const waiting = current.length > 0 ? describeNotes(current) : null
   const measure = current[0]?.measure
   const tone = last ? judgementTone(last) : 'idle'
   const showMeter = last?.result === 'hit' && typeof last.offsetMs === 'number'
 
-  let headline = '下面的键盘已经接上。准备好再开始，乐谱才会听。'
+  let headline = '准备好就开始，乐谱才会听。'
   if (status === 'countin') headline = '预备。数完就从当前音进入。'
   else if (status === 'playing' && waiting) headline = `下一个：${waiting}`
   else if (status === 'playing') headline = '继续。'
-  else if (status === 'finished') headline = '这次练完了。'
+  else if (status === 'finished') headline = stoppedAt != null ? `停在第 ${stoppedAt} 小节。` : '这次练完了。'
   else if (waiting && status === 'idle') headline = `开头：${waiting}`
 
   return (
@@ -49,7 +55,11 @@ export function FeedbackStrip({
           {measure ? ` · 第 ${measure} 小节` : ''}
         </p>
         <p className="feedback-headline">{headline}</p>
-        <p className={`feedback-last tone-${tone}`}>{last ? describeJudgement(last) : ' '}</p>
+        {last || status !== 'idle' || !hint ? (
+          <p className={`feedback-last tone-${tone}`}>{last ? describeJudgement(last) : ' '}</p>
+        ) : (
+          <p className="feedback-last feedback-hint">{hint}</p>
+        )}
       </div>
       <div className="feedback-meter" hidden={!showMeter}>
         <div className="meter">
