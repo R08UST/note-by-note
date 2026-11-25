@@ -12,7 +12,11 @@ import { analyzeFreeTempo, estimateRecentBpm } from '../report/freeTempo'
 import { summarize, type RunSummary } from '../report/summary'
 import type { TimeSignature, TimeSignatureChange } from '../score/parseMusicXml'
 import { quarterBeatsPerMeasureAt } from '../score/parseMusicXml'
-import { latestRun, saveRun, type RunRecord } from '../storage/db'
+import { recentRuns, saveRun, type RunRecord } from '../storage/db'
+import { findWeakSpots } from '../report/weakSpots'
+
+/** Saved runs of the piece kept for the report's weak-spot history. */
+const HISTORY_RUNS = 10
 import { timingForExercise } from '../train/timing'
 import { MISS_CUSHION_MS, mapPerformanceToTransportMs, toScoreTimeMs } from '../transport/clock'
 import { audioPrefs } from '../audio/prefs'
@@ -95,7 +99,8 @@ export function usePractice({
   const [summary, setSummary] = useState<RunSummary | null>(null)
   const [countBeat, setCountBeat] = useState<number | null>(null)
   const [liveBpm, setLiveBpm] = useState<number | null>(null)
-  const [previous, setPrevious] = useState<RunRecord | null>(null)
+  /** Recent saved runs of this piece, newest first. */
+  const [history, setHistory] = useState<RunRecord[]>([])
 
   const statusRef = useRef<RunStatus>('idle')
   const engineRef = useRef<Engine | null>(null)
@@ -150,12 +155,14 @@ export function usePractice({
 
   const remember = (items: Judgement[]) => {
     if (items.length === 0) return
-    judgementsRef.current = [...judgementsRef.current, ...items]
+    const engine = engineRef.current
+    // Free-tempo mode may turn an earlier wrong key into a hit once it resyncs, so its own list is the record.
+    judgementsRef.current =
+      engine instanceof FreeMode ? [...engine.judgements] : [...judgementsRef.current, ...items]
     setJudgements(judgementsRef.current)
     setLast(items[items.length - 1] ?? null)
     // A wait-mode error may have rewound the current measure: drop the colored
     // hits inside it so the player sees them as unplayed again.
-    const engine = engineRef.current
     if (engine instanceof WaitMode) {
       const resetIds = engine.consumeReset()
       // Prune the hook's own record so the report matches what the player replays.
@@ -236,7 +243,9 @@ export function usePractice({
     const report: RunSummary =
       engine instanceof FreeMode
         ? { ...baseReport, freeTempo: analyzeFreeTempo(runRef.current.notes, engine.hitTimes) }
-        : baseReport
+        : engine instanceof WaitMode
+          ? { ...baseReport, flow: analyzeFreeTempo(runRef.current.notes, engine.hitTimes) }
+          : baseReport
     const options = optionsRef.current
     const continuing =
       reason === 'done' &&
@@ -281,11 +290,12 @@ export function usePractice({
           fluency: report.freeTempo.fluency,
           stability: report.freeTempo.stability,
         }),
+        weakMeasures: findWeakSpots(report, 8).map((spot) => spot.measure),
       }
       savedAtRef.current = record.createdAt
       savedPieceRef.current = record.pieceId
       void saveRun(record)
-      setPrevious(record)
+      setHistory((prev) => [record, ...prev].slice(0, HISTORY_RUNS))
     }
     if (reason === 'done' && optionsRef.current.loop) {
       window.setTimeout(() => {
@@ -349,9 +359,7 @@ export function usePractice({
     const timeMs =
       runRef.current.mode === 'rhythm'
         ? scoreNow(event.timeMs)
-        : runRef.current.mode === 'free'
-          ? event.timeMs
-          : 0
+        : event.timeMs
     if (runRef.current.mode === 'rhythm' && timeMs < 0) return
     const produced = engine.push({ ...event, timeMs })
     rememberRef.current(produced)
@@ -401,11 +409,11 @@ export function usePractice({
   useEffect(() => {
     let cancel = false
     const requestedAt = Date.now()
-    setPrevious(null)
-    void latestRun(pieceId).then((run) => {
+    setHistory([])
+    void recentRuns(pieceId, HISTORY_RUNS).then((runs) => {
       if (cancel) return
       if (savedPieceRef.current === pieceId && savedAtRef.current >= requestedAt) return
-      setPrevious(run ?? null)
+      setHistory(runs)
     })
     statusRef.current = 'idle'
     engineRef.current = null
@@ -606,7 +614,8 @@ export function usePractice({
     passes,
     countBeat,
     liveBpm,
-    previous,
+    previous: history[0] ?? null,
+    history,
     handleInput,
     start,
     seek,

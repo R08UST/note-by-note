@@ -1,4 +1,11 @@
 import { measureReach, measureTone, type RunSummary } from '../report/summary'
+import {
+  findWeakSpots,
+  improvedMeasures,
+  weakHistory,
+  weakSpotAdvice,
+  type WeakHistoryRun,
+} from '../report/weakSpots'
 
 interface SummaryPanelProps {
   summary: RunSummary
@@ -12,6 +19,8 @@ interface SummaryPanelProps {
   onUseTempo?: (bpm: number) => void
   /** Wait mode sends a wrong key back to the start of its bar, which drops that bar's hits. */
   rewindsOnError?: boolean
+  /** Recent saved runs of this piece, newest first, starting with this one once it is saved. */
+  history?: readonly WeakHistoryRun[]
 }
 
 function formatDrift(driftBpm: number | null): string | null {
@@ -30,6 +39,7 @@ export function SummaryPanel({
   onPracticeAround,
   onUseTempo,
   rewindsOnError = false,
+  history = [],
 }: SummaryPanelProps) {
   const percent = Math.round(summary.hitRate * 100)
   const mean =
@@ -38,6 +48,14 @@ export function SummaryPanel({
       : `${summary.meanOffsetMs > 0 ? '+' : ''}${Math.round(summary.meanOffsetMs)} ms`
   const free = summary.freeTempo
   const stallsByMeasure = new Map(free?.perMeasure.map((item) => [item.measure, item.stalls]) ?? [])
+  const weakSpots = findWeakSpots(summary)
+  const weakSet = new Set(weakSpots.map((spot) => spot.measure))
+  const advice = weakSpotAdvice(summary, weakSpots)
+  // Until this run is saved, the history does not include it yet.
+  const runs = saved ? history : []
+  const recurring = weakHistory(runs)
+  const improved = improvedMeasures(runs)
+  const played = summary.hits + summary.wrongs + summary.misses > 0
   const driftText = formatDrift(free?.driftBpm ?? null)
   const clampedBpm = free?.bpm != null ? Math.min(160, Math.max(40, free.bpm)) : null
   const reach = measureReach(summary.errorsPerMeasure)
@@ -107,13 +125,56 @@ export function SummaryPanel({
           )}
         </div>
       )}
+      {!collapsed && played && (
+        <div className="weak-spots" aria-label="最该练的小节">
+          {weakSpots.length === 0 ? (
+            <p className="free-empty">没发现明显的薄弱小节，可以试着加快一点速度。</p>
+          ) : (
+            <>
+              <p className="weak-title">最该练的小节</p>
+              <ol>
+                {weakSpots.map((spot) => {
+                  const past = recurring.get(spot.measure)
+                  return (
+                    <li key={spot.measure}>
+                      <strong>第 {spot.measure} 小节</strong>
+                      <span>
+                        {spot.reasons.join(' · ')}
+                        {past && past.flagged >= 2 && (
+                          <em className="weak-repeat">
+                            {' '}近 {past.played} 次有 {past.flagged} 次
+                          </em>
+                        )}
+                      </span>
+                      <button type="button" className="button ghost" onClick={() => onJump?.(spot.measure)}>
+                        跳过去
+                      </button>
+                      <button type="button" className="button ghost" onClick={() => onPracticeAround?.(spot.measure)}>
+                        循环练
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+              {advice.map((tip) => (
+                <p key={tip} className="weak-advice">
+                  {tip}
+                </p>
+              ))}
+            </>
+          )}
+          {improved.length > 0 && (
+            <p className="weak-advice">练好了：第 {improved.join('、')} 小节之前常出问题，这次弹顺了。</p>
+          )}
+        </div>
+      )}
       {!collapsed && (
         <>
           <div className="heat-strip" aria-label="每小节结果">
             {summary.errorsPerMeasure.map((measure) => {
               const stalls = stallsByMeasure.get(measure.measure) ?? 0
               const stallText = stalls > 0 ? `，卡顿 ${stalls} 处` : ''
-              const tone = measureTone(measure, stalls)
+              const tone = measureTone(measure, weakSet.has(measure.measure) ? Math.max(1, stalls) : stalls)
               const what = tone === 'unplayed' ? '没弹到' : `错 ${measure.errors}/${measure.expected}${stallText}`
               return (
                 <button
@@ -132,8 +193,8 @@ export function SummaryPanel({
           </div>
           <p className="summary-note">
             {free
-              ? '绿是干净流畅，黄是有少量错音或卡顿，红是错得多。'
-              : '绿是干净，黄是有错，红是错得多。'}
+              ? '绿是干净流畅，黄是有少量错音、卡顿、放慢或节奏不均，红是错得多。'
+              : '绿是干净，黄是有少量错或停顿、没踩准拍，红是错得多。'}
             {stoppedEarly ? '空框是没弹到的小节。' : ''}
             {rewindsOnError && summary.wrongs > 0 ? '弹错会回到这一小节开头，那一小节已弹对的音重新计。' : ''}
             点一下跳到该小节，按住 Shift 再点就循环前后一小节。

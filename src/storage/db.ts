@@ -48,6 +48,8 @@ export interface RunRecord {
   fluency?: number | null
   /** Free-tempo rhythm proportion stability score in [0, 1]. */
   stability?: number | null
+  /** Measures the report flagged as weak spots, so later runs can tell which keep coming back. */
+  weakMeasures?: number[]
 }
 
 export type UserLevel = '' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
@@ -223,12 +225,17 @@ export async function listRuns(): Promise<RunRecord[]> {
 }
 
 export async function latestRun(pieceId: string): Promise<RunRecord | undefined> {
+  return (await recentRuns(pieceId, 1))[0]
+}
+
+/** The newest runs of one piece, newest first. */
+export async function recentRuns(pieceId: string, limit: number): Promise<RunRecord[]> {
   try {
     const rows = await db.runs.where('pieceId').equals(pieceId).toArray()
     rows.sort((a, b) => b.createdAt - a.createdAt)
-    return rows[0]
+    return rows.slice(0, limit)
   } catch {
-    return undefined
+    return []
   }
 }
 

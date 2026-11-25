@@ -59,6 +59,7 @@ export class WaitMode {
   private index = 0
   private readonly hit = new Set<string>()
   private readonly _judgements: Judgement[] = []
+  private readonly _hitTimes = new Map<string, number>()
   /** Note ids whose hit was dropped by the last error reset, so the view can uncolor them. */
   private resetIds: string[] = []
 
@@ -77,6 +78,11 @@ export class WaitMode {
 
   get judgements(): readonly Judgement[] {
     return this._judgements
+  }
+
+  /** Real event time (ms) of the latest hit on each written note, so the report can find hesitations. */
+  get hitTimes(): ReadonlyMap<string, number> {
+    return this._hitTimes
   }
 
   /** Ids un-hit by the most recent error reset. Cleared once read. */
@@ -128,6 +134,7 @@ export class WaitMode {
     const match = this.matchIn(this.groups[this.index], event.pitch) ?? this.matchMark(event.pitch)
     if (match) {
       this.hit.add(match.id)
+      if (!match.optional) this._hitTimes.set(match.id, event.timeMs)
       const judgement: Judgement = { noteId: match.id, pitch: event.pitch, result: 'hit' }
       this._judgements.push(judgement)
       this.advancePastFinished()

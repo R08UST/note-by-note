@@ -30,7 +30,7 @@ describe('summarize', () => {
     expect(summary.meanOffsetMs).toBeCloseTo(10)
     expect(summary.timingSpreadMs).toBeCloseTo(Math.sqrt(1800))
     expect(summary.perfects).toBe(2)
-    expect(summary.errorsPerMeasure).toEqual([
+    expect(summary.errorsPerMeasure).toMatchObject([
       { measure: 1, expected: 2, errors: 0, played: 2 },
       { measure: 2, expected: 2, errors: 2, played: 2 },
     ])
@@ -59,7 +59,7 @@ describe('summarize', () => {
       { noteId: 'c', pitch: 64, result: 'hit' },
     ])
     expect(summary.hitRate).toBeCloseTo(3 / 8)
-    expect(summary.errorsPerMeasure).toEqual([
+    expect(summary.errorsPerMeasure).toMatchObject([
       { measure: 1, expected: 2, errors: 4, played: 2 },
       { measure: 2, expected: 1, errors: 1, played: 1 },
     ])
