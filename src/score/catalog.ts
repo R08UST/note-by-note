@@ -1,4 +1,4 @@
-import { OTHER_COMPOSERS, SHELF_MIN_PIECES, composerName, composerSortKey } from './composers'
+import { OTHER_COMPOSERS, SHELF_MIN_PIECES, composerName, composerSortKey, composerZh } from './composers'
 
 export interface CatalogPiece {
   id: string
@@ -92,8 +92,88 @@ export function needsAttribution(piece: CatalogPiece): boolean {
   return /CC\s*BY/i.test(piece.license)
 }
 
+/**
+ * 搜索用的折叠：去掉重音（Frédéric → frederic），标点变空格，字母和数字之间断开，
+ * 这样「op149」「Op. 149」「第13首」都拆成同样的词。
+ */
+export function foldSearch(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/(\d)(?=\D)|(\D)(?=\d)/g, '$1$2 ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+const HAN = /^\p{Script=Han}+$/u
+
+interface Haystack {
+  all: string
+  words: string[]
+  title: string
+  titleWords: string[]
+}
+
+const haystacks = new WeakMap<CatalogPiece, Haystack>()
+
+function haystackOf(piece: CatalogPiece): Haystack {
+  let hay = haystacks.get(piece)
+  if (!hay) {
+    const all = foldSearch(
+      [piece.title, piece.title_zh ?? '', piece.composer, composerName(piece.composer), composerZh(piece.composer), piece.book ?? '', piece.id].join(' '),
+    )
+    const title = foldSearch(`${pieceTitle(piece)} ${piece.title ?? ''}`)
+    hay = { all, words: all.split(' '), title, titleWords: title.split(' ') }
+    haystacks.set(piece, hay)
+  }
+  return hay
+}
+
+function searchTokens(text: string): string[] {
+  return foldSearch(text).split(' ').filter(Boolean)
+}
+
+/**
+ * 数字按词首匹配，「no 5」不会把第 15 首也算进来。中文没有空格，
+ * 整串找不到时退回按相邻两字找，所以「巴赫小步舞曲」也能命中。
+ */
+function tokenHit(text: string, words: readonly string[], token: string): boolean {
+  if (/^\d+$/.test(token)) return words.some((word) => word.startsWith(token))
+  if (text.includes(token)) return true
+  if (!HAN.test(token) || token.length < 3) return false
+  for (let index = 0; index + 1 < token.length; index += 1) {
+    if (!text.includes(token.slice(index, index + 2))) return false
+  }
+  return true
+}
+
+/** 每个词都要出现，但可以落在不同字段里，所以「bach minuet」能找到。 */
+export function matchesSearch(piece: CatalogPiece, text: string): boolean {
+  const tokens = searchTokens(text)
+  if (tokens.length === 0) return true
+  const hay = haystackOf(piece)
+  return tokens.every((token) => tokenHit(hay.all, hay.words, token))
+}
+
+/** 标题命中的排前面：整名相同 > 标题开头 > 每个词都在标题里 > 只在作曲家或教材里。同档保持原顺序。 */
+export function rankSearch(pieces: readonly CatalogPiece[], text: string): CatalogPiece[] {
+  const folded = foldSearch(text)
+  const tokens = searchTokens(text)
+  const rank = (piece: CatalogPiece) => {
+    const hay = haystackOf(piece)
+    if (foldSearch(pieceTitle(piece)) === folded) return 0
+    if (hay.title.startsWith(folded)) return 1
+    if (tokens.every((token) => tokenHit(hay.title, hay.titleWords, token))) return 2
+    return 3
+  }
+  return pieces
+    .map((piece, index) => ({ piece, index, rank: rank(piece) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.piece)
+}
+
 export function filterCatalog(pieces: readonly CatalogPiece[], query: CatalogQuery): CatalogPiece[] {
-  const needle = query.text.trim().toLowerCase()
   const category = query.category ?? 'all'
   return pieces.filter((piece) => {
     if (category === 'etude' && piece.category !== 'etude') return false
@@ -101,11 +181,7 @@ export function filterCatalog(pieces: readonly CatalogPiece[], query: CatalogQue
     if (category === 'graded' && (piece.category === 'etude' || piece.category === 'method')) return false
     if (query.level !== 'all' && piece.level !== query.level) return false
     if (query.hands !== 'all' && piece.hands !== query.hands) return false
-    if (!needle) return true
-    const haystack = [piece.title, piece.title_zh ?? '', piece.composer, composerName(piece.composer), piece.book ?? '']
-      .join('\n')
-      .toLowerCase()
-    return haystack.includes(needle)
+    return matchesSearch(piece, query.text)
   })
 }
 

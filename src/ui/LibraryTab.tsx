@@ -4,11 +4,14 @@ import {
   groupByComposer,
   needsAttribution,
   pieceTitle,
+  rankSearch,
+  sortPieces,
   LEVEL_ORDER,
   type CatalogPiece,
   type CatalogQuery,
   type CatalogSort,
 } from '../score/catalog'
+import { composerZh } from '../score/composers'
 import type { SavedScore, UserLevel } from '../storage/db'
 
 const ScoreImport = lazy(() => import('./ScoreImport').then((mod) => ({ default: mod.ScoreImport })))
@@ -83,9 +86,13 @@ export function LibraryTab({
   const [folded, setFolded] = useState<Record<string, boolean>>({})
   const category = query.category ?? 'all'
   const sort = query.sort ?? 'level'
-  const shown = filterCatalog(pieces, query)
+  const shown = useMemo(() => filterCatalog(pieces, query), [pieces, query])
   const shelves = useMemo(() => groupByComposer(shown, sort), [shown, sort])
   const searching = query.text.trim().length > 0
+  // 搜索时不分作曲家书架，按相关度排成一列，最像的在最上面。
+  const results = useMemo(() => (searching ? rankSearch(sortPieces(shown, sort), query.text) : []), [searching, shown, sort, query.text])
+  const filtersOn = query.level !== 'all' || query.hands !== 'all' || category !== 'all'
+  const hidden = searching && filtersOn ? filterCatalog(pieces, { ...query, level: 'all', hands: 'all', category: 'all' }).length - shown.length : 0
 
   const count = (predicate: (piece: CatalogPiece) => boolean) => pieces.filter(predicate).length
 
@@ -101,6 +108,22 @@ export function LibraryTab({
       </div>
 
       <div className="library-filters">
+        <label className="field search">
+          <span>搜索</span>
+          <input
+            ref={searchRef}
+            type="search"
+            placeholder="曲名、作曲家或教材，如：巴赫 小步舞曲、op 100、肖邦"
+            value={query.text}
+            onChange={(event) => onQuery({ ...query, text: event.target.value })}
+            onKeyDown={(event) => {
+              // 回车直接打开最靠前的结果，Esc 清空。
+              if (event.key === 'Enter' && results[0]) onOpen(results[0])
+              if (event.key === 'Escape') onQuery({ ...query, text: '' })
+            }}
+          />
+        </label>
+
         <div className="segmented" role="group" aria-label="程度">
           <button
             type="button"
@@ -153,17 +176,6 @@ export function LibraryTab({
           </button>
         </div>
 
-        <label className="field search">
-          <span>搜索</span>
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder="曲名、作曲家或教材名"
-            value={query.text}
-            onChange={(event) => onQuery({ ...query, text: event.target.value })}
-          />
-        </label>
-
         <div className="segmented" role="group" aria-label="排序">
           <span className="segmented-label">排序</span>
           {SORTS.map((item) => (
@@ -179,6 +191,9 @@ export function LibraryTab({
         </div>
       </div>
 
+      {/* 搜索时把结果顶到最上面；正在导入时保留「我的曲谱」，免得导入到一半被收掉。 */}
+      {(!searching || importing) && (
+      <>
       <section className="library-section">
         <h3>最近练习</h3>
         {recent.length === 0 ? (
@@ -251,15 +266,22 @@ export function LibraryTab({
           </ul>
         )}
       </section>
+      </>
+      )}
 
       <section className="library-section">
         <div className="library-shelf-head">
-          <h3>{category === 'method' ? '教材' : category === 'etude' ? '练习曲' : '全部曲库'}</h3>
+          <h3>{searching ? '搜索结果' : category === 'method' ? '教材' : category === 'etude' ? '练习曲' : '全部曲库'}</h3>
           <span className="device-note">
-            {shown.length} 首 · {shelves.length} 位作曲家
+            {searching ? `${shown.length} 首${results[0] ? ' · 回车打开第一首' : ''}` : `${shown.length} 首 · ${shelves.length} 位作曲家`}
             {openingId ? ' · 正在打开…' : ''}
           </span>
-          <div className="library-shelf-actions">
+          {hidden > 0 && (
+            <button type="button" className="button ghost" onClick={() => onQuery({ ...query, level: 'all', hands: 'all', category: 'all' })}>
+              筛选条件还挡住了 {hidden} 首，显示全部
+            </button>
+          )}
+          {!searching && <div className="library-shelf-actions">
             <button type="button" className="button ghost" onClick={() => setFolded({})}>
               全部展开
             </button>
@@ -270,17 +292,26 @@ export function LibraryTab({
             >
               全部收起
             </button>
-          </div>
+          </div>}
         </div>
         {error && <p className="score-status error">{error}</p>}
         {shown.length === 0 ? (
-          <p>没有符合的曲子。</p>
+          <p>没有符合的曲子。可以试试作曲家的中文或英文名、曲名里的一个词，或者教材编号。</p>
+        ) : searching ? (
+          <ul className="library-grid">
+            {results.map((piece) => (
+              <li key={piece.id}>
+                <PieceCard piece={piece} active={piece.id === activeId} opening={openingId === piece.id} onOpen={onOpen} />
+              </li>
+            ))}
+          </ul>
         ) : (
           <div className="library-shelves">
             {shelves.map((shelf) => {
-              // 搜索时默认展开，让结果直接可见；否则默认收起，只看到作曲家列表。
-              const open = folded[shelf.composer] ?? searching
+              // 默认收起，只看到作曲家列表。
+              const open = folded[shelf.composer] ?? false
               const activeHere = shelf.pieces.some((piece) => piece.id === activeId)
+              const zh = composerZh(shelf.composer)
               return (
                 <section key={shelf.composer} className={open ? 'composer-shelf is-open' : 'composer-shelf'}>
                   <button
@@ -290,7 +321,7 @@ export function LibraryTab({
                     onClick={() => setFolded((current) => ({ ...current, [shelf.composer]: !open }))}
                   >
                     <span className="composer-shelf-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
-                    <strong>{shelf.name}</strong>
+                    <strong>{zh ? `${zh} · ${shelf.name}` : shelf.name}</strong>
                     <span className="composer-shelf-count">
                       {shelf.pieces.length} 首
                       {activeHere ? ' · 正在练' : ''}
@@ -337,7 +368,7 @@ function PieceCard({
         <strong title={title}>{title}</strong>
         <span className="library-card-meta">
           {[
-            piece.composer,
+            composerZh(piece.composer) || piece.composer,
             piece.level,
             piece.hands === 'one' ? '单手' : '双手',
             `${piece.measures} 小节`,
