@@ -1,0 +1,517 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-25T12:48:44.065Z",
+  "title": "Design System: Note by Note",
+  "extensions": {
+    "colorMeta": {
+      "walnut-night": {
+        "role": "neutral",
+        "displayName": "Walnut Night",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "walnut-raised": {
+        "role": "neutral",
+        "displayName": "Walnut Raised",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "walnut-sunken": {
+        "role": "neutral",
+        "displayName": "Walnut Sunken",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "seam": {
+        "role": "neutral",
+        "displayName": "Seam",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "seam-hover": {
+        "role": "neutral",
+        "displayName": "Seam Hover",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "raised-hover": {
+        "role": "neutral",
+        "displayName": "Raised Hover",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "ivory-ink": {
+        "role": "neutral",
+        "displayName": "Ivory Ink",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(26% 0.014 85)",
+          "oklch(37% 0.020 85)",
+          "oklch(48% 0.026 85)",
+          "oklch(60% 0.027 85)",
+          "oklch(72% 0.021 85)",
+          "oklch(84% 0.014 85)",
+          "oklch(95% 0.008 85)"
+        ]
+      },
+      "dusty-linen": {
+        "role": "neutral",
+        "displayName": "Dusty Linen",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "score-paper": {
+        "role": "neutral",
+        "displayName": "Score Paper",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(26% 0.014 85)",
+          "oklch(37% 0.020 85)",
+          "oklch(48% 0.026 85)",
+          "oklch(60% 0.027 85)",
+          "oklch(72% 0.021 85)",
+          "oklch(84% 0.014 85)",
+          "oklch(95% 0.008 85)"
+        ]
+      },
+      "paper-shade": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(26% 0.014 85)",
+          "oklch(37% 0.020 85)",
+          "oklch(48% 0.026 85)",
+          "oklch(60% 0.027 85)",
+          "oklch(72% 0.021 85)",
+          "oklch(84% 0.014 85)",
+          "oklch(95% 0.008 85)"
+        ]
+      },
+      "sepia-ink": {
+        "role": "neutral",
+        "displayName": "Sepia Ink",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "paper-muted": {
+        "role": "neutral",
+        "displayName": "Paper Muted",
+        "tonalRamp": [
+          "oklch(15% 0.008 60)",
+          "oklch(26% 0.014 60)",
+          "oklch(37% 0.020 60)",
+          "oklch(48% 0.026 60)",
+          "oklch(60% 0.027 60)",
+          "oklch(72% 0.021 60)",
+          "oklch(84% 0.014 60)",
+          "oklch(95% 0.008 60)"
+        ]
+      },
+      "lamp-amber": {
+        "role": "primary",
+        "displayName": "Lamp Amber",
+        "tonalRamp": [
+          "oklch(15% 0.041 70)",
+          "oklch(26% 0.071 70)",
+          "oklch(37% 0.101 70)",
+          "oklch(48% 0.131 70)",
+          "oklch(60% 0.136 70)",
+          "oklch(72% 0.104 70)",
+          "oklch(84% 0.071 70)",
+          "oklch(95% 0.041 70)"
+        ]
+      },
+      "lamp-amber-bright": {
+        "role": "primary",
+        "displayName": "Lamp Amber Bright",
+        "tonalRamp": [
+          "oklch(15% 0.041 70)",
+          "oklch(26% 0.071 70)",
+          "oklch(37% 0.101 70)",
+          "oklch(48% 0.131 70)",
+          "oklch(60% 0.136 70)",
+          "oklch(72% 0.104 70)",
+          "oklch(84% 0.071 70)",
+          "oklch(95% 0.041 70)"
+        ]
+      },
+      "amber-ink": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "tonalRamp": [
+          "oklch(15% 0.041 70)",
+          "oklch(26% 0.071 70)",
+          "oklch(37% 0.101 70)",
+          "oklch(48% 0.131 70)",
+          "oklch(60% 0.136 70)",
+          "oklch(72% 0.104 70)",
+          "oklch(84% 0.071 70)",
+          "oklch(95% 0.041 70)"
+        ]
+      },
+      "moss": {
+        "role": "secondary",
+        "displayName": "Moss",
+        "tonalRamp": [
+          "oklch(15% 0.033 160)",
+          "oklch(26% 0.057 160)",
+          "oklch(37% 0.081 160)",
+          "oklch(48% 0.105 160)",
+          "oklch(60% 0.109 160)",
+          "oklch(72% 0.083 160)",
+          "oklch(84% 0.057 160)",
+          "oklch(95% 0.033 160)"
+        ]
+      },
+      "coral": {
+        "role": "secondary",
+        "displayName": "Coral",
+        "tonalRamp": [
+          "oklch(15% 0.041 35)",
+          "oklch(26% 0.071 35)",
+          "oklch(37% 0.101 35)",
+          "oklch(48% 0.131 35)",
+          "oklch(60% 0.136 35)",
+          "oklch(72% 0.104 35)",
+          "oklch(84% 0.071 35)",
+          "oklch(95% 0.041 35)"
+        ]
+      },
+      "tone-good": {
+        "role": "feedback",
+        "displayName": "Tone Good",
+        "tonalRamp": [
+          "oklch(15% 0.027 165)",
+          "oklch(26% 0.047 165)",
+          "oklch(37% 0.067 165)",
+          "oklch(48% 0.087 165)",
+          "oklch(60% 0.091 165)",
+          "oklch(72% 0.069 165)",
+          "oklch(84% 0.047 165)",
+          "oklch(95% 0.027 165)"
+        ]
+      },
+      "tone-warn": {
+        "role": "feedback",
+        "displayName": "Tone Warn",
+        "tonalRamp": [
+          "oklch(15% 0.033 80)",
+          "oklch(26% 0.057 80)",
+          "oklch(37% 0.081 80)",
+          "oklch(48% 0.105 80)",
+          "oklch(60% 0.109 80)",
+          "oklch(72% 0.083 80)",
+          "oklch(84% 0.057 80)",
+          "oklch(95% 0.033 80)"
+        ]
+      },
+      "tone-bad": {
+        "role": "feedback",
+        "displayName": "Tone Bad",
+        "tonalRamp": [
+          "oklch(15% 0.027 30)",
+          "oklch(26% 0.047 30)",
+          "oklch(37% 0.067 30)",
+          "oklch(48% 0.087 30)",
+          "oklch(60% 0.091 30)",
+          "oklch(72% 0.069 30)",
+          "oklch(84% 0.047 30)",
+          "oklch(95% 0.027 30)"
+        ]
+      },
+      "hand-right": {
+        "role": "hand",
+        "displayName": "Right Hand",
+        "tonalRamp": [
+          "oklch(15% 0.041 70)",
+          "oklch(26% 0.071 70)",
+          "oklch(37% 0.101 70)",
+          "oklch(48% 0.131 70)",
+          "oklch(60% 0.136 70)",
+          "oklch(72% 0.104 70)",
+          "oklch(84% 0.071 70)",
+          "oklch(95% 0.041 70)"
+        ]
+      },
+      "hand-right-deep": {
+        "role": "hand",
+        "displayName": "Right Hand Deep",
+        "tonalRamp": [
+          "oklch(15% 0.041 70)",
+          "oklch(26% 0.071 70)",
+          "oklch(37% 0.101 70)",
+          "oklch(48% 0.131 70)",
+          "oklch(60% 0.136 70)",
+          "oklch(72% 0.104 70)",
+          "oklch(84% 0.071 70)",
+          "oklch(95% 0.041 70)"
+        ]
+      },
+      "hand-left": {
+        "role": "hand",
+        "displayName": "Left Hand",
+        "tonalRamp": [
+          "oklch(15% 0.019 180)",
+          "oklch(26% 0.033 180)",
+          "oklch(37% 0.047 180)",
+          "oklch(48% 0.061 180)",
+          "oklch(60% 0.064 180)",
+          "oklch(72% 0.048 180)",
+          "oklch(84% 0.033 180)",
+          "oklch(95% 0.019 180)"
+        ]
+      },
+      "hand-left-deep": {
+        "role": "hand",
+        "displayName": "Left Hand Deep",
+        "tonalRamp": [
+          "oklch(15% 0.019 180)",
+          "oklch(26% 0.033 180)",
+          "oklch(37% 0.047 180)",
+          "oklch(48% 0.061 180)",
+          "oklch(60% 0.064 180)",
+          "oklch(72% 0.048 180)",
+          "oklch(84% 0.033 180)",
+          "oklch(95% 0.019 180)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The summary hit-rate percentage only. The count-in uses it at 2.4rem."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The empty-state prompt and the feedback headline."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "The app title, panel h2, the now-playing name, and settings h3."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Reported numbers: tallies, summary stats, timings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All controls and running text. Help text is capped at 72ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Kickers, table headers, stat labels."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "hover-fade",
+        "value": "120ms ease",
+        "purpose": "Background, border, and colour changes on controls."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "860px"
+      },
+      {
+        "name": "phone",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default pill action, e.g. 示范.",
+      "html": "<button class=\"ds-btn\">示范</button>",
+      "css": ".ds-btn{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid var(--line);background:var(--bg-raise);color:var(--ink);line-height:1;cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease;} .ds-btn:hover{border-color:#5a4c3f;background:#342b23;} .ds-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one next action: 开始.",
+      "html": "<button class=\"ds-btn-primary\">开始</button>",
+      "css": ".ds-btn-primary{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid var(--line);background:var(--bg-raise);color:var(--ink);line-height:1;cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease;background:var(--amber);border-color:var(--amber);color:var(--amber-ink);font-weight:650;} .ds-btn-primary:hover{background:#eeab52;border-color:#eeab52;} .ds-btn-primary:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Stop Button",
+      "kind": "button",
+      "refersTo": "button-stop",
+      "description": "Ends a running session.",
+      "html": "<button class=\"ds-btn-stop\">停止</button>",
+      "css": ".ds-btn-stop{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;border:1px solid var(--line);background:var(--bg-raise);color:var(--ink);line-height:1;cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease;background:transparent;color:#ffb1a3;border-color:#8a4034;} .ds-btn-stop:hover{background:rgba(255,255,255,0.04);} .ds-btn-stop:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "segmented",
+      "description": "Mode and hand pickers.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">等待</button><button aria-pressed=\"false\">节奏</button></div>",
+      "css": ".ds-seg{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;display:inline-flex;align-items:center;height:32px;padding:2px;gap:2px;background:var(--bg-sunken);border:1px solid var(--line);border-radius:999px;} .ds-seg button{font:inherit;height:26px;border:0;border-radius:999px;padding:0 10px;background:transparent;color:var(--muted);cursor:pointer;transition:background-color 120ms ease,color 120ms ease;} .ds-seg button[aria-pressed=\"true\"]{background:var(--amber);color:var(--amber-ink);} .ds-seg button[aria-pressed=\"false\"]:hover{color:var(--ink);background:rgba(255,255,255,0.05);} .ds-seg button:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Top-level sections in the header.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" class=\"is-selected\"><strong>练习</strong></a><a href=\"#\"><strong>训练</strong></a><a href=\"#\"><strong>记录</strong></a></nav>",
+      "css": ".ds-tabs{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;display:inline-flex;gap:2px;padding:3px;background:var(--bg-sunken);border:1px solid var(--line);border-radius:999px;} .ds-tabs a{min-width:64px;height:28px;display:inline-flex;align-items:center;justify-content:center;padding:0 16px;border-radius:999px;text-decoration:none;transition:background-color 120ms ease;} .ds-tabs a strong{color:var(--muted);font-weight:600;} .ds-tabs a:hover strong{color:var(--ink);} .ds-tabs a.is-selected{background:var(--amber);} .ds-tabs a.is-selected strong{color:var(--amber-ink);} .ds-tabs a:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Search and number fields.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"搜索曲名或作曲家\">",
+      "css": ".ds-input{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--bg-sunken);color:var(--ink);padding:0 10px;} .ds-input::placeholder{color:var(--muted);} .ds-input:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Level Chip",
+      "kind": "chip",
+      "refersTo": "level-chip",
+      "description": "Training level rail.",
+      "html": "<button class=\"ds-level is-selected\"><strong>S3</strong><span>已掌握</span></button><button class=\"ds-level\"><strong>S4</strong><span>进行中</span></button>",
+      "css": ".ds-level{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;min-width:56px;min-height:32px;background:var(--bg-sunken);border:1px solid var(--line);border-radius:10px;padding:4px 8px;margin-right:6px;text-align:left;color:var(--ink);cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease;} .ds-level strong{display:block;} .ds-level span{color:var(--amber);font-size:0.72rem;letter-spacing:0.04em;} .ds-level.is-selected{background:var(--amber);border-color:var(--amber);color:var(--amber-ink);} .ds-level.is-selected span{color:var(--amber-ink);} .ds-level:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Library Card",
+      "kind": "card",
+      "refersTo": "library-card",
+      "description": "One piece in the graded library.",
+      "html": "<div class=\"ds-card\"><button class=\"ds-card-main\"><strong>小步舞曲 G 大调</strong><span>巴赫 · L2</span></button></div>",
+      "css": ".ds-card{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;width:220px;background:var(--bg-sunken);border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:border-color 120ms ease;} .ds-card:hover{border-color:#5a4c3f;} .ds-card-main{font:inherit;width:100%;display:flex;flex-direction:column;gap:3px;padding:10px 12px;background:none;border:0;color:var(--ink);text-align:left;cursor:pointer;} .ds-card-main strong{font-size:0.98rem;line-height:1.35;} .ds-card-main span{color:var(--muted);font-size:0.8rem;} .ds-card-main:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}"
+    },
+    {
+      "name": "Run Summary",
+      "kind": "custom",
+      "refersTo": "summary",
+      "description": "The result of a run on score paper, with serif numerals.",
+      "html": "<div class=\"ds-summary\"><p class=\"ds-pct\">86%</p><div><span>平均偏差</span><strong>+18 ms</strong></div></div>",
+      "css": ".ds-summary{--bg:#1b1612;--bg-raise:#2a231c;--bg-sunken:#14110e;--line:#3d342b;--ink:#f6efe4;--muted:#b5a694;--paper:#f4efe4;--paper-ink:#241c16;--amber:#e39b3b;--amber-ink:#2b1c08;font-family:\"Avenir Next\",\"Segoe UI\",sans-serif;font-size:0.875rem;display:flex;align-items:center;gap:16px;background:var(--paper);color:var(--paper-ink);border-radius:10px;padding:8px 12px;} .ds-pct{margin:0;font-family:\"Iowan Old Style\",Palatino,\"Palatino Linotype\",Georgia,serif;font-size:3rem;line-height:0.9;} .ds-summary span{display:block;color:#7b6b5b;font-size:0.75rem;letter-spacing:0.04em;} .ds-summary strong{font-size:1.15rem;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evening Practice Room",
+    "overview": "A calm room after dark, warm and private, where someone practises steadily without hurry. The room is Walnut Night: dark, warm brown, and quiet. The score sits in it as cream paper, the brightest thing on screen, because the next note is the only thing that matters while the hands are on the keys. One lamp colour, Lamp Amber, falls on whatever is active right now: the selected tab, the primary action, the key to play, the count-in.\n\nIt is an Operate surface. Ambition shows as restraint. Controls are compact pills that answer a touch and then step out of the score's way. Numbers that matter (hit rate, timing, counts) are set in an old-style serif, so a result reads like a handwritten note in the margin rather than a dashboard metric. Feedback uses three soft tones (good, warn, bad) that are pale enough to sit in a dim room without glaring.\n\nThe look avoids the cold DAW or studio: no clinical grey-on-black, no neon meters, no dense pro-audio panel walls.",
+    "keyCharacteristics": [
+      "Warm dark room, cream paper for the score and the results, one amber accent.",
+      "Fully flat. Depth comes from tone and thin seams, never from shadows.",
+      "Pills that are quiet and tactile, at a 32 px control height.",
+      "Serif for titles and numerals, a humanist sans for everything you operate.",
+      "Chinese UI copy set in the sans stack. The system CJK fallback carries it."
+    ],
+    "rules": [
+      {
+        "name": "The One Lamp Rule",
+        "body": "Lamp Amber marks only what is active or what to do next. If two amber things on screen compete for \"now\", one of them is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Paper Is the Score Rule",
+        "body": "Score Paper is reserved for notation and the result of playing it (the score frame, the summary, OMR previews). Never use it for chrome, cards, or dialogs.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tokens Not Hex Rule",
+        "body": "Use the CSS custom properties in `src/index.css` (`--bg-sunken`, `--line`, `--tone-good`, `--amber-bright`, and so on). Never write a token's hex value again in a component rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif Counts Rule",
+        "body": "A number that reports how the playing went is set in the serif. A number you type or adjust (BPM, latency, start measure) stays in the sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Room Rule",
+        "body": "No `box-shadow` for elevation, anywhere. If something needs to stand out, change its tone or give it a Seam border.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep Lamp Amber to what is active or next. Its rarity is what makes it readable at a glance from the keys.",
+      "Do keep the score on Score Paper and let it take every pixel the layout can give it.",
+      "Do set reported numbers in the serif and controls in the sans.",
+      "Do build controls at 32 px with pill corners and 1 px Seam borders, using 120 ms ease hovers.",
+      "Do use the `:root` custom properties from `src/index.css`, not literal hex.",
+      "Do separate surfaces by tone and Seam borders only."
+    ],
+    "donts": [
+      "Don't add `box-shadow` for elevation (see the Flat Room Rule).",
+      "Don't fill a switched-on toggle (such as 循环) with amber. An on state is an amber ring and amber text. Amber fill is reserved for the selection and the next action.",
+      "Don't drift toward a cold DAW or studio look: no neutral grey-on-black panels, no neon or saturated meters, no dense walls of knobs and readouts.",
+      "Don't introduce a second accent colour. Moss and Coral are status, not brand.",
+      "Don't put Score Paper behind chrome, menus, or settings.",
+      "Don't use full-strength Moss or Coral for feedback text on the dark ground. Use the pale feedback tones."
+    ]
+  }
+}
