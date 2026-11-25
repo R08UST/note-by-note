@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseMusicXml } from '../score/parseMusicXml'
 import { RHYTHM_LEVELS } from './curriculum'
 import { cellSpans } from './generate'
-import { generateHandsRhythm, generateRhythm, rhythmFromPiece, scoreRhythm, worstMeasures } from './rhythm'
-import type { ScoreNote } from '../judge/types'
+import { generateHandsRhythm, generatePulse, generateRhythm, readTiming, rhythmFromPiece, scoreRhythm, worstMeasures } from './rhythm'
+import type { Judgement, ScoreNote } from '../judge/types'
 
 describe('rhythm generator', () => {
   it('uses only the level cell lengths and matches the parser', () => {
@@ -55,5 +55,27 @@ describe('scoreRhythm', () => {
     const late = scoreRhythm(notes, [{ pitch: 40, timeMs: 200 }, { pitch: 40, timeMs: 1000 }], 60, 'any')
     expect(late.hits).toBe(2)
     expect(late.perfects).toBe(1)
+  })
+})
+
+describe('timing readout', () => {
+  const notes = generatePulse('quarter', 2).notes
+  const take = (offset: (index: number) => number | null): Judgement[] =>
+    notes.flatMap((note, index): Judgement[] => {
+      const value = offset(index)
+      return value == null ? [{ noteId: note.id, pitch: note.pitch, result: 'miss' as const }] : [{ noteId: note.id, pitch: note.pitch, result: 'hit' as const, offsetMs: value }]
+    })
+
+  it('groups a take by bar and says when it runs late', () => {
+    const readout = readTiming(notes, take(() => 90), 120)
+    expect(readout.measures.map((row) => row.offsets.length)).toEqual([4, 4])
+    expect(readout.lines[0]).toContain('偏晚 90')
+  })
+
+  it('names the uneven bar and counts what was missed', () => {
+    const readout = readTiming(notes, take((index) => (index < 4 ? 0 : index % 2 ? 200 : null)), 120)
+    expect(readout.lines).toContain('漏了 2 个音。')
+    expect(readout.lines.some((line) => line.includes('第 2 小节'))).toBe(true)
+    expect(readTiming(notes, take(() => 10), 120).lines).toEqual(['又准又稳。'])
   })
 })

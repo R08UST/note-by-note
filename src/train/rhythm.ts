@@ -1,4 +1,4 @@
-import type { ScoreNote } from '../judge/types'
+import type { Judgement, ScoreNote } from '../judge/types'
 import { Judge, isOnTime } from '../judge/judge'
 import { summarize, type RunSummary } from '../report/summary'
 import type { TimeSignature } from '../score/parseMusicXml'
@@ -158,4 +158,53 @@ export function onTimeRate(summary: RunSummary): number {
 export function pitchAccuracy(summary: RunSummary): number {
   if (summary.expected === 0) return 0
   return summary.hits / summary.expected
+}
+
+export interface MeasureTiming {
+  measure: number
+  /** Played minus written, in ms, one per note that was hit. */
+  offsets: number[]
+  missed: number
+}
+
+export interface TimingReadout {
+  /** A few plain sentences that say what to fix first. */
+  lines: string[]
+  measures: MeasureTiming[]
+  perfectMs: number
+}
+
+/** Turns a take into one row of offsets per bar and a short verdict, instead of one line per note. */
+export function readTiming(notes: readonly ScoreNote[], judgements: readonly Judgement[], perfectMs: number): TimingReadout {
+  const hitOffset = new Map<string, number>()
+  for (const item of judgements) {
+    if (item.result === 'hit' && item.noteId && item.offsetMs != null) hitOffset.set(item.noteId, item.offsetMs)
+  }
+  const rows = new Map<number, MeasureTiming>()
+  for (const note of notes) {
+    if (note.optional) continue
+    const row = rows.get(note.measure) ?? { measure: note.measure, offsets: [], missed: 0 }
+    rows.set(note.measure, row)
+    const offset = hitOffset.get(note.id)
+    if (offset == null) row.missed += 1
+    else row.offsets.push(offset)
+  }
+  const measures = [...rows.values()].sort((a, b) => a.measure - b.measure)
+  const all = measures.flatMap((row) => row.offsets)
+  const missed = measures.reduce((sum, row) => sum + row.missed, 0)
+  if (all.length === 0) return { lines: ['一个音都没接上。等预备拍数完，跟着下一声“嗒”进。'], measures, perfectMs }
+
+  const mean = all.reduce((sum, value) => sum + value, 0) / all.length
+  const spread = Math.sqrt(all.reduce((sum, value) => sum + (value - mean) ** 2, 0) / all.length)
+  const lines: string[] = []
+  if (Math.abs(mean) > perfectMs / 2) {
+    lines.push(mean > 0 ? `整体偏晚 ${Math.round(mean)} ms，按早一点。` : `整体偏早 ${Math.round(-mean)} ms，等一下再按。`)
+  }
+  if (spread > perfectMs * 0.6) lines.push(`忽早忽晚（前后差约 ${Math.round(spread)} ms）。放慢速度，先求每一下都一样。`)
+  if (lines.length === 0) lines.push('又准又稳。')
+  if (missed > 0) lines.push(`漏了 ${missed} 个音。`)
+  const off = (row: MeasureTiming) => row.missed + row.offsets.filter((value) => Math.abs(value) > perfectMs).length
+  const worst = measures.reduce((best, row) => (off(row) > off(best) ? row : best), measures[0]!)
+  if (measures.length > 1 && off(worst) >= 2) lines.push(`第 ${worst.measure} 小节最乱，可以单独练。`)
+  return { lines, measures, perfectMs }
 }

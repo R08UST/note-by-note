@@ -808,25 +808,14 @@ input[type="range"] {
 .heat-keys { display: flex; gap: 2px; align-items: flex-end; height: 42px; }
 .heat-key { flex: 1; height: 70%; border-radius: 2px 2px 4px 4px; }
 .heat-key.is-black { height: 46%; }
-.timing-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.timing-bars li {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  background: var(--bg-sunken);
-  border-radius: 999px;
-  padding: 4px 10px;
-  overflow: hidden;
-  font-size: 0.82rem;
-}
-.timing-bars i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--ink);
-}
+.rhythm-verdict { margin: 0; color: var(--ink); }
+.timing-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.timing-row { display: grid; grid-template-columns: 5.5em 1fr 3em; align-items: center; gap: 10px; font-size: var(--font-xs); color: var(--muted); }
+.timing-axis > div { display: flex; justify-content: space-between; }
+.timing-track { position: relative; height: 22px; background: var(--bg-sunken); border-radius: 999px; }
+.timing-track::after { content: ''; position: absolute; left: 50%; top: 3px; bottom: 3px; width: 1px; background: var(--line); }
+.timing-track b { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--tone-good) 14%, transparent); }
+.timing-track i { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: currentColor; }
 .train-history { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .train-history h3 { margin: 0 0 4px; font-size: 0.95rem; }
 .calibrator-dot { width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg-sunken); }

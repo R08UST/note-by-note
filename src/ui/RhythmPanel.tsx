@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import type { Judgement, PlayedEvent, ScoreNote } from '../judge/types'
+import type { PlayedEvent, ScoreNote } from '../judge/types'
 import type { RunSummary } from '../report/summary'
 import { noteName } from '../score/pitch'
 import type { TimeSignature } from '../score/parseMusicXml'
@@ -14,11 +14,13 @@ import {
   matchRhythmPitch,
   onTimeRate,
   pitchAccuracy,
+  readTiming,
   rhythmFromPiece,
   RHYTHM_LEVELS,
   rhythmLevel,
   worstMeasures,
   type RhythmMatch,
+  type TimingReadout,
 } from '../train/rhythm'
 import { DrillHint, LevelInfo, LevelRail, StartStop } from './TrainBits'
 import { BankBar } from './BankBar'
@@ -27,6 +29,7 @@ import { bankNumber, useQuestionBank } from './useQuestionBank'
 import { DemoBar } from './DemoBar'
 import type { ScoreHandle } from './ScoreView'
 import { useDrill } from './useDrill'
+import { timingForExercise } from '../train/timing'
 
 const ScoreView = lazy(() => import('./ScoreView').then((mod) => ({ default: mod.ScoreView })))
 
@@ -58,7 +61,7 @@ export function RhythmPanel({ active, latencyOffsetMs, piece, onBind, onSaved, c
   const [worst, setWorst] = useState<number[]>([])
   const [runs, setRuns] = useState<TrainRunRecord[]>([])
   const [report, setReport] = useState<RunSummary | null>(null)
-  const [offsets, setOffsets] = useState<Judgement[]>([])
+  const [readout, setReadout] = useState<TimingReadout | null>(null)
   const [hold, setHold] = useState<number | null>(null)
   const [session, setSession] = useState({ done: 0, clean: 0 })
   const [offer, setOffer] = useState(false)
@@ -125,7 +128,7 @@ export function RhythmPanel({ active, latencyOffsetMs, piece, onBind, onSaved, c
     match: (played, upcoming) => matchRhythmPitch(played, upcoming, matchRule, chosen),
     onDone: (summary, judgements) => {
       setReport(summary)
-      setOffsets([...judgements])
+      setReadout(readTiming(exercise.notes, judgements, timingForExercise(exercise.notes, bpm, spec.id).perfectMs))
       const accuracy = pitchAccuracy(summary)
       const timing = onTimeRate(summary)
       const mode = kind === 'hands' ? 'rhythm-hands' : kind === 'pulse' ? 'pulse' : kind === 'piece' ? 'rhythm-piece' : 'rhythm'
@@ -307,22 +310,32 @@ export function RhythmPanel({ active, latencyOffsetMs, piece, onBind, onSaved, c
         <div className="rhythm-report">
           <p className="train-result">
             打中 {Math.round(pitchAccuracy(report) * 100)}% · 准时 {Math.round(onTimeRate(report) * 100)}%
-            {report.meanOffsetMs != null ? ` · 平均 ${Math.round(report.meanOffsetMs)} ms` : ''}
-            {report.timingSpreadMs != null ? ` · 分散 ${Math.round(report.timingSpreadMs)} ms` : ''}
           </p>
-          <ul className="timing-bars">
-            {exercise.notes.map((note) => {
-              const judgement = offsets.find((item) => item.noteId === note.id)
-              const offset = judgement?.offsetMs
-              return (
-                <li key={note.id}>
-                  <span>第 {note.measure} 小节</span>
-                  <span className={barClass(judgement)}>{offset == null ? '错过' : `${Math.round(offset)} ms`}</span>
-                  <i style={{ left: offset == null ? '50%' : `${clamp(((offset + 200) / 450) * 100, 0, 100)}%` }} />
-                </li>
-              )
-            })}
-          </ul>
+          {readout && (
+            <>
+              {readout.lines.map((line) => <p key={line} className="rhythm-verdict">{line}</p>)}
+              <div className="timing-rows" role="list" aria-label="每小节的早晚，中线是拍点，阴影是准时范围">
+                <div className="timing-row timing-axis" aria-hidden="true"><span /><div><span>早</span><span>拍点</span><span>晚</span></div><span /></div>
+                {readout.measures.map((row) => (
+                  <div key={row.measure} className="timing-row" role="listitem">
+                    <span>第 {row.measure} 小节</span>
+                    <div className="timing-track">
+                      <b style={{ left: `${trackPos(-readout.perfectMs)}%`, right: `${100 - trackPos(readout.perfectMs)}%` }} />
+                      {row.offsets.map((offset, index) => (
+                        <i
+                          key={index}
+                          className={Math.abs(offset) <= readout.perfectMs ? 'tone-good' : 'tone-warn'}
+                          style={{ left: `${trackPos(offset)}%` }}
+                          title={`${offset > 0 ? '晚' : '早'} ${Math.abs(Math.round(offset))} ms`}
+                        />
+                      ))}
+                    </div>
+                    <span className="tone-bad">{row.missed > 0 ? `漏 ${row.missed}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
       {kind === 'line' && (
@@ -386,9 +399,9 @@ function rangeMeasures(from: number, to: number): number[] {
   return measures
 }
 
-function barClass(judgement: Judgement | undefined): string {
-  if (!judgement || judgement.result !== 'hit' || judgement.offsetMs == null) return 'tone-bad'
-  return Math.abs(judgement.offsetMs) <= 80 ? 'tone-good' : 'tone-warn'
+/** Where an offset sits on a ±250 ms track (the widest hit window), as a percent from the left. */
+function trackPos(offsetMs: number): number {
+  return clamp(((offsetMs + 250) / 500) * 100, 2, 98)
 }
 
 function clamp(value: number, low: number, high: number): number {
