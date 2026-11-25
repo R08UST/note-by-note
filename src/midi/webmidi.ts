@@ -1,5 +1,9 @@
 import { WebMidi, type Input, type NoteMessageEvent } from 'webmidi'
 import type { PlayedEvent } from '../judge/types'
+import { createPortDeduper } from './bus'
+
+/** Receives a note and the name of the port it came from. */
+export type MidiNoteHandler = (event: PlayedEvent, portName: string) => void
 
 export interface MidiPortInfo {
   id: string
@@ -26,6 +30,16 @@ export async function enableMidi(): Promise<void> {
     throw new Error('This browser has no Web MIDI. Use Chrome or Edge on localhost.')
   }
   await WebMidi.enable()
+}
+
+/**
+ * Close and reopen Web MIDI. Chrome on Windows sometimes misses a keyboard plugged in
+ * after the page opened, or keeps a port another program held; reopening lists it again.
+ * Reopening drops every listener, so callers must attach again.
+ */
+export async function rescanMidi(): Promise<void> {
+  if (WebMidi.enabled) await WebMidi.disable()
+  await enableMidi()
 }
 
 export function listInputs(): MidiPortInfo[] {
@@ -56,11 +70,16 @@ export const ALL_INPUTS = '*'
 
 export function attachInput(
   id: string,
-  onEvent: (event: PlayedEvent) => void,
+  onEvent: MidiNoteHandler,
   onSustain?: (down: boolean) => void,
 ): () => void {
   if (id === ALL_INPUTS) {
-    const detach = WebMidi.inputs.map((input) => attachOne(input, onEvent, onSustain))
+    const keep = createPortDeduper()
+    const detach = WebMidi.inputs.map((input) =>
+      attachOne(input, (event, portName) => {
+        if (keep(input.id, event)) onEvent(event, portName)
+      }, onSustain),
+    )
     return () => detach.forEach((stop) => stop())
   }
   const input: Input | undefined = WebMidi.inputs.find((item) => item.id === id)
@@ -70,7 +89,7 @@ export function attachInput(
 
 function attachOne(
   input: Input,
-  onEvent: (event: PlayedEvent) => void,
+  onEvent: MidiNoteHandler,
   onSustain?: (down: boolean) => void,
 ): () => void {
 
@@ -82,7 +101,7 @@ function attachOne(
       velocity,
       timeMs: event.timestamp,
       type,
-    })
+    }, input.name || 'MIDI keyboard')
   }
   const noteOff = (event: NoteMessageEvent) => {
     onEvent({
@@ -90,7 +109,7 @@ function attachOne(
       velocity: velocityOf(event.note.rawRelease, event.note.release),
       timeMs: event.timestamp,
       type: 'off',
-    })
+    }, input.name || 'MIDI keyboard')
   }
 
   const sustain = (event: { controller: { number: number }; rawValue?: number }) => {

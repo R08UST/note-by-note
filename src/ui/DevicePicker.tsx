@@ -1,4 +1,10 @@
 import { ALL_INPUTS, type MidiPortInfo } from '../midi/webmidi'
+import { noteName } from '../score/pitch'
+
+interface LastNote {
+  pitch: number
+  port: string
+}
 
 interface DevicePickerProps {
   supported: boolean
@@ -8,7 +14,9 @@ interface DevicePickerProps {
   inputId: string
   error: string | null
   onEnable: () => void
+  onRescan: () => void
   onSelect: (id: string) => void
+  last: LastNote | null
 }
 
 export function DevicePicker({
@@ -19,7 +27,9 @@ export function DevicePicker({
   inputId,
   error,
   onEnable,
+  onRescan,
   onSelect,
+  last,
 }: DevicePickerProps) {
   return (
     <div className="device">
@@ -42,6 +52,18 @@ export function DevicePicker({
           </select>
         </label>
       )}
+      {enabled && (
+        <button type="button" className="button ghost" onClick={onRescan} disabled={busy}>
+          {busy ? '正在扫描…' : '重新扫描'}
+        </button>
+      )}
+      {enabled && (
+        <p className="device-note">
+          {last
+            ? `收到：${noteName(last.pitch)}（来自 ${last.port}）`
+            : '按一下琴键，这里会显示收到的音。没有反应时：换一个 USB 口或重插键盘，关掉其他正在用 MIDI 的软件（编曲软件、其他钢琴网页），再点「重新扫描」。'}
+        </p>
+      )}
       {error && <p className="device-note error">{error}</p>}
     </div>
   )
@@ -53,7 +75,9 @@ export interface MidiStatus {
   busy: boolean
   error: string | null
   devices: number
+  last: LastNote | null
   enable: () => void
+  rescan: () => void
 }
 
 /** MIDI state in the top bar, with the connect button where every tab can reach it. */
@@ -62,7 +86,16 @@ export function MidiChip({ midi, keyboardEnabled }: { midi: MidiStatus; keyboard
   if (midi.on) {
     return (
       <span className={midi.devices > 0 ? 'midi-chip is-on' : 'midi-chip'}>
-        {midi.devices > 0 ? `MIDI 已连接 · ${midi.devices} 个端口` : 'MIDI 已打开，还没插键盘'}
+        {midi.devices === 0
+          ? 'MIDI 已打开，还没插键盘'
+          : midi.last
+            ? `MIDI · 收到 ${noteName(midi.last.pitch)}`
+            : `MIDI 已连接 · ${midi.devices} 个端口 · 按个键试试`}
+        {(midi.devices === 0 || !midi.last) && (
+          <button type="button" className="button ghost" onClick={midi.rescan} disabled={midi.busy} title="插上键盘却没反应时，重新找一遍 MIDI 设备">
+            {midi.busy ? '正在扫描…' : '重新扫描'}
+          </button>
+        )}
       </span>
     )
   }

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PlayedEvent, ScoreNote } from '../judge/types'
 import { KEY_BINDINGS } from '../midi/keyboardMap'
-import { ALL_INPUTS, attachInput, enableMidi, listInputs, midiGranted, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
+import { ALL_INPUTS, attachInput, enableMidi, listInputs, midiGranted, midiSupported, rescanMidi, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
@@ -106,6 +106,10 @@ export function PracticeApp() {
   const [midiBusy, setMidiBusy] = useState(false)
   const [midiError, setMidiError] = useState<string | null>(null)
   const [inputs, setInputs] = useState<MidiPortInfo[]>([])
+  /** The last key heard, so the player can see at a glance that the keyboard is getting through. */
+  const [lastMidi, setLastMidi] = useState<{ pitch: number; port: string } | null>(null)
+  /** Bumped by a rescan, which drops every Web MIDI listener, so the effects attach again. */
+  const [midiEpoch, setMidiEpoch] = useState(0)
   const [inputId, setInputId] = useState('')
   const [runs, setRuns] = useState<RunRecord[]>([])
   const [savedScores, setSavedScores] = useState<SavedScore[]>([])
@@ -334,7 +338,8 @@ export function PracticeApp() {
     if (!midiOn || !inputId) return
     return attachInput(
       inputId,
-      (event) => {
+      (event, port) => {
+        if (event.type === 'on') setLastMidi({ pitch: event.pitch, port })
         if (audioPrefs.monitor) {
           void import('../audio/engine').then((engine) => engine.monitorNote(event.pitch, event.velocity, event.type === 'on'))
         }
@@ -347,7 +352,7 @@ export function PracticeApp() {
       },
     )
     // `inputs` is a dependency so a keyboard plugged in later is picked up by the all-inputs listener.
-  }, [midiOn, inputId, inputs, practice.handleInput])
+  }, [midiOn, inputId, inputs, practice.handleInput, midiEpoch])
 
   useEffect(() => {
     if (!midiOn) return
@@ -356,7 +361,7 @@ export function PracticeApp() {
       setInputs(next)
       setInputId((current) => (current === ALL_INPUTS || next.some((item) => item.id === current) ? current : ALL_INPUTS))
     })
-  }, [midiOn])
+  }, [midiOn, midiEpoch])
 
   // Reconnect on load when the browser already allowed MIDI, so nobody has to visit Settings every time.
   useEffect(() => {
@@ -459,7 +464,33 @@ export function PracticeApp() {
     }
   }
 
-  const midiStatus = { supported: midiSupported(), on: midiOn, busy: midiBusy, error: midiError, devices: inputs.length, enable: () => void onEnableMidi() }
+  const onRescanMidi = async () => {
+    setMidiBusy(true)
+    setMidiError(null)
+    try {
+      await rescanMidi()
+      const next = listInputs()
+      setInputs(next)
+      setInputId((current) => (next.some((item) => item.id === current) ? current : ALL_INPUTS))
+      setMidiEpoch((value) => value + 1)
+    } catch (error) {
+      setMidiOn(false)
+      setMidiError(error instanceof Error ? error.message : 'MIDI 没有获得允许。')
+    } finally {
+      setMidiBusy(false)
+    }
+  }
+
+  const midiStatus = {
+    supported: midiSupported(),
+    on: midiOn,
+    busy: midiBusy,
+    error: midiError,
+    devices: inputs.length,
+    last: lastMidi,
+    enable: () => void onEnableMidi(),
+    rescan: () => void onRescanMidi(),
+  }
 
   /** Reopen a piece from the history list. */
   const reopenPiece = (pieceId: string) => {
@@ -1122,7 +1153,9 @@ export function PracticeApp() {
             inputId={inputId}
             error={midiError}
             onEnable={() => void onEnableMidi()}
+            onRescan={() => void onRescanMidi()}
             onSelect={setInputId}
+            last={lastMidi}
           />
           <label className="check">
             <input
