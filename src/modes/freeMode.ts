@@ -34,6 +34,8 @@ const CHORD_SETTLE_MS = 60
 const PREV_CHORD_BOUNCE_MS = 120
 /** Maximum number of attacks ahead that score following may jump to recover from slips. */
 const MAX_LOOKAHEAD = 4
+/** Attacks ahead a two-key confirmation may jump to: one 4/4 bar of sixteenths. */
+const RESYNC_AHEAD = 16
 
 /**
  * Free-tempo mode: the player sets their own pace with no fixed clock or metronome.
@@ -49,6 +51,8 @@ export class FreeMode {
   private readonly _hitTimes = new Map<string, number>()
   private readonly _judgements: Judgement[] = []
   private wrongsAtCurrent = 0
+  /** The wrong key just before this one, kept so the next key can confirm a jump ahead. */
+  private lastWrong: { judgement: Judgement; pitch: number; timeMs: number } | null = null
 
   constructor(notes: ScoreNote[]) {
     const playable: ScoreNote[] = []
@@ -92,6 +96,8 @@ export class FreeMode {
 
   push(event: PlayedEvent): Judgement[] {
     if (event.type !== 'on') return []
+    const prevWrong = this.lastWrong
+    this.lastWrong = null
     if (this.done()) {
       const extra: Judgement = { pitch: event.pitch, result: 'extra' }
       this._judgements.push(extra)
@@ -158,6 +164,19 @@ export class FreeMode {
         const ahead = this.matchIn(targetGroup, event.pitch)
         if (ahead) {
           const produced: Judgement[] = []
+          // The wrong key just before may have been the first tone of this chord or of the attack before it.
+          const credited =
+            prevWrong &&
+            (this.matchIn(targetGroup, prevWrong.pitch) ??
+              (targetIndex - 1 > this.index ? this.matchIn(this.groups[targetIndex - 1], prevWrong.pitch) : undefined))
+          if (prevWrong && credited) {
+            const at = this._judgements.indexOf(prevWrong.judgement)
+            if (at >= 0) this._judgements.splice(at, 1)
+            this.recordHit(credited, prevWrong.timeMs)
+            const hit: Judgement = { noteId: credited.id, pitch: prevWrong.pitch, result: 'hit' }
+            this._judgements.push(hit)
+            produced.push(hit)
+          }
           for (let skipped = this.index; skipped < targetIndex; skipped += 1) {
             for (const missed of this.groups[skipped]) {
               if (this.hit.has(missed.id) || missed.optional) continue
@@ -196,12 +215,55 @@ export class FreeMode {
       return [judgement]
     }
 
-    // 7. Otherwise flag a wrong key on the current measure without rewinding.
+    // 7. Two keys in a row that follow the score further ahead mean the player dropped a run of
+    // notes (typical in fast sixteenths): jump there instead of calling every later key wrong.
+    if (prevWrong) {
+      const resynced = this.resync(prevWrong, event)
+      if (resynced) return resynced
+    }
+
+    // 8. Otherwise flag a wrong key on the current measure without rewinding.
     const measure = currentGroup[0]?.measure
     const wrong: Judgement = { pitch: event.pitch, result: 'wrong', ...(measure != null && { measure }) }
     this._judgements.push(wrong)
     this.wrongsAtCurrent += 1
+    this.lastWrong = { judgement: wrong, pitch: event.pitch, timeMs: event.timeMs }
     return [wrong]
+  }
+
+  private resync(prev: NonNullable<FreeMode['lastWrong']>, event: PlayedEvent): Judgement[] | null {
+    const end = Math.min(this.groups.length - 1, this.index + RESYNC_AHEAD)
+    for (let a = this.index + 1; a <= end; a += 1) {
+      const first = this.matchIn(this.groups[a], prev.pitch)
+      if (!first) continue
+      // The second key is another tone of the same chord, or the next written attack (graces may be skipped).
+      let second = this.groups[a].find((n) => n !== first && !this.hit.has(n.id) && n.pitch === event.pitch)
+      for (let b = a + 1; !second && b < this.groups.length; b += 1) {
+        second = this.matchIn(this.groups[b], event.pitch)
+        if (!isGraceGroup(this.groups[b])) break
+      }
+      if (!second) continue
+      const produced: Judgement[] = []
+      const at = this._judgements.indexOf(prev.judgement)
+      if (at >= 0) this._judgements.splice(at, 1)
+      for (let skipped = this.index; skipped < a; skipped += 1) {
+        for (const missed of this.groups[skipped]) {
+          if (this.hit.has(missed.id) || missed.optional) continue
+          const miss: Judgement = { noteId: missed.id, pitch: missed.pitch, result: 'miss' }
+          this._judgements.push(miss)
+          produced.push(miss)
+        }
+      }
+      this.index = a
+      this.wrongsAtCurrent = 0
+      this.recordHit(first, prev.timeMs)
+      const hit: Judgement = { noteId: first.id, pitch: prev.pitch, result: 'hit' }
+      this._judgements.push(hit)
+      produced.push(hit)
+      this.advancePastFinished()
+      return [...produced, ...this.push(event)]
+    }
+    return null
   }
 
   private recordHit(note: ScoreNote, timeMs: number): void {
@@ -266,6 +328,7 @@ export class FreeMode {
 
   /** Skip ahead one attack without marking the current one missed. */
   advance(): void {
+    this.lastWrong = null
     if (this.index < this.groups.length - 1) {
       this.index += 1
       this.wrongsAtCurrent = 0
@@ -275,6 +338,7 @@ export class FreeMode {
 
   /** Move to the previous attack and drop its hits and timestamps so the player can replay it. */
   retreat(): void {
+    this.lastWrong = null
     const current = this.groups[this.index]
     if (this.index > 0 && current?.every((note) => !this.hit.has(note.id))) {
       this.index -= 1

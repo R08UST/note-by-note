@@ -190,3 +190,25 @@ describe('FreeMode', () => {
     expect(mode.hitTimes.get('a')).toBe(900)
   })
 })
+
+describe('FreeMode resync', () => {
+  it('catches up after a dropped run of sixteenths instead of calling every later key wrong', () => {
+    // A rising sixteenth run C D E F G A B C. The player drops E, F, and G.
+    const pitches = [60, 62, 64, 65, 67, 69, 71, 72]
+    const mode = new FreeMode(pitches.map((pitch, i) => note({ id: `s${i}`, pitch, beat: i * 0.25, duration: 0.25 })))
+    for (const [i, pitch] of [60, 62, 69, 71, 72].entries()) mode.push(on(pitch, i * 150))
+    const results = mode.judgements.map((j) => `${j.result}:${j.noteId}`)
+    expect(results.filter((r) => r.startsWith('wrong'))).toEqual([])
+    expect(results.filter((r) => r.startsWith('miss')).sort()).toEqual(['miss:s2', 'miss:s3', 'miss:s4'])
+    expect(mode.hitTimes.get('s5')).toBe(300)
+    expect(mode.done()).toBe(true)
+  })
+
+  it('still flags a lone wrong key followed by the right note', () => {
+    const mode = new FreeMode([60, 62, 64, 65].map((pitch, i) => note({ id: `s${i}`, pitch, beat: i * 0.25 })))
+    mode.push(on(60, 0))
+    mode.push(on(61, 150))
+    mode.push(on(62, 300))
+    expect(mode.judgements.map((j) => j.result)).toEqual(['hit', 'wrong', 'hit'])
+  })
+})

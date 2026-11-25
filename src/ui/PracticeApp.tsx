@@ -4,6 +4,7 @@ import { KEY_BINDINGS } from '../midi/keyboardMap'
 import { ALL_INPUTS, attachInput, enableMidi, listInputs, midiGranted, midiSupported, watchInputs, type MidiPortInfo } from '../midi/webmidi'
 import { firstOnset, selectHands, type HandSelection } from '../modes/hands'
 import type { PracticeMode } from '../modes/practiceMode'
+import { troubleSpots } from '../report/weakSpots'
 import { firstOnsetInMeasure, lastOnsetInMeasure, neighborOnset, notesInBeats, onsets, type Onset } from '../modes/span'
 import { filterCatalog, type CatalogFile, type CatalogPiece, type CatalogQuery, nowPlayingLine, quickPicks } from '../score/catalog'
 import { parseMusicXml, quarterBeatsPerMeasureAt, type ParsedScore } from '../score/parseMusicXml'
@@ -546,6 +547,22 @@ export function PracticeApp() {
   const groups = onsets(active)
   const counts = countHands(notes)
   const runningNow = practice.status === 'playing' || practice.status === 'countin'
+  const trouble = troubleSpots(practice.history).filter((spot) => spot.measure <= lastMeasure)
+  /** Loop the measure with one bar on each side and start (or move the running loop there). */
+  const practiceAround = (measure: number) => {
+    const start = Math.max(1, measure - 1)
+    const end = Math.min(lastMeasure, measure + 1)
+    const from = firstOnsetInMeasure(groups, start)
+    const to = lastOnsetInMeasure(groups, end)
+    setRangeStart(start)
+    setRangeEnd(end)
+    if (from) setCursorBeat(from.beat)
+    if (to) setEndBeat(to.beat)
+    setLoop(true)
+    const span = { startBeat: from?.beat ?? cursorBeat, endBeat: to?.beat ?? endBeat }
+    if (runningNow) void practice.seek(span)
+    else window.setTimeout(() => void practice.start(), 0)
+  }
   /**
    * Move the cursor and anything already sounding to `beat`. Practice follows with a
    * seamless relaunch; the listening demo restarts from there; idle just moves the line.
@@ -896,6 +913,7 @@ export function PracticeApp() {
                   <SummaryPanel
                     summary={practice.passes.length > 1 ? (practice.passes[practice.passes.length - 1] ?? practice.summary) : practice.summary}
                     passes={practice.passes}
+                    history={practice.history}
                     saved={practice.judgements.length > 0}
                     collapsed={reportCollapsed}
                     onToggleCollapsed={() => setReportCollapsed((value) => !value)}
@@ -913,20 +931,7 @@ export function PracticeApp() {
                       if (target.beat > endBeat) setEndBeat(Math.max(endBeat, target.beat))
                       if (runningNow) void practice.seek({ startBeat: target.beat, endBeat: Math.max(endBeat, target.beat) })
                     }}
-                    onPracticeAround={(measure) => {
-                      const start = Math.max(1, measure - 1)
-                      const end = Math.min(lastMeasure, measure + 1)
-                      const from = firstOnsetInMeasure(groups, start)
-                      const to = lastOnsetInMeasure(groups, end)
-                      setRangeStart(start)
-                      setRangeEnd(end)
-                      if (from) setCursorBeat(from.beat)
-                      if (to) setEndBeat(to.beat)
-                      setLoop(true)
-                      const span = { startBeat: from?.beat ?? cursorBeat, endBeat: to?.beat ?? endBeat }
-                      if (runningNow) void practice.seek(span)
-                      else window.setTimeout(() => void practice.start(), 0)
-                    }}
+                    onPracticeAround={practiceAround}
                   />
                 )}
                 <section className="score-frame" aria-label="乐谱">
@@ -946,6 +951,22 @@ export function PracticeApp() {
                       <span>上次命中 {Math.round(practice.previous.hitRate * 100)}%</span>
                     )}
                   </div>
+                  {trouble.length > 0 && !runningNow && (
+                    <div className="trouble-bar" aria-label="常错的地方">
+                      <span>常错的地方</span>
+                      {trouble.map((spot) => (
+                        <button
+                          key={spot.measure}
+                          type="button"
+                          className="button ghost"
+                          title={`近 ${spot.played} 次里有 ${spot.flagged} 次在这里出问题。点一下就循环这一小节和前后各一小节。`}
+                          onClick={() => practiceAround(spot.measure)}
+                        >
+                          第 {spot.measure} 小节{spot.flagged > 1 ? ` ×${spot.flagged}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {parsed.score && (
                     <Suspense fallback={<div className="score-skeleton" aria-label="正在打开乐谱" />}>
                       <ScoreView

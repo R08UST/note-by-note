@@ -289,6 +289,16 @@ input[type="range"] {
 .free-metrics span { color: #7b6b5b; font-size: 0.72rem; letter-spacing: 0.04em; }
 .free-metrics strong { font-family: var(--serif); font-size: 1.25rem; line-height: 1.15; }
 .free-metrics small { color: #5e5146; font-size: 0.76rem; }
+.weak-spots { margin-top: 8px; border-top: 1px solid #ddd0bb; padding-top: 6px; }
+.weak-title { margin: 0 0 4px; color: #7b6b5b; font-size: 0.72rem; letter-spacing: 0.04em; }
+.weak-spots ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.weak-spots li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.84rem; }
+.weak-spots li span { flex: 1 1 12em; color: #5e5146; }
+.weak-spots li .button { padding: 2px 8px; font-size: 0.76rem; }
+.trouble-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; font-size: 0.8rem; color: #7b6b5b; }
+.trouble-bar .button { padding: 2px 10px; font-size: 0.8rem; }
+.weak-repeat { color: #b5562f; font-style: normal; font-weight: 600; }
+.weak-advice { margin: 6px 0 0; font-size: 0.8rem; color: #5e5146; }
 .heat-strip { display: flex; flex-wrap: wrap; gap: 3px; }
 .heat-cell { width: 16px; height: 22px; border: 0; border-radius: 3px; padding: 0; }
 .summary-measures ol { display: flex; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; flex-wrap: wrap; }

@@ -129,3 +129,4 @@ describe('analyzeFreeTempo', () => {
     expect(report.stability).toBe(1)
   })
 })
+

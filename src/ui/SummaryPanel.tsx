@@ -1,4 +1,11 @@
 import type { RunSummary } from '../report/summary'
+import {
+  findWeakSpots,
+  improvedMeasures,
+  weakHistory,
+  weakSpotAdvice,
+  type WeakHistoryRun,
+} from '../report/weakSpots'
 
 interface SummaryPanelProps {
   summary: RunSummary
@@ -10,6 +17,8 @@ interface SummaryPanelProps {
   onJump?: (measure: number) => void
   onPracticeAround?: (measure: number) => void
   onUseTempo?: (bpm: number) => void
+  /** Recent saved runs of this piece, newest first, starting with this one once it is saved. */
+  history?: readonly WeakHistoryRun[]
 }
 
 function heatColor(errors: number, expected: number, stalls = 0): string {
@@ -35,6 +44,7 @@ export function SummaryPanel({
   onJump,
   onPracticeAround,
   onUseTempo,
+  history = [],
 }: SummaryPanelProps) {
   const percent = Math.round(summary.hitRate * 100)
   const mean =
@@ -43,6 +53,14 @@ export function SummaryPanel({
       : `${summary.meanOffsetMs > 0 ? '+' : ''}${Math.round(summary.meanOffsetMs)} ms`
   const free = summary.freeTempo
   const stallsByMeasure = new Map(free?.perMeasure.map((item) => [item.measure, item.stalls]) ?? [])
+  const weakSpots = findWeakSpots(summary)
+  const weakSet = new Set(weakSpots.map((spot) => spot.measure))
+  const advice = weakSpotAdvice(summary, weakSpots)
+  // Until this run is saved, the history does not include it yet.
+  const runs = saved ? history : []
+  const recurring = weakHistory(runs)
+  const improved = improvedMeasures(runs)
+  const played = summary.hits + summary.wrongs + summary.misses > 0
   const driftText = formatDrift(free?.driftBpm ?? null)
   const clampedBpm = free?.bpm != null ? Math.min(160, Math.max(40, free.bpm)) : null
   return (
@@ -109,6 +127,49 @@ export function SummaryPanel({
           )}
         </div>
       )}
+      {!collapsed && played && (
+        <div className="weak-spots" aria-label="最该练的小节">
+          {weakSpots.length === 0 ? (
+            <p className="free-empty">没发现明显的薄弱小节，可以试着加快一点速度。</p>
+          ) : (
+            <>
+              <p className="weak-title">最该练的小节</p>
+              <ol>
+                {weakSpots.map((spot) => {
+                  const past = recurring.get(spot.measure)
+                  return (
+                    <li key={spot.measure}>
+                      <strong>第 {spot.measure} 小节</strong>
+                      <span>
+                        {spot.reasons.join(' · ')}
+                        {past && past.flagged >= 2 && (
+                          <em className="weak-repeat">
+                            {' '}近 {past.played} 次有 {past.flagged} 次
+                          </em>
+                        )}
+                      </span>
+                      <button type="button" className="button ghost" onClick={() => onJump?.(spot.measure)}>
+                        跳过去
+                      </button>
+                      <button type="button" className="button ghost" onClick={() => onPracticeAround?.(spot.measure)}>
+                        循环练
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+              {advice.map((tip) => (
+                <p key={tip} className="weak-advice">
+                  {tip}
+                </p>
+              ))}
+            </>
+          )}
+          {improved.length > 0 && (
+            <p className="weak-advice">练好了：第 {improved.join('、')} 小节之前常出问题，这次弹顺了。</p>
+          )}
+        </div>
+      )}
       {!collapsed && (
         <>
           <div className="heat-strip" aria-label="每小节结果">
@@ -120,7 +181,7 @@ export function SummaryPanel({
                   key={measure.measure}
                   type="button"
                   className="heat-cell"
-                  style={{ background: heatColor(measure.errors, measure.expected, stalls) }}
+                  style={{ background: heatColor(measure.errors, measure.expected, weakSet.has(measure.measure) ? 1 : stalls) }}
                   title={`第 ${measure.measure} 小节，错 ${measure.errors}/${measure.expected}${stallText}。点一下跳过去，按住 Shift 再点就循环这一段。`}
                   aria-label={`第 ${measure.measure} 小节，错 ${measure.errors} 个${stallText}`}
                   onClick={(event) => {
@@ -133,8 +194,8 @@ export function SummaryPanel({
           </div>
           <p className="summary-note">
             {free
-              ? '绿是干净流畅，黄是有少量错音或卡顿，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'
-              : '绿是干净，黄是有错，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'}
+              ? '绿是干净流畅，黄是有少量错音、卡顿、放慢或节奏不均，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'
+              : '绿是干净，黄是有少量错或停顿、没踩准拍，红是错得多。点一下跳到该小节，按住 Shift 再点就循环前后一小节。'}
             {free && free.stallMeasures.length > 0 ? ` 卡顿小节：第 ${free.stallMeasures.join('、')} 小节。` : ''}
             {passes.length > 1 ? ` 共 ${passes.length} 遍：${passes.map((pass) => `${Math.round(pass.hitRate * 100)}%`).join('、')}。` : ''}
           </p>

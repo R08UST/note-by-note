@@ -1,11 +1,19 @@
 import { isOnTime } from '../judge/judge'
-import { BEGINNER_TOLERANCE, type Judgement, type ScoreNote } from '../judge/types'
+import { BEGINNER_TOLERANCE, type Hand, type Judgement, type ScoreNote } from '../judge/types'
 import type { FreeTempoReport } from './freeTempo'
 
 export interface MeasureReport {
   measure: number
   expected: number
   errors: number
+  /** Errors on left-hand notes. A wrong key goes to the hand whose notes here are nearest in pitch. */
+  left?: number
+  /** Errors on right-hand notes. */
+  right?: number
+  /** Timed hits here outside the perfect window (rhythm mode). */
+  offTime?: number
+  /** Mean signed offset of the timed hits here, in ms. Null without timed hits. */
+  meanOffsetMs?: number | null
 }
 
 export interface RunSummary {
@@ -29,6 +37,15 @@ export interface RunSummary {
   errorsPerMeasure: MeasureReport[]
   /** Present on free-tempo runs: inferred self-paced BPM, fluency, and rhythm stability. */
   freeTempo?: FreeTempoReport
+  /** Present on wait-mode runs: the same analysis, used only to find where the player hesitated. */
+  flow?: FreeTempoReport
+}
+
+/** ponytail: the nearest written pitch guesses the hand of a stray key; crossed hands can fool it. */
+function nearestHand(notes: readonly ScoreNote[], pitch: number): Hand | undefined {
+  let best: ScoreNote | undefined
+  for (const note of notes) if (!best || Math.abs(note.pitch - pitch) < Math.abs(best.pitch - pitch)) best = note
+  return best?.hand
 }
 
 function mean(values: number[]): number | null {
@@ -67,14 +84,33 @@ export function summarize(
     .filter((offset): offset is number => typeof offset === 'number')
 
   const measures = [...new Set(notes.map((note) => note.measure))].sort((a, b) => a - b)
-  const errorsPerMeasure = measures.map((measure) => {
-    const expected = required.filter((note) => note.measure === measure).length
-    const errors = judgements.filter((item) => {
+  const errorsPerMeasure = measures.map((measure): MeasureReport => {
+    const here = required.filter((note) => note.measure === measure)
+    const errorItems = judgements.filter((item) => {
       if (item.result !== 'wrong' && item.result !== 'miss') return false
       const at = item.measure ?? (item.noteId ? byId.get(item.noteId)?.measure : undefined)
       return at === measure
-    }).length
-    return { measure, expected, errors }
+    })
+    let left = 0
+    let right = 0
+    for (const item of errorItems) {
+      const hand = (item.noteId ? byId.get(item.noteId)?.hand : undefined) ?? nearestHand(here, item.pitch)
+      if (hand === 'L') left += 1
+      else if (hand === 'R') right += 1
+    }
+    const timed: number[] = []
+    for (const item of hits) {
+      if (typeof item.offsetMs === 'number' && item.noteId && byId.get(item.noteId)?.measure === measure) timed.push(item.offsetMs)
+    }
+    return {
+      measure,
+      expected: here.length,
+      errors: errorItems.length,
+      left,
+      right,
+      offTime: timed.filter((offset) => !isOnTime(offset, perfectMs)).length,
+      meanOffsetMs: mean(timed),
+    }
   })
 
   // Every wrong key counts against the rate. A wait-mode wrong takes no written

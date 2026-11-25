@@ -1,4 +1,4 @@
-import type { ScoreNote } from '../judge/types'
+import type { Hand, ScoreNote } from '../judge/types'
 
 /**
  * Self-paced tempo analysis for free-tempo practice.
@@ -13,6 +13,16 @@ export interface FreeTempoMeasure {
   stalls: number
   /** Local median BPM of smooth intervals ending in this measure. */
   bpm: number | null
+  /** Percent slower than the run's own tempo (negative is faster). Null with fewer than two smooth steps. */
+  slowPct: number | null
+  /** RMS proportional deviation of the smooth steps in this measure, in percent. Null with fewer than two. */
+  unevenPct: number | null
+  /** Longest hesitation beyond the expected duration, in ms. 0 without a stall. */
+  pauseMs: number
+  /** 1-based beat within the measure that the longest pause led into. */
+  pauseBeat: number | null
+  /** Hand of the attack the longest pause led into. Null when both hands strike it or there was no pause. */
+  pauseHand: Hand | null
 }
 
 export interface FreeTempoReport {
@@ -57,10 +67,14 @@ interface PlayedOnset {
   timeMs: number
   hasFermata: boolean
   hasBreath: boolean
+  localBeat: number | null
+  hand: Hand | null
 }
 
 interface Interval {
   measure: number
+  localBeat: number | null
+  hand: Hand | null
   deltaBeats: number
   deltaMs: number
   msPerBeat: number
@@ -113,6 +127,8 @@ function collectOnsets(notes: readonly ScoreNote[], hitTimes: ReadonlyMap<string
       timeMs,
       hasFermata: group.some((note) => Boolean(note.fermata)),
       hasBreath: group.some((note) => Boolean(note.breath)),
+      localBeat: group[0].localBeat ?? null,
+      hand: group.every((note) => note.hand === group[0].hand) ? group[0].hand : null,
     })
   }
   return onsets
@@ -128,6 +144,8 @@ function buildIntervals(onsets: readonly PlayedOnset[]): Interval[] {
     if (deltaBeats <= 1e-3 || deltaMs <= 0) continue
     intervals.push({
       measure: next.measure,
+      localBeat: next.localBeat,
+      hand: next.hand,
       deltaBeats,
       deltaMs,
       msPerBeat: deltaMs / deltaBeats,
@@ -200,7 +218,16 @@ export function analyzeFreeTempo(
       stalls: 0,
       longestFlowBeats: 0,
       stallMeasures: [],
-      perMeasure: measures.map((measure) => ({ measure, stalls: 0, bpm: null })),
+      perMeasure: measures.map((measure) => ({
+        measure,
+        stalls: 0,
+        bpm: null,
+        slowPct: null,
+        unevenPct: null,
+        pauseMs: 0,
+        pauseBeat: null,
+        pauseHand: null,
+      })),
     }
   }
 
@@ -212,7 +239,7 @@ export function analyzeFreeTempo(
     const ratio = item.msPerBeat / ref
     const extraMs = item.deltaMs - ref * item.deltaBeats
     const stalled = ratio >= STALL_RATIO && extraMs >= STALL_EXTRA_MS
-    return { ...item, ref, ratio, stalled }
+    return { ...item, ref, ratio, extraMs, stalled }
   })
 
   const stalledItems = evaluated.filter((item) => item.stalled)
@@ -277,24 +304,33 @@ export function analyzeFreeTempo(
   }
 
   // Per-measure summary.
-  const stallsByMeasure = new Map<number, number>()
-  const msByMeasure = new Map<number, number[]>()
+  const byMeasure = new Map<number, typeof evaluated>()
   for (const item of evaluated) {
-    if (item.stalled) {
-      stallsByMeasure.set(item.measure, (stallsByMeasure.get(item.measure) ?? 0) + 1)
-    } else {
-      const list = msByMeasure.get(item.measure) ?? []
-      list.push(item.msPerBeat)
-      msByMeasure.set(item.measure, list)
-    }
+    const list = byMeasure.get(item.measure) ?? []
+    list.push(item)
+    byMeasure.set(item.measure, list)
   }
   const perMeasure: FreeTempoMeasure[] = measures.map((measure) => {
-    const vals = msByMeasure.get(measure) ?? []
-    const med = median(vals)
+    const items = byMeasure.get(measure) ?? []
+    const flowing = items.filter((item) => !item.stalled)
+    const med = median(flowing.map((item) => item.msPerBeat))
+    const measureBpm = med != null && med > 0 ? 60_000 / med : null
+    // ponytail: two steps is the noise floor; one step mostly measures how a single note was held.
+    const enough = flowing.length >= 2
+    const rms = enough
+      ? Math.sqrt(flowing.reduce((acc, item) => acc + Math.log(item.ratio) ** 2, 0) / flowing.length)
+      : null
+    let worst: (typeof items)[number] | null = null
+    for (const item of items) if (item.stalled && (!worst || item.extraMs > worst.extraMs)) worst = item
     return {
       measure,
-      stalls: stallsByMeasure.get(measure) ?? 0,
-      bpm: med != null && med > 0 ? Math.round(60_000 / med) : null,
+      stalls: items.filter((item) => item.stalled).length,
+      bpm: measureBpm != null ? Math.round(measureBpm) : null,
+      slowPct: enough && measureBpm != null ? Math.round(((bpm - measureBpm) / bpm) * 100) : null,
+      unevenPct: rms != null ? Math.round(rms * 100) : null,
+      pauseMs: worst ? Math.round(worst.extraMs) : 0,
+      pauseBeat: worst?.localBeat != null ? Math.floor(worst.localBeat + 1e-3) + 1 : null,
+      pauseHand: worst?.hand ?? null,
     }
   })
   const stallMeasures = perMeasure.filter((item) => item.stalls > 0).map((item) => item.measure)
@@ -313,3 +349,4 @@ export function analyzeFreeTempo(
     perMeasure,
   }
 }
+
