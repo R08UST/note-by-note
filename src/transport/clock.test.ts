@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapPerformanceToTransportMs, toScoreTimeMs } from './clock'
+import { heardContextTime, mapPerformanceToTransportMs, toScoreTimeMs } from './clock'
 
 describe('transport clock', () => {
   it('places the event on the transport using its own timestamp', () => {
@@ -14,5 +14,11 @@ describe('transport clock', () => {
   it('subtracts the count-in from the transport time', () => {
     expect(toScoreTimeMs(4000, 4, 60)).toBeCloseTo(0)
     expect(toScoreTimeMs(2500, 4, 120)).toBeCloseTo(500)
+  })
+
+  it('reads the clock at what is heard, not at the scheduler look-ahead', () => {
+    const stamp = { contextTime: 10, performanceTime: 5000 }
+    expect(heardContextTime({ stamp, nowMs: 5040, currentTime: 10.2, outputLatency: 0.03 })).toBeCloseTo(10.04)
+    expect(heardContextTime({ stamp: { contextTime: 0, performanceTime: 0 }, nowMs: 1, currentTime: 2, outputLatency: 0.05 })).toBeCloseTo(1.95)
   })
 })

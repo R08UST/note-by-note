@@ -1,4 +1,5 @@
 import { audioPrefs, gainDb } from '../audio/prefs'
+import { heardContextTime } from './clock'
 
 let accent: import('tone').Synth | null = null
 let tick: import('tone').Synth | null = null
@@ -103,6 +104,15 @@ export function stopMetronome(): void {
   }
 }
 
+/** Transport position of the sound coming out of the speakers now, so judging lines up with the heard click. */
 export function transportSeconds(): number {
-  return tone?.Transport.seconds ?? 0
+  if (!tone) return 0
+  const raw = tone.getContext().rawContext as AudioContext
+  const heard = heardContextTime({
+    stamp: raw.getOutputTimestamp?.(),
+    nowMs: performance.now(),
+    currentTime: raw.currentTime,
+    outputLatency: raw.outputLatency ?? raw.baseLatency ?? 0,
+  })
+  return tone.Transport.getSecondsAtTime(Math.max(0, heard))
 }
