@@ -1313,6 +1313,9 @@ export function PracticeApp() {
               <li>
                 <a href="https://www.mutopiaproject.org/">Mutopia Project</a>：公有领域或 CC。这里用的三首是从 MIDI 转成的 MusicXML。
               </li>
+              <li>
+                <a href="https://vivace-music.org/">Vivace Music</a>（取自 <a href="https://github.com/pnlong/PDMX">PDMX</a>）：古典曲目为 CC0、公有领域标记或 CC BY 4.0。流行、动漫和游戏曲目的编配标注 CC0，但作曲仍受版权保护。
+              </li>
             </ul>
             <p>带 CC BY 的曲子会在卡片上写出「署名」。没有署名要求的曲子仍列出出处，方便核对。</p>
           </details>
