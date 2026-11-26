@@ -24,6 +24,9 @@ function resetDom() {
   globalThis.HTMLElement = window.HTMLElement
   globalThis.SVGElement = window.SVGElement
   globalThis.MutationObserver = window.MutationObserver
+  // happy-dom has no canvas, and OSMD measures lyrics and chord symbols with one. A rough
+  // width is enough here: only which head each note maps to is audited, not the layout.
+  window.HTMLCanvasElement.prototype.getContext = () => ({ font: '', measureText: (text) => ({ width: String(text).length * 7 }) })
 }
 resetDom()
 

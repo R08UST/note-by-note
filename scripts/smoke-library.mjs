@@ -224,11 +224,11 @@ console.log(`noctave kept ${noctave.length}`)
 const pdmxPath = path.join(root, 'public/pieces/pdmx.json')
 const pdmx = JSON.parse(readFileSync(pdmxPath, 'utf8'))
 const pdmxJobs = pdmx.map((piece) => ({ id: piece.id, path: path.join(root, 'public', piece.file) }))
-// One process per 12 scores, as for Noctave: a single process runs out of heap on the whole shelf.
+// One process per 4 scores: a batch of long scores (a Chopin ballade is 6000 notes) runs out of heap.
 const pdmxResults = []
-for (let start = 0; start < pdmxJobs.length; start += 12) {
+for (let start = 0; start < pdmxJobs.length; start += 4) {
   const pdmxList = path.join(tmpdir(), `library-pdmx-${start}.json`)
-  writeFileSync(pdmxList, JSON.stringify(pdmxJobs.slice(start, start + 12)))
+  writeFileSync(pdmxList, JSON.stringify(pdmxJobs.slice(start, start + 4)))
   const pdmxChild = spawnSync(process.execPath, [path.join(root, 'scripts/audit-batch.mjs'), pdmxList], {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
