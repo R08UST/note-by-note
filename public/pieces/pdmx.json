@@ -30,21 +30,6 @@
     "time": "9/8"
   },
   {
-    "id": "pdmx-debussy-clair-de-lune-easy",
-    "level": "L3",
-    "title": "Clair de lune (easy version)",
-    "title_zh": "月光（简易版）",
-    "composer": "Claude Debussy",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 checker.by 的钢琴谱（https://musescore.com/user/31902283/scores/5933450），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/clair-de-lune-debussy-easy-piano.html",
-    "file": "pieces/pdmx-debussy-clair-de-lune-easy.mxl",
-    "hands": "two",
-    "measures": 17,
-    "key": "C",
-    "time": "9/8"
-  },
-  {
     "id": "pdmx-debussy-reverie",
     "level": "L4",
     "title": "Rêverie, L. 68",
@@ -88,21 +73,6 @@
     "measures": 88,
     "key": "A♭",
     "time": "6/4"
-  },
-  {
-    "id": "pdmx-joplin-entertainer-easy",
-    "level": "L2",
-    "title": "The Entertainer (easy version)",
-    "title_zh": "艺人（简易版）",
-    "composer": "Scott Joplin",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 ARW Music 的钢琴谱（https://musescore.com/arw-music/scores/98457），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-entertainer-joplin-easy-piano.html",
-    "file": "pieces/pdmx-joplin-entertainer-easy.mxl",
-    "hands": "two",
-    "measures": 21,
-    "key": "C",
-    "time": "4/4"
   },
   {
     "id": "pdmx-chopin-waltz-op64-2",
@@ -225,21 +195,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-pachelbel-canon-easy",
-    "level": "L2",
-    "title": "Canon in D (easy version)",
-    "title_zh": "D大调卡农（简易版）",
-    "composer": "Johann Pachelbel",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 David Hernández1 的钢琴谱（https://musescore.com/user/3349846/scores/1376056），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/canon-in-d-pachelbel-easy-piano.html",
-    "file": "pieces/pdmx-pachelbel-canon-easy.mxl",
-    "hands": "two",
-    "measures": 49,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-bizet-habanera",
     "level": "L4",
     "title": "Carmen: Habanera",
@@ -315,21 +270,6 @@
     "time": "6/8"
   },
   {
-    "id": "pdmx-waldteufel-skaters-waltz-easy",
-    "level": "L1",
-    "title": "The Skaters' Waltz (easy version)",
-    "title_zh": "溜冰圆舞曲（简易版）",
-    "composer": "Émile Waldteufel",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Rhythmet 的钢琴谱（https://musescore.com/user/18819762/scores/4975885），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-skaters-waltz-waldteufel-easy-piano.html",
-    "file": "pieces/pdmx-waldteufel-skaters-waltz-easy.mxl",
-    "hands": "one",
-    "measures": 65,
-    "key": "G",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-yiruma-river-flows-in-you",
     "level": "L3",
     "title": "River Flows in You",
@@ -342,21 +282,6 @@
     "hands": "two",
     "measures": 46,
     "key": "A",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-yiruma-kiss-the-rain-easy",
-    "level": "L2",
-    "title": "Kiss the Rain (easy version)",
-    "title_zh": "雨的印记（简易版）",
-    "composer": "Yiruma",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Alondra García Rz 的钢琴编配（https://musescore.com/user/14286106/scores/5836301），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/kiss-the-rain-yiruma-easy-piano.html",
-    "file": "pieces/pdmx-yiruma-kiss-the-rain-easy.mxl",
-    "hands": "two",
-    "measures": 68,
-    "key": "A♭",
     "time": "4/4"
   },
   {
@@ -375,21 +300,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-hisaishi-merry-go-round-of-life-easy",
-    "level": "L2",
-    "title": "Howl's Moving Castle: Merry-Go-Round of Life (easy version)",
-    "title_zh": "哈尔的移动城堡：人生的旋转木马（简易版）",
-    "composer": "Joe Hisaishi",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 okada2230 的钢琴编配（https://musescore.com/user/33464742/scores/5854830），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/merry-go-round-of-life-joe-hisaishi-easy-piano.html",
-    "file": "pieces/pdmx-hisaishi-merry-go-round-of-life-easy.mxl",
-    "hands": "two",
-    "measures": 39,
-    "key": "B♭",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-hisaishi-promise-of-the-world",
     "level": "L4",
     "title": "Howl's Moving Castle: Promise of the World",
@@ -401,36 +311,6 @@
     "file": "pieces/pdmx-hisaishi-promise-of-the-world.mxl",
     "hands": "two",
     "measures": 141,
-    "key": "C",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-hisaishi-path-of-the-wind-easy",
-    "level": "L1",
-    "title": "My Neighbor Totoro: Path of the Wind (easy version)",
-    "title_zh": "龙猫：风之通道（简易版）",
-    "composer": "Joe Hisaishi",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 iris.otakufujoshi 的钢琴编配（https://musescore.com/user/132487/scores/139842），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/path-of-the-wind-my-neighbor-totoro-easy-piano.html",
-    "file": "pieces/pdmx-hisaishi-path-of-the-wind-easy.mxl",
-    "hands": "one",
-    "measures": 34,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-kimura-always-with-me-easy",
-    "level": "L1",
-    "title": "Spirited Away: Always With Me (easy version)",
-    "title_zh": "千与千寻：永远同在（简易版）",
-    "composer": "Youmi Kimura",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Himynameiswilliam 的钢琴编配（https://musescore.com/user/28595138/scores/5366863），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/always-with-me-spirited-away-easy-piano.html",
-    "file": "pieces/pdmx-kimura-always-with-me-easy.mxl",
-    "hands": "one",
-    "measures": 43,
     "key": "C",
     "time": "3/4"
   },
@@ -465,21 +345,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-badelt-hes-a-pirate-easy",
-    "level": "L2",
-    "title": "Pirates of the Caribbean: He's a Pirate (easy version)",
-    "title_zh": "加勒比海盗：他是个海盗（简易版）",
-    "composer": "Klaus Badelt",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Rabie Mohamed Abdul Meguid 的钢琴编配（https://musescore.com/user/6511586/scores/5880737），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/he-s-a-pirate-pirates-of-the-caribbean-easy-piano.html",
-    "file": "pieces/pdmx-badelt-hes-a-pirate-easy.mxl",
-    "hands": "two",
-    "measures": 34,
-    "key": "C",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-yonezu-lemon",
     "level": "L5",
     "title": "Lemon",
@@ -491,21 +356,6 @@
     "file": "pieces/pdmx-yonezu-lemon.mxl",
     "hands": "two",
     "measures": 91,
-    "key": "B",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-radwimps-sparkle-easy",
-    "level": "L2",
-    "title": "Your Name: Sparkle (easy version)",
-    "title_zh": "你的名字：火花（简易版）",
-    "composer": "RADWIMPS",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 CreativeBeats 的钢琴编配（https://musescore.com/user/31123755/scores/6235103），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/sparkle-radwimps-easy-piano.html",
-    "file": "pieces/pdmx-radwimps-sparkle-easy.mxl",
-    "hands": "one",
-    "measures": 205,
     "key": "B",
     "time": "4/4"
   },
@@ -525,21 +375,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-kusano-gurenge-easy",
-    "level": "L2",
-    "title": "Demon Slayer: Gurenge (LiSA, easy version)",
-    "title_zh": "鬼灭之刃：红莲华（简易版）",
-    "composer": "Kayoko Kusano",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 YuriMonaro 的钢琴编配（https://musescore.com/user/23931716/scores/6363670），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/gurenge-lisa-easy-piano.html",
-    "file": "pieces/pdmx-kusano-gurenge-easy.mxl",
-    "hands": "two",
-    "measures": 52,
-    "key": "G",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-shiina-nezukos-theme",
     "level": "L4",
     "title": "Demon Slayer: Nezuko's Theme",
@@ -552,21 +387,6 @@
     "hands": "two",
     "measures": 130,
     "key": "F",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-masuda-sadness-and-sorrow-easy",
-    "level": "L2",
-    "title": "Naruto: Sadness and Sorrow (easy version)",
-    "title_zh": "火影忍者：悲伤与哀愁（简易版）",
-    "composer": "Toshio Masuda",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Nicholas Paraboa 的钢琴编配（https://musescore.com/user/30386125/scores/5872477），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/sadness-and-sorrow-naruto-easy-piano.html",
-    "file": "pieces/pdmx-masuda-sadness-and-sorrow-easy.mxl",
-    "hands": "two",
-    "measures": 44,
-    "key": "G",
     "time": "4/4"
   },
   {
@@ -612,96 +432,6 @@
     "hands": "two",
     "measures": 19,
     "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-c418-wet-hands-easy",
-    "level": "L2",
-    "title": "Minecraft: Wet Hands (easy version)",
-    "title_zh": "我的世界：Wet Hands（简易版）",
-    "composer": "C418",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 3ugman 3 的钢琴编配（https://musescore.com/user/56170/scores/74544），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/wet-hands-minecraft-easy-piano.html",
-    "file": "pieces/pdmx-c418-wet-hands-easy.mxl",
-    "hands": "two",
-    "measures": 26,
-    "key": "A",
-    "time": ""
-  },
-  {
-    "id": "pdmx-kondo-zeldas-lullaby-easy",
-    "level": "L1",
-    "title": "The Legend of Zelda: Zelda's Lullaby (easy version)",
-    "title_zh": "塞尔达传说：塞尔达的摇篮曲（简易版）",
-    "composer": "Koji Kondo",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Brondog 的钢琴编配（https://musescore.com/user/12754451/scores/2762776），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/zelda-s-lullaby-the-legend-of-zelda-easy-piano.html",
-    "file": "pieces/pdmx-kondo-zeldas-lullaby-easy.mxl",
-    "hands": "one",
-    "measures": 22,
-    "key": "C",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-kondo-song-of-storms-easy",
-    "level": "L1",
-    "title": "The Legend of Zelda: Song of Storms (easy version)",
-    "title_zh": "塞尔达传说：风暴之歌（简易版）",
-    "composer": "Koji Kondo",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 I'mJustHereForMidis 的钢琴编配（https://musescore.com/user/19537406/scores/4858813），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/song-of-storms-zelda-easy-piano.html",
-    "file": "pieces/pdmx-kondo-song-of-storms-easy.mxl",
-    "hands": "two",
-    "measures": 15,
-    "key": "C",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-fox-megalovania-easy",
-    "level": "L1",
-    "title": "Undertale: Megalovania (easy version)",
-    "title_zh": "传说之下：Megalovania（简易版）",
-    "composer": "Toby Fox",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 kjh03 的钢琴编配（https://musescore.com/user/10233391/scores/2248566），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/megalovania-undertale-easy-piano.html",
-    "file": "pieces/pdmx-fox-megalovania-easy.mxl",
-    "hands": "one",
-    "measures": 32,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-trad-korobeiniki-easy",
-    "level": "L1",
-    "title": "Korobeiniki (Tetris theme, easy version)",
-    "title_zh": "货郎（俄罗斯方块主题，简易版）",
-    "composer": "Traditional (Russian)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 tkspeters621 的钢琴编配（https://musescore.com/user/34886583/scores/6125453），编配标注 CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/korobeiniki-tetris-theme-easy-piano.html",
-    "file": "pieces/pdmx-trad-korobeiniki-easy.mxl",
-    "hands": "two",
-    "measures": 16,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-a-maiden-s-prayer-badarzewska-easy",
-    "level": "L1",
-    "title": "A Maiden's Prayer (easy version)",
-    "title_zh": "少女的祈祷（简易版）",
-    "composer": "Tekla Bądarzewska",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 JulianChambers 的钢琴谱（https://musescore.com/user/16113282/scores/4665008），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/a-maiden-s-prayer-badarzewska-easy-piano.html",
-    "file": "pieces/pdmx-a-maiden-s-prayer-badarzewska-easy.mxl",
-    "hands": "one",
-    "measures": 16,
-    "key": "A",
     "time": "4/4"
   },
   {
@@ -780,21 +510,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-aloha-oe-liliuokalani-easy",
-    "level": "L1",
-    "title": "Aloha ʻOe (easy version)",
-    "title_zh": "珍重再见（Aloha ʻOe，简易版）",
-    "composer": "Queen Liliʻuokalani",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Emmy Lam 的钢琴谱（https://musescore.com/user/9965577/scores/4710932），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/aloha-oe-liliuokalani-easy-piano.html",
-    "file": "pieces/pdmx-aloha-oe-liliuokalani-easy.mxl",
-    "hands": "one",
-    "measures": 18,
-    "key": "G",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-andante-con-moto-piano-trio-no-2-d-929-schubert",
     "level": "L5",
     "title": "Piano Trio No. 2, D. 929 · II. Andante con moto (piano)",
@@ -825,21 +540,6 @@
     "time": "2/4"
   },
   {
-    "id": "pdmx-arabian-dance-coffee-the-nutcracker-tchaikovsky-easy",
-    "level": "L2",
-    "title": "The Nutcracker: Arabian Dance (Coffee) (easy version)",
-    "title_zh": "胡桃夹子：阿拉伯舞曲（咖啡，简易版）",
-    "composer": "Pyotr Ilyich Tchaikovsky",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Unregistered_user 的钢琴谱（https://musescore.com/user/38235231/scores/49291），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/arabian-dance-coffee-the-nutcracker-tchaikovsky-easy-piano.html",
-    "file": "pieces/pdmx-arabian-dance-coffee-the-nutcracker-tchaikovsky-easy.mxl",
-    "hands": "two",
-    "measures": 33,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-arietta-grieg",
     "level": "L3",
     "title": "Lyric Pieces, Op. 12 No. 1 “Arietta”",
@@ -867,51 +567,6 @@
     "hands": "two",
     "measures": 89,
     "key": "B♭",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-ave-maria-schubert-easy",
-    "level": "L2",
-    "title": "Ave Maria (easy version)",
-    "title_zh": "圣母颂（舒伯特，简易版）",
-    "composer": "Franz Schubert",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Clarry Cahill 的钢琴谱（https://musescore.com/user/88585/scores/191296），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/ave-maria-schubert-easy-piano.html",
-    "file": "pieces/pdmx-ave-maria-schubert-easy.mxl",
-    "hands": "one",
-    "measures": 28,
-    "key": "B♭",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-away-in-a-manger-easy",
-    "level": "L1",
-    "title": "Away in a Manger (easy version)",
-    "title_zh": "远远在马槽里（简易版）",
-    "composer": "William J. Kirkpatrick",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 TempoValued 的钢琴谱（https://musescore.com/user/9008147/scores/4682093），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/away-in-a-manger-easy-piano.html",
-    "file": "pieces/pdmx-away-in-a-manger-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-axel-f-harold-faltermeyer-easy",
-    "level": "L2",
-    "title": "Axel F (easy version)",
-    "title_zh": "Axel F（比佛利山超级警探，简易版）",
-    "composer": "Harold Faltermeyer",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Henry Lin1 的钢琴谱（https://musescore.com/user/4522211/scores/5276015），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/axel-f-harold-faltermeyer-easy-piano.html",
-    "file": "pieces/pdmx-axel-f-harold-faltermeyer-easy.mxl",
-    "hands": "two",
-    "measures": 32,
-    "key": "A♭",
     "time": "4/4"
   },
   {
@@ -958,21 +613,6 @@
     "measures": 239,
     "key": "A♭",
     "time": "6/8"
-  },
-  {
-    "id": "pdmx-bella-ciao-easy",
-    "level": "L1",
-    "title": "Bella Ciao (easy version)",
-    "title_zh": "啊，朋友再见（简易版）",
-    "composer": "Traditional (Italian)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 kovianyo 的钢琴谱（https://musescore.com/kovianyo/scores/4920755），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/bella-ciao-easy-piano.html",
-    "file": "pieces/pdmx-bella-ciao-easy.mxl",
-    "hands": "one",
-    "measures": 8,
-    "key": "G",
-    "time": "4/4"
   },
   {
     "id": "pdmx-berceuse-op-57-chopin",
@@ -1155,21 +795,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-daisy-bell-harry-dacre-easy",
-    "level": "L1",
-    "title": "Daisy Bell (easy version)",
-    "title_zh": "黛西·贝尔（双人自行车，简易版）",
-    "composer": "Harry Dacre",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Ridingbond 的钢琴谱（https://musescore.com/user/12518917/scores/4867204），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/daisy-bell-harry-dacre-easy-piano.html",
-    "file": "pieces/pdmx-daisy-bell-harry-dacre-easy.mxl",
-    "hands": "one",
-    "measures": 33,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-dance-of-the-reed-flutes-the-nutcracker-tchaikovsky",
     "level": "L4",
     "title": "The Nutcracker: Dance of the Reed Flutes",
@@ -1197,36 +822,6 @@
     "hands": "two",
     "measures": 18,
     "key": "E♭",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-danse-macabre-saint-saens-easy",
-    "level": "L2",
-    "title": "Danse Macabre – Saint-Saëns (easy version)",
-    "title_zh": "骷髅之舞（简易版）",
-    "composer": "Camille Saint-Saëns",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 matinyousefi 的钢琴谱（https://musescore.com/user/22731236/scores/4703466），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/danse-macabre-saint-saens-easy-piano.html",
-    "file": "pieces/pdmx-danse-macabre-saint-saens-easy.mxl",
-    "hands": "two",
-    "measures": 40,
-    "key": "B♭",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-dark-eyes-florian-hermann-easy",
-    "level": "L1",
-    "title": "Dark Eyes (easy version)",
-    "title_zh": "黑眼睛（简易版）",
-    "composer": "Florian Hermann",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 arehartc 的钢琴谱（https://musescore.com/user/36452/scores/67862），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/dark-eyes-florian-hermann-easy-piano.html",
-    "file": "pieces/pdmx-dark-eyes-florian-hermann-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "F",
     "time": "4/4"
   },
   {
@@ -1260,36 +855,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-deck-the-halls-easy",
-    "level": "L2",
-    "title": "Deck the Halls (easy version)",
-    "title_zh": "装饰大厅（简易版）",
-    "composer": "Traditional (Welsh)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 mb79 的钢琴谱（https://musescore.com/user/6549461/scores/5366525），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/deck-the-halls-easy-piano.html",
-    "file": "pieces/pdmx-deck-the-halls-easy.mxl",
-    "hands": "two",
-    "measures": 16,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-dire-dire-docks-super-mario-64-easy",
-    "level": "L2",
-    "title": "Super Mario 64: Dire, Dire Docks (easy version)",
-    "title_zh": "超级马力欧 64：Dire, Dire Docks（简易版）",
-    "composer": "Koji Kondo",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Christopher Rice 的钢琴谱（https://musescore.com/user/8669656/scores/2020241），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/dire-dire-docks-super-mario-64-easy-piano.html",
-    "file": "pieces/pdmx-dire-dire-docks-super-mario-64-easy.mxl",
-    "hands": "two",
-    "measures": 52,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-doctor-gradus-ad-parnassum-children-s-corner-debussy",
     "level": "L4",
     "title": "Children's Corner, L. 113 · I. Doctor Gradus ad Parnassum",
@@ -1318,21 +883,6 @@
     "measures": 87,
     "key": "D",
     "time": "12/8"
-  },
-  {
-    "id": "pdmx-drunken-sailor-sea-shanty-easy",
-    "level": "L2",
-    "title": "Drunken Sailor (easy version)",
-    "title_zh": "醉酒的水手（简易版）",
-    "composer": "Traditional (sea shanty)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Orsolya Sepsi 的钢琴谱（https://musescore.com/user/26776914/scores/5893216），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/drunken-sailor-sea-shanty-easy-piano.html",
-    "file": "pieces/pdmx-drunken-sailor-sea-shanty-easy.mxl",
-    "hands": "two",
-    "measures": 20,
-    "key": "D",
-    "time": "4/4"
   },
   {
     "id": "pdmx-el-choclo-angel-villoldo",
@@ -1500,21 +1050,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-feliz-navidad-jose-feliciano-easy",
-    "level": "L2",
-    "title": "Feliz Navidad (easy version)",
-    "title_zh": "圣诞快乐（Feliz Navidad，简易版）",
-    "composer": "José Feliciano",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 klosteraner 的钢琴谱（https://musescore.com/user/5973466/scores/1472101），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/feliz-navidad-jose-feliciano-easy-piano.html",
-    "file": "pieces/pdmx-feliz-navidad-jose-feliciano-easy.mxl",
-    "hands": "two",
-    "measures": 16,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-field-of-hopes-and-dreams-deltarune",
     "level": "L4",
     "title": "Deltarune: Field of Hopes and Dreams",
@@ -1560,21 +1095,6 @@
     "time": "2/4"
   },
   {
-    "id": "pdmx-funiculi-funicula-denza-easy",
-    "level": "L2",
-    "title": "Funiculì, Funiculà (easy version)",
-    "title_zh": "登山缆车（简易版）",
-    "composer": "Luigi Denza",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 John__Smith 的钢琴谱（https://musescore.com/user/33131263/scores/5790376），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/funiculi-funicula-denza-easy-piano.html",
-    "file": "pieces/pdmx-funiculi-funicula-denza-easy.mxl",
-    "hands": "two",
-    "measures": 53,
-    "key": "E♭",
-    "time": "6/8"
-  },
-  {
     "id": "pdmx-gavotte-gossec-gossec",
     "level": "L3",
     "title": "Gavotte",
@@ -1587,51 +1107,6 @@
     "hands": "two",
     "measures": 48,
     "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-go-tell-it-on-the-mountain-traditional-easy",
-    "level": "L2",
-    "title": "Go Tell It on the Mountain (easy version)",
-    "title_zh": "去山上传扬（简易版）",
-    "composer": "Traditional (spiritual)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Isaac Watts 的钢琴谱（https://musescore.com/user/33012693/scores/5724361），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/go-tell-it-on-the-mountain-traditional-easy-piano.html",
-    "file": "pieces/pdmx-go-tell-it-on-the-mountain-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 16,
-    "key": "F",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-god-rest-ye-merry-gentlemen-traditional-easy",
-    "level": "L1",
-    "title": "God Rest Ye Merry Gentlemen (easy version)",
-    "title_zh": "先生们，愿上帝赐你们欢乐（简易版）",
-    "composer": "Traditional (English)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 jeremyswings 的钢琴谱（https://musescore.com/user/19795/scores/33779），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/god-rest-ye-merry-gentlemen-traditional-easy-piano.html",
-    "file": "pieces/pdmx-god-rest-ye-merry-gentlemen-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 21,
-    "key": "G",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-good-king-wenceslas-traditional-easy",
-    "level": "L1",
-    "title": "Good King Wenceslas (easy version)",
-    "title_zh": "好国王温塞斯拉斯（简易版）",
-    "composer": "Traditional (Piae Cantiones)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 jeremyswings 的钢琴谱（https://musescore.com/user/19795/scores/33767），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/good-king-wenceslas-traditional-easy-piano.html",
-    "file": "pieces/pdmx-good-king-wenceslas-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 51,
-    "key": "C",
     "time": "4/4"
   },
   {
@@ -1710,36 +1185,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-hallelujah-leonard-cohen-easy",
-    "level": "L2",
-    "title": "Hallelujah (easy version)",
-    "title_zh": "Hallelujah（简易版）",
-    "composer": "Leonard Cohen",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 johnsonwong31 的钢琴谱（https://musescore.com/user/29763768/scores/5918137），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/hallelujah-leonard-cohen-easy-piano.html",
-    "file": "pieces/pdmx-hallelujah-leonard-cohen-easy.mxl",
-    "hands": "two",
-    "measures": 29,
-    "key": "C",
-    "time": "6/8"
-  },
-  {
-    "id": "pdmx-hava-nagila-easy",
-    "level": "L1",
-    "title": "Hava Nagila (easy version)",
-    "title_zh": "让我们欢乐（Hava Nagila，简易版）",
-    "composer": "Traditional (Hebrew)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 FlatChronicle 的钢琴谱（https://musescore.com/user/18368237/scores/4700014），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/hava-nagila-easy-piano.html",
-    "file": "pieces/pdmx-hava-nagila-easy.mxl",
-    "hands": "one",
-    "measures": 18,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-hikaru-nara-goose-house",
     "level": "L4",
     "title": "Your Lie in April: Hikaru Nara",
@@ -1768,36 +1213,6 @@
     "measures": 43,
     "key": "G♭",
     "time": "4/4"
-  },
-  {
-    "id": "pdmx-home-on-the-range-traditional-easy",
-    "level": "L1",
-    "title": "Home on the Range (easy version)",
-    "title_zh": "牧场上的家（简易版）",
-    "composer": "Daniel E. Kelley",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 SlurPapa 的钢琴谱（https://musescore.com/user/11295087/scores/4680759），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/home-on-the-range-traditional-easy-piano.html",
-    "file": "pieces/pdmx-home-on-the-range-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 32,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-ievan-polkka-easy",
-    "level": "L1",
-    "title": "Ievan Polkka (easy version)",
-    "title_zh": "甩葱歌（Ievan Polkka，简易版）",
-    "composer": "Traditional (Finnish)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Kristin Morton 的钢琴谱（https://musescore.com/user/11050847/scores/5095102），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/ievan-polkka-easy-piano.html",
-    "file": "pieces/pdmx-ievan-polkka-easy.mxl",
-    "hands": "one",
-    "measures": 31,
-    "key": "F",
-    "time": "2/4"
   },
   {
     "id": "pdmx-impromptu-op-142-no-2-schubert",
@@ -1890,21 +1305,6 @@
     "time": "2/2"
   },
   {
-    "id": "pdmx-jingle-bell-rock-bobby-helms-easy",
-    "level": "L1",
-    "title": "Jingle Bell Rock (easy version)",
-    "title_zh": "铃儿响叮当摇滚（简易版）",
-    "composer": "Joe Beal",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Pino Abramo 的钢琴谱（https://musescore.com/user/12225046/scores/2882111），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/jingle-bell-rock-bobby-helms-easy-piano.html",
-    "file": "pieces/pdmx-jingle-bell-rock-bobby-helms-easy.mxl",
-    "hands": "one",
-    "measures": 36,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-joy-to-the-world-traditional",
     "level": "L3",
     "title": "Joy to the World",
@@ -1980,21 +1380,6 @@
     "time": "2/4"
   },
   {
-    "id": "pdmx-komm-lieber-mai-k-596-mozart-easy",
-    "level": "L1",
-    "title": "Komm, lieber Mai, K. 596 (easy version)",
-    "title_zh": "渴望春天，K. 596（简易版）",
-    "composer": "Wolfgang Amadeus Mozart",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 RadioNet 的钢琴谱（https://musescore.com/user/13366402/scores/4654860），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/komm-lieber-mai-k-596-mozart-easy-piano.html",
-    "file": "pieces/pdmx-komm-lieber-mai-k-596-mozart-easy.mxl",
-    "hands": "two",
-    "measures": 21,
-    "key": "F",
-    "time": "6/8"
-  },
-  {
     "id": "pdmx-la-cathedrale-engloutie-the-sunken-cathedral-debussy",
     "level": "L5",
     "title": "Préludes, Book I · X. La cathédrale engloutie",
@@ -2040,21 +1425,6 @@
     "time": "3/8"
   },
   {
-    "id": "pdmx-la-llorona-traditional-easy",
-    "level": "L1",
-    "title": "La Llorona (easy version)",
-    "title_zh": "哭泣的女人（La Llorona，简易版）",
-    "composer": "Traditional (Mexican)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 CaptF2 的钢琴谱（https://musescore.com/user/29312781/scores/5700365），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/la-llorona-traditional-easy-piano.html",
-    "file": "pieces/pdmx-la-llorona-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 54,
-    "key": "F",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-la-plus-que-lente-debussy",
     "level": "L4",
     "title": "La plus que lente, L. 121",
@@ -2070,51 +1440,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-la-rejouissance-handel-easy",
-    "level": "L1",
-    "title": "Music for the Royal Fireworks: La Réjouissance (easy version)",
-    "title_zh": "皇家烟火：欢庆（简易版）",
-    "composer": "George Frideric Handel",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 wondermusik 的钢琴谱（https://musescore.com/user/9822756/scores/3765711），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/la-rejouissance-handel-easy-piano.html",
-    "file": "pieces/pdmx-la-rejouissance-handel-easy.mxl",
-    "hands": "one",
-    "measures": 21,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-la-vie-en-rose-edith-piaf-easy",
-    "level": "L2",
-    "title": "La Vie en rose (easy version)",
-    "title_zh": "玫瑰人生（简易版）",
-    "composer": "Louiguy",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 WhoIsMe? 的钢琴谱（https://musescore.com/user/29922426/scores/5828383），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/la-vie-en-rose-edith-piaf-easy-piano.html",
-    "file": "pieces/pdmx-la-vie-en-rose-edith-piaf-easy.mxl",
-    "hands": "two",
-    "measures": 24,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-las-mananitas-mexican-folk-song-easy",
-    "level": "L1",
-    "title": "Las Mañanitas (easy version)",
-    "title_zh": "清晨之歌（Las Mañanitas，简易版）",
-    "composer": "Traditional (Mexican)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Lucas Varela 的钢琴谱（https://musescore.com/user/6190726/scores/3842746），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/las-mananitas-mexican-folk-song-easy-piano.html",
-    "file": "pieces/pdmx-las-mananitas-mexican-folk-song-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "G",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-last-christmas-wham",
     "level": "L3",
     "title": "Last Christmas",
@@ -2127,21 +1452,6 @@
     "hands": "two",
     "measures": 35,
     "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-lavender-town-pokemon-easy",
-    "level": "L2",
-    "title": "Pokémon: Lavender Town (easy version)",
-    "title_zh": "宝可梦：紫苑镇（简易版）",
-    "composer": "Junichi Masuda",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 diegochairez21 的钢琴谱（https://musescore.com/user/31698848/scores/5912542），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/lavender-town-pokemon-easy-piano.html",
-    "file": "pieces/pdmx-lavender-town-pokemon-easy.mxl",
-    "hands": "two",
-    "measures": 48,
-    "key": "G",
     "time": "4/4"
   },
   {
@@ -2205,36 +1515,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-living-mice-c418-easy",
-    "level": "L2",
-    "title": "Minecraft: Living Mice (easy version)",
-    "title_zh": "我的世界：Living Mice（简易版）",
-    "composer": "C418",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 3ugman 3 的钢琴谱（https://musescore.com/user/56170/scores/74589），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/living-mice-c418-easy-piano.html",
-    "file": "pieces/pdmx-living-mice-c418-easy.mxl",
-    "hands": "two",
-    "measures": 42,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-loch-lomond-traditional-easy",
-    "level": "L1",
-    "title": "Loch Lomond (easy version)",
-    "title_zh": "罗蒙湖（简易版）",
-    "composer": "Traditional (Scottish)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Boulesiste 的钢琴谱（https://musescore.com/user/19736707/scores/4802484），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/loch-lomond-traditional-easy-piano.html",
-    "file": "pieces/pdmx-loch-lomond-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 33,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-ma-mere-l-oye-ravel",
     "level": "L3",
     "title": "Ma mère l'Oye",
@@ -2292,21 +1572,6 @@
     "hands": "two",
     "measures": 88,
     "key": "G",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-marche-slave-tchaikovsky-easy",
-    "level": "L2",
-    "title": "Marche slave (easy version)",
-    "title_zh": "斯拉夫进行曲（简易版）",
-    "composer": "Pyotr Ilyich Tchaikovsky",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 itsviji4u 的钢琴谱（https://musescore.com/user/32436479/scores/5892277），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/marche-slave-tchaikovsky-easy-piano.html",
-    "file": "pieces/pdmx-marche-slave-tchaikovsky-easy.mxl",
-    "hands": "two",
-    "measures": 18,
-    "key": "C",
     "time": "4/4"
   },
   {
@@ -2382,21 +1647,6 @@
     "hands": "two",
     "measures": 76,
     "key": "B♭",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-molly-malone-traditional-easy",
-    "level": "L1",
-    "title": "Molly Malone (easy version)",
-    "title_zh": "莫莉·马隆（简易版）",
-    "composer": "Traditional (Irish)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 SLJeans 的钢琴谱（https://musescore.com/user/124220/scores/826146），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/molly-malone-traditional-easy-piano.html",
-    "file": "pieces/pdmx-molly-malone-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 25,
-    "key": "C",
     "time": "3/4"
   },
   {
@@ -2490,36 +1740,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-o-christmas-tree-o-tannenbaum-easy",
-    "level": "L1",
-    "title": "O Christmas Tree (O Tannenbaum) (easy version)",
-    "title_zh": "哦，圣诞树（简易版）",
-    "composer": "Traditional (German)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 jeremyswings 的钢琴谱（https://musescore.com/user/19795/scores/33772），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/o-christmas-tree-o-tannenbaum-easy-piano.html",
-    "file": "pieces/pdmx-o-christmas-tree-o-tannenbaum-easy.mxl",
-    "hands": "one",
-    "measures": 33,
-    "key": "F",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-o-come-all-ye-faithful-adeste-fideles-traditional-easy",
-    "level": "L1",
-    "title": "O Come, All Ye Faithful (Adeste Fideles) (easy version)",
-    "title_zh": "齐来崇拜（简易版）",
-    "composer": "John Francis Wade",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Alber Padre 的钢琴谱（https://musescore.com/user/928926/scores/1505466），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/o-come-all-ye-faithful-adeste-fideles-traditional-easy-piano.html",
-    "file": "pieces/pdmx-o-come-all-ye-faithful-adeste-fideles-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 23,
-    "key": "C",
-    "time": ""
-  },
-  {
     "id": "pdmx-o-mio-babbino-caro-puccini",
     "level": "L3",
     "title": "Gianni Schicchi: O mio babbino caro",
@@ -2532,36 +1752,6 @@
     "hands": "two",
     "measures": 61,
     "key": "C",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-oh-my-darling-clementine-traditional-easy",
-    "level": "L2",
-    "title": "Oh My Darling, Clementine (easy version)",
-    "title_zh": "克莱门汀（简易版）",
-    "composer": "Percy Montrose",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 autoenglish 的钢琴谱（https://musescore.com/user/27413747/scores/5206068），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/oh-my-darling-clementine-traditional-easy-piano.html",
-    "file": "pieces/pdmx-oh-my-darling-clementine-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 17,
-    "key": "F",
-    "time": "3/4"
-  },
-  {
-    "id": "pdmx-over-the-waves-juventino-rosas-easy",
-    "level": "L1",
-    "title": "Over the Waves (easy version)",
-    "title_zh": "乘风破浪圆舞曲（简易版）",
-    "composer": "Juventino Rosas",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Robipad 的钢琴谱（https://musescore.com/user/138202/scores/1351051），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/over-the-waves-juventino-rosas-easy-piano.html",
-    "file": "pieces/pdmx-over-the-waves-juventino-rosas-easy.mxl",
-    "hands": "one",
-    "measures": 64,
-    "key": "B♭",
     "time": "3/4"
   },
   {
@@ -2667,21 +1857,6 @@
     "hands": "two",
     "measures": 16,
     "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-pokemon-theme-pokemon-easy",
-    "level": "L2",
-    "title": "Pokémon Theme (easy version)",
-    "title_zh": "宝可梦主题曲（简易版）",
-    "composer": "John Siegler",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Salvador Martinez 2 的钢琴谱（https://musescore.com/user/19772751/scores/5905846），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/pokemon-theme-pokemon-easy-piano.html",
-    "file": "pieces/pdmx-pokemon-theme-pokemon-easy.mxl",
-    "hands": "two",
-    "measures": 34,
-    "key": "B♭",
     "time": "4/4"
   },
   {
@@ -2805,21 +1980,6 @@
     "time": "2/2"
   },
   {
-    "id": "pdmx-red-river-valley-traditional-easy",
-    "level": "L1",
-    "title": "Red River Valley (easy version)",
-    "title_zh": "红河谷（简易版）",
-    "composer": "Traditional (American)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Marc Sabatella 的钢琴谱（https://musescore.com/user/2975/scores/6404875），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/red-river-valley-traditional-easy-piano.html",
-    "file": "pieces/pdmx-red-river-valley-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 17,
-    "key": "G",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-renai-circulation-kana-hanazawa",
     "level": "L4",
     "title": "Bakemonogatari: Renai Circulation",
@@ -2832,21 +1992,6 @@
     "hands": "two",
     "measures": 44,
     "key": "A",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-rockin-around-the-christmas-tree-brenda-lee-easy",
-    "level": "L1",
-    "title": "Rockin' Around the Christmas Tree (easy version)",
-    "title_zh": "围着圣诞树摇滚（简易版）",
-    "composer": "Johnny Marks",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 kusmu 的钢琴谱（https://musescore.com/user/1231291/scores/4862907），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/rockin-around-the-christmas-tree-brenda-lee-easy-piano.html",
-    "file": "pieces/pdmx-rockin-around-the-christmas-tree-brenda-lee-easy.mxl",
-    "hands": "one",
-    "measures": 36,
-    "key": "D",
     "time": "4/4"
   },
   {
@@ -2880,21 +2025,6 @@
     "time": "3/2"
   },
   {
-    "id": "pdmx-saria-s-song-lost-woods-the-legend-of-zelda-easy",
-    "level": "L1",
-    "title": "The Legend of Zelda: Saria's Song (easy version)",
-    "title_zh": "塞尔达传说：萨莉亚之歌（迷失森林，简易版）",
-    "composer": "Koji Kondo",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Jacob Parra 的钢琴谱（https://musescore.com/user/3050666/scores/1267456），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/saria-s-song-lost-woods-the-legend-of-zelda-easy-piano.html",
-    "file": "pieces/pdmx-saria-s-song-lost-woods-the-legend-of-zelda-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "A",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-senbonzakura-kurousa-p",
     "level": "L5",
     "title": "Senbonzakura",
@@ -2907,21 +2037,6 @@
     "hands": "two",
     "measures": 128,
     "key": "F",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-shenandoah-traditional-easy",
-    "level": "L1",
-    "title": "Shenandoah (easy version)",
-    "title_zh": "谢南多厄河（简易版）",
-    "composer": "Traditional (American)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 StripperOrange 的钢琴谱（https://musescore.com/user/17863882/scores/5007461），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/shenandoah-traditional-easy-piano.html",
-    "file": "pieces/pdmx-shenandoah-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 10,
-    "key": "G",
     "time": "4/4"
   },
   {
@@ -2955,21 +2070,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-skye-boat-song-traditional-easy",
-    "level": "L1",
-    "title": "Skye Boat Song (easy version)",
-    "title_zh": "斯凯岛船歌（简易版）",
-    "composer": "Traditional (Scottish)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 PoloCyber 的钢琴谱（https://musescore.com/user/20271637/scores/4942365），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/skye-boat-song-traditional-easy-piano.html",
-    "file": "pieces/pdmx-skye-boat-song-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 29,
-    "key": "G",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-soldiers-march-schumann",
     "level": "L2",
     "title": "Album for the Young, Op. 68 No. 2 “Soldiers' March”",
@@ -2983,21 +2083,6 @@
     "measures": 24,
     "key": "G",
     "time": "2/4"
-  },
-  {
-    "id": "pdmx-someone-you-loved-lewis-capaldi-easy",
-    "level": "L2",
-    "title": "Someone You Loved (easy version)",
-    "title_zh": "Someone You Loved（简易版）",
-    "composer": "Lewis Capaldi",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 SadieKing27 的钢琴谱（https://musescore.com/user/28416909/scores/5926328），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/someone-you-loved-lewis-capaldi-easy-piano.html",
-    "file": "pieces/pdmx-someone-you-loved-lewis-capaldi-easy.mxl",
-    "hands": "two",
-    "measures": 27,
-    "key": "C",
-    "time": "4/4"
   },
   {
     "id": "pdmx-sonata-op-58-movement-4-chopin",
@@ -3090,51 +2175,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-star-locket-melody-sailor-moon-easy",
-    "level": "L1",
-    "title": "Sailor Moon: Star Locket Melody (easy version)",
-    "title_zh": "美少女战士：星之音乐盒（简易版）",
-    "composer": "Tetsuya Komoro",
-    "license": "编配 PDM-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 pampat97 的钢琴谱（https://musescore.com/user/71365/scores/199006），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/star-locket-melody-sailor-moon-easy-piano.html",
-    "file": "pieces/pdmx-star-locket-melody-sailor-moon-easy.mxl",
-    "hands": "two",
-    "measures": 11,
-    "key": "E♭",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-star-wars-main-theme-john-williams-easy",
-    "level": "L2",
-    "title": "Star Wars Main Theme (easy version)",
-    "title_zh": "星球大战主题曲（简易版）",
-    "composer": "John Williams",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Merigniespiano 的钢琴谱（https://musescore.com/user/1509386/scores/5943300），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/star-wars-main-theme-john-williams-easy-piano.html",
-    "file": "pieces/pdmx-star-wars-main-theme-john-williams-easy.mxl",
-    "hands": "two",
-    "measures": 25,
-    "key": "G",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-still-alive-portal-easy",
-    "level": "L2",
-    "title": "Portal: Still Alive (easy version)",
-    "title_zh": "传送门：Still Alive（简易版）",
-    "composer": "Jonathan Coulton",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 Jean-Michel Thiemonge 的钢琴谱（https://musescore.com/user/9424386/scores/4337491），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/still-alive-portal-easy-piano.html",
-    "file": "pieces/pdmx-still-alive-portal-easy.mxl",
-    "hands": "two",
-    "measures": 40,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-stranger-things-theme-kyle-dixon-michael-stein",
     "level": "L3",
     "title": "Stranger Things Theme",
@@ -3177,21 +2217,6 @@
     "hands": "two",
     "measures": 50,
     "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-swing-low-sweet-chariot-traditional-easy",
-    "level": "L1",
-    "title": "Swing Low, Sweet Chariot (easy version)",
-    "title_zh": "轻轻摇，可爱的马车（简易版）",
-    "composer": "Wallace Willis",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Heartekst 的钢琴谱（https://musescore.com/user/15033987/scores/4849885），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/swing-low-sweet-chariot-traditional-easy-piano.html",
-    "file": "pieces/pdmx-swing-low-sweet-chariot-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 16,
-    "key": "G",
     "time": "4/4"
   },
   {
@@ -3240,21 +2265,6 @@
     "time": "4/4"
   },
   {
-    "id": "pdmx-the-first-noel-easy",
-    "level": "L1",
-    "title": "The First Noel (easy version)",
-    "title_zh": "第一个圣诞（简易版）",
-    "composer": "Traditional (English)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Hazel Michael 的钢琴谱（https://musescore.com/user/12887882/scores/4949025），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-first-noel-easy-piano.html",
-    "file": "pieces/pdmx-the-first-noel-easy.mxl",
-    "hands": "one",
-    "measures": 25,
-    "key": "D",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-the-girl-with-the-flaxen-hair-debussy",
     "level": "L4",
     "title": "Préludes, Book I · VIII. La fille aux cheveux de lin",
@@ -3283,21 +2293,6 @@
     "measures": 17,
     "key": "F",
     "time": "3/4"
-  },
-  {
-    "id": "pdmx-the-irish-washerwoman-traditional-easy",
-    "level": "L1",
-    "title": "The Irish Washerwoman (easy version)",
-    "title_zh": "爱尔兰洗衣妇（简易版）",
-    "composer": "Traditional (Irish)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Lugifer 的钢琴谱（https://musescore.com/user/28151548/scores/5011757），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-irish-washerwoman-traditional-easy-piano.html",
-    "file": "pieces/pdmx-the-irish-washerwoman-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 36,
-    "key": "G",
-    "time": "6/8"
   },
   {
     "id": "pdmx-the-little-shepherd-debussy",
@@ -3360,51 +2355,6 @@
     "time": "2/4"
   },
   {
-    "id": "pdmx-the-teddy-bears-picnic-john-w-bratton-easy",
-    "level": "L1",
-    "title": "The Teddy Bears' Picnic (easy version)",
-    "title_zh": "泰迪熊的野餐（简易版）",
-    "composer": "John W. Bratton",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Kristin Morton 的钢琴谱（https://musescore.com/user/11050847/scores/4859461），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-teddy-bears-picnic-john-w-bratton-easy-piano.html",
-    "file": "pieces/pdmx-the-teddy-bears-picnic-john-w-bratton-easy.mxl",
-    "hands": "one",
-    "measures": 50,
-    "key": "C",
-    "time": "6/8"
-  },
-  {
-    "id": "pdmx-the-twelve-days-of-christmas-traditional-easy",
-    "level": "L2",
-    "title": "The Twelve Days of Christmas (easy version)",
-    "title_zh": "圣诞十二天（简易版）",
-    "composer": "Traditional (English)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Joshua667746 的钢琴谱（https://musescore.com/user/6624501/scores/5851745），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-twelve-days-of-christmas-traditional-easy-piano.html",
-    "file": "pieces/pdmx-the-twelve-days-of-christmas-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 45,
-    "key": "F",
-    "time": "2/4"
-  },
-  {
-    "id": "pdmx-the-water-is-wide-traditional-easy",
-    "level": "L1",
-    "title": "The Water Is Wide (easy version)",
-    "title_zh": "河水宽又宽（简易版）",
-    "composer": "Traditional (British)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Notesta 的钢琴谱（https://musescore.com/user/10599137/scores/4685005），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/the-water-is-wide-traditional-easy-piano.html",
-    "file": "pieces/pdmx-the-water-is-wide-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "F",
-    "time": "3/4"
-  },
-  {
     "id": "pdmx-toccata-and-fugue-in-d-minor-bwv-565-bach",
     "level": "L5",
     "title": "Toccata and Fugue in D Minor, BWV 565",
@@ -3418,21 +2368,6 @@
     "measures": 143,
     "key": "F",
     "time": "4/4"
-  },
-  {
-    "id": "pdmx-torna-a-surriento-ernesto-de-curtis-easy",
-    "level": "L1",
-    "title": "Torna a Surriento (easy version)",
-    "title_zh": "重归苏莲托（简易版）",
-    "composer": "Ernesto De Curtis",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Boulesiste 的钢琴谱（https://musescore.com/user/19736707/scores/4587112），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/torna-a-surriento-ernesto-de-curtis-easy-piano.html",
-    "file": "pieces/pdmx-torna-a-surriento-ernesto-de-curtis-easy.mxl",
-    "hands": "one",
-    "measures": 36,
-    "key": "F",
-    "time": "3/4"
   },
   {
     "id": "pdmx-toss-a-coin-to-your-witcher-the-witcher",
@@ -3463,21 +2398,6 @@
     "measures": 192,
     "key": "A",
     "time": "2/4"
-  },
-  {
-    "id": "pdmx-tumbalalaika-traditional-easy",
-    "level": "L1",
-    "title": "Tumbalalaika (easy version)",
-    "title_zh": "弹起巴拉莱卡（简易版）",
-    "composer": "Traditional (Yiddish)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 f0lk 的钢琴谱（https://musescore.com/user/19359462/scores/4674964），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/tumbalalaika-traditional-easy-piano.html",
-    "file": "pieces/pdmx-tumbalalaika-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 33,
-    "key": "G",
-    "time": "3/4"
   },
   {
     "id": "pdmx-turkey-in-the-straw-traditional",
@@ -3675,36 +2595,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-waltzing-matilda-christina-macpherson-easy",
-    "level": "L2",
-    "title": "Waltzing Matilda (easy version)",
-    "title_zh": "丛林流浪（简易版）",
-    "composer": "Christina Macpherson",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 johnsonwong31 的钢琴谱（https://musescore.com/user/29763768/scores/5901706），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/waltzing-matilda-christina-macpherson-easy-piano.html",
-    "file": "pieces/pdmx-waltzing-matilda-christina-macpherson-easy.mxl",
-    "hands": "two",
-    "measures": 16,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-wayfaring-stranger-traditional-easy",
-    "level": "L1",
-    "title": "Wayfaring Stranger (easy version)",
-    "title_zh": "流浪的异乡人（简易版）",
-    "composer": "Traditional (American)",
-    "license": "PDM-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 Boulesiste 的钢琴谱（https://musescore.com/user/19736707/scores/4604607），公有领域标记 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/wayfaring-stranger-traditional-easy-piano.html",
-    "file": "pieces/pdmx-wayfaring-stranger-traditional-easy.mxl",
-    "hands": "one",
-    "measures": 17,
-    "key": "D",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-we-three-kings-traditional",
     "level": "L2",
     "title": "We Three Kings",
@@ -3735,36 +2625,6 @@
     "time": "3/4"
   },
   {
-    "id": "pdmx-when-the-saints-go-marching-in-traditional-easy",
-    "level": "L2",
-    "title": "When the Saints Go Marching In (easy version)",
-    "title_zh": "圣者进行曲（简易版）",
-    "composer": "Traditional (spiritual)",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 urashid 的钢琴谱（https://musescore.com/user/55155/scores/72874），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/when-the-saints-go-marching-in-traditional-easy-piano.html",
-    "file": "pieces/pdmx-when-the-saints-go-marching-in-traditional-easy.mxl",
-    "hands": "two",
-    "measures": 36,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-william-tell-overture-finale-rossini-easy",
-    "level": "L2",
-    "title": "William Tell Overture (Finale) (easy version)",
-    "title_zh": "威廉·退尔序曲：终曲（简易版）",
-    "composer": "Gioachino Rossini",
-    "license": "CC0-1.0",
-    "attribution": "公有领域原作。MuseScore 用户 dundeepiano 的钢琴谱（https://musescore.com/user/13638056/scores/6007144），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/william-tell-overture-finale-rossini-easy-piano.html",
-    "file": "pieces/pdmx-william-tell-overture-finale-rossini-easy.mxl",
-    "hands": "two",
-    "measures": 18,
-    "key": "C",
-    "time": "4/4"
-  },
-  {
     "id": "pdmx-wind-scene-chrono-trigger",
     "level": "L4",
     "title": "Chrono Trigger: Wind Scene",
@@ -3777,21 +2637,6 @@
     "hands": "two",
     "measures": 40,
     "key": "F",
-    "time": "4/4"
-  },
-  {
-    "id": "pdmx-zenzenzense-radwimps-easy",
-    "level": "L2",
-    "title": "Your Name: Zenzenzense (easy version)",
-    "title_zh": "你的名字：前前前世（简易版）",
-    "composer": "Yojiro Noda",
-    "license": "编配 CC0-1.0，作曲仍受版权保护",
-    "attribution": "作曲仍受版权保护，不属于公有领域。MuseScore 用户 djx_90 的钢琴谱（https://musescore.com/user/29137767/scores/5174111），CC0 1.0，经 PDMX 语料库收录，由 Vivace Music 排版并提供 MusicXML。",
-    "source_url": "https://vivace-music.org/sheets/zenzenzense-radwimps-easy-piano.html",
-    "file": "pieces/pdmx-zenzenzense-radwimps-easy.mxl",
-    "hands": "two",
-    "measures": 86,
-    "key": "D",
     "time": "4/4"
   }
 ]
