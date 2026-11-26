@@ -419,10 +419,11 @@ function readDirection(
     const type = pedal.getAttribute('type')
     const key = `${staff ?? ''}`
     if (type === 'start' || type === 'resume' || type === 'change') {
-      // A change lifts the old pedal and presses again on the same beat.
+      // A change lifts the old pedal and presses again on the same beat. A press that a
+      // backup places before the open one ends that one where it began, never before.
       const open = openPedals.get(key)
       if (open) {
-        open.upBeat = at
+        open.upBeat = Math.max(at, open.downBeat)
         openPedals.delete(key)
       }
       const span: PedalSpan = { downBeat: at, upBeat: null }
@@ -431,7 +432,9 @@ function readDirection(
       openPedals.set(key, span)
     } else if (type === 'stop') {
       const open = openPedals.get(key)
-      if (open) {
+      // As with hairpins, a lift written after a backup can belong to an earlier pedal and
+      // land before the open press; it cannot end a pedal that has not gone down yet.
+      if (open && at >= open.downBeat) {
         open.upBeat = at
         openPedals.delete(key)
       }

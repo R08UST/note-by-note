@@ -269,6 +269,30 @@ describe('printed expression', () => {
     ])
   })
 
+  it('ignores a pedal lift that a backup places before the press it would end', () => {
+    // A second voice written after <backup> can carry the lift of an earlier pedal, so the
+    // lift arrives after a later press. It must not end that press before it begins.
+    const parsed = parseMusicXml(
+      score(
+        measure(
+          1,
+          attributes +
+            direction('<pedal type="start"/>') +
+            pitched('C', 3, 1) +
+            pitched('D', 3, 1) +
+            direction('<pedal type="start"/>') +
+            pitched('E', 3, 1) +
+            '<backup><duration>2</duration></backup>' +
+            direction('<pedal type="stop"/>'),
+        ),
+      ),
+    )
+    expect(parsed.pedals).toEqual([
+      { downBeat: 0, upBeat: 2 },
+      { downBeat: 2, upBeat: 4 },
+    ])
+  })
+
   it('reads a printed tempo', () => {
     const parsed = parseMusicXml(
       score(
