@@ -13153,5 +13153,20 @@
     "measures": 227,
     "key": "E♭",
     "time": "6/8"
+  },
+  {
+    "id": "noc-dj-okawari-luv-letter",
+    "level": "L3",
+    "title": "Luv Letter",
+    "title_zh": "情书",
+    "composer": "DJ Okawari",
+    "license": "CC0-1.0",
+    "attribution": "用户上传的 MuseScore 4 导出版",
+    "source_url": "",
+    "file": "pieces/noc-dj-okawari-luv-letter.mxl",
+    "hands": "two",
+    "measures": 94,
+    "key": "E♭",
+    "time": "4/4"
   }
 ]

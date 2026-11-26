@@ -123,6 +123,8 @@ const CHINESE = new Map<string, string>([
   ['Modest Mussorgsky', '穆索尔斯基'],
   ['François Couperin', '库普兰'],
   ['Johann Strauss II', '小约翰·施特劳斯'],
+  ['Johann Strauss I', '老约翰·施特劳斯'],
+  ['Émile Waldteufel', '瓦尔德退费尔'],
   ['Edward MacDowell', '麦克道威尔'],
   ['Camille Saint-Saëns', '圣桑'],
   ['Franz Behr', '贝尔'],
