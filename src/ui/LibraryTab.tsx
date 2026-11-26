@@ -2,12 +2,15 @@ import { lazy, Suspense, useMemo, useState, type Ref } from 'react'
 import {
   filterCatalog,
   groupByComposer,
+  groupByLevel,
+  matchesText,
   needsAttribution,
   pieceTitle,
   rankSearch,
   sortPieces,
   LEVEL_ORDER,
   type CatalogPiece,
+  type CatalogGroup,
   type CatalogQuery,
   type CatalogSort,
 } from '../score/catalog'
@@ -18,7 +21,8 @@ const ScoreImport = lazy(() => import('./ScoreImport').then((mod) => ({ default:
 
 const CATEGORIES: { value: NonNullable<CatalogQuery['category']>; label: string }[] = [
   { value: 'all', label: '全部' },
-  { value: 'graded', label: '独奏曲' },
+  { value: 'graded', label: '古典与民歌' },
+  { value: 'popular', label: '流行·影视·游戏' },
   { value: 'method', label: '教材' },
   { value: 'etude', label: '练习曲' },
 ]
@@ -28,6 +32,14 @@ const SORTS: { value: CatalogSort; label: string }[] = [
   { value: 'length', label: '长度' },
   { value: 'alpha', label: '字母' },
 ]
+
+const GROUPS: { value: CatalogGroup; label: string }[] = [
+  { value: 'composer', label: '作曲家' },
+  { value: 'level', label: '程度' },
+]
+
+/** 搜索结果一次画这么多张卡片，打一个字母不至于一下子渲染上千张。 */
+const RESULT_PAGE = 60
 
 interface SavedScoreCard {
   id: number
@@ -86,15 +98,27 @@ export function LibraryTab({
   const [folded, setFolded] = useState<Record<string, boolean>>({})
   const category = query.category ?? 'all'
   const sort = query.sort ?? 'level'
+  const group = query.group ?? 'composer'
   const shown = useMemo(() => filterCatalog(pieces, query), [pieces, query])
-  const shelves = useMemo(() => groupByComposer(shown, sort), [shown, sort])
+  const shelves = useMemo(() => (group === 'level' ? groupByLevel : groupByComposer)(shown, sort), [group, shown, sort])
   const searching = query.text.trim().length > 0
-  // 搜索时不分作曲家书架，按相关度排成一列，最像的在最上面。
+  // 搜索时不分书架，按相关度排成一列，最像的在最上面。
   const results = useMemo(() => (searching ? rankSearch(sortPieces(shown, sort), query.text) : []), [searching, shown, sort, query.text])
+  const savedHits = searching ? saved.filter((score) => matchesText(`${score.title} ${score.tag ?? ''}`, query.text)) : []
+  // 换了搜索词就回到第一页。
+  const [page, setPage] = useState({ text: '', limit: RESULT_PAGE })
+  const limit = page.text === query.text ? page.limit : RESULT_PAGE
   const filtersOn = query.level !== 'all' || query.hands !== 'all' || category !== 'all'
   const hidden = searching && filtersOn ? filterCatalog(pieces, { ...query, level: 'all', hands: 'all', category: 'all' }).length - shown.length : 0
 
-  const count = (predicate: (piece: CatalogPiece) => boolean) => pieces.filter(predicate).length
+  // 按钮上的数字跟着其他筛选和搜索词走：点下去会剩几首，就显示几首。
+  const facets = useMemo(() => {
+    const count = (patch: Partial<CatalogQuery>) => filterCatalog(pieces, { ...query, ...patch }).length
+    return {
+      level: new Map([['all', count({ level: 'all' })], ...LEVEL_ORDER.map((level) => [level, count({ level })] as const)]),
+      category: new Map(CATEGORIES.map((item) => [item.value, count({ category: item.value })])),
+    }
+  }, [pieces, query])
 
   return (
     <section className="library-panel" aria-label="曲库">
@@ -130,7 +154,7 @@ export function LibraryTab({
             aria-pressed={query.level === 'all'}
             onClick={() => onQuery({ ...query, level: 'all' })}
           >
-            全部 {pieces.length}
+            全部 {facets.level.get('all')}
           </button>
           {LEVEL_ORDER.map((level) => (
             <button
@@ -139,7 +163,7 @@ export function LibraryTab({
               aria-pressed={query.level === level}
               onClick={() => onQuery({ ...query, level })}
             >
-              {level} {count((piece) => piece.level === level)}
+              {level} {facets.level.get(level)}
             </button>
           ))}
         </div>
@@ -152,14 +176,7 @@ export function LibraryTab({
               aria-pressed={category === item.value}
               onClick={() => onQuery({ ...query, category: item.value })}
             >
-              {item.label}{' '}
-              {count((piece) =>
-                item.value === 'all'
-                  ? true
-                  : item.value === 'graded'
-                    ? piece.category == null
-                    : piece.category === item.value,
-              )}
+              {item.label} {facets.category.get(item.value)}
             </button>
           ))}
         </div>
@@ -174,6 +191,20 @@ export function LibraryTab({
           <button type="button" aria-pressed={query.hands === 'two'} onClick={() => onQuery({ ...query, hands: 'two' })}>
             双手
           </button>
+        </div>
+
+        <div className="segmented" role="group" aria-label="分组">
+          <span className="segmented-label">分组</span>
+          {GROUPS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              aria-pressed={group === item.value}
+              onClick={() => onQuery({ ...query, group: item.value })}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         <div className="segmented" role="group" aria-label="排序">
@@ -271,9 +302,9 @@ export function LibraryTab({
 
       <section className="library-section">
         <div className="library-shelf-head">
-          <h3>{searching ? '搜索结果' : category === 'method' ? '教材' : category === 'etude' ? '练习曲' : '全部曲库'}</h3>
+          <h3>{searching ? '搜索结果' : category === 'all' ? '全部曲库' : CATEGORIES.find((item) => item.value === category)?.label}</h3>
           <span className="device-note">
-            {searching ? `${shown.length} 首${results[0] ? ' · 回车打开第一首' : ''}` : `${shown.length} 首 · ${shelves.length} 位作曲家`}
+            {searching ? `${shown.length} 首${results[0] ? ' · 回车打开第一首' : ''}` : `${shown.length} 首 · ${shelves.length} ${group === 'level' ? '个程度' : '位作曲家'}`}
             {openingId ? ' · 正在打开…' : ''}
           </span>
           {hidden > 0 && (
@@ -295,23 +326,40 @@ export function LibraryTab({
           </div>}
         </div>
         {error && <p className="score-status error">{error}</p>}
+        {savedHits.length > 0 && (
+          <div className="recent" aria-label="我的曲谱里的结果">
+            <span className="segmented-label">我的曲谱</span>
+            {savedHits.map((score) => (
+              <button key={score.id} type="button" onClick={() => onOpenSaved(score.id)}>
+                {score.title}
+              </button>
+            ))}
+          </div>
+        )}
         {shown.length === 0 ? (
           <p>没有符合的曲子。可以试试作曲家的中文或英文名、曲名里的一个词，或者教材编号。</p>
         ) : searching ? (
-          <ul className="library-grid">
-            {results.map((piece) => (
-              <li key={piece.id}>
-                <PieceCard piece={piece} active={piece.id === activeId} opening={openingId === piece.id} onOpen={onOpen} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="library-grid">
+              {results.slice(0, limit).map((piece) => (
+                <li key={piece.id}>
+                  <PieceCard piece={piece} active={piece.id === activeId} opening={openingId === piece.id} onOpen={onOpen} />
+                </li>
+              ))}
+            </ul>
+            {results.length > limit && (
+              <button type="button" className="button ghost" onClick={() => setPage({ text: query.text, limit: limit + RESULT_PAGE })}>
+                再显示 {Math.min(RESULT_PAGE, results.length - limit)} 首（还有 {results.length - limit} 首）
+              </button>
+            )}
+          </>
         ) : (
           <div className="library-shelves">
             {shelves.map((shelf) => {
               // 默认收起，只看到作曲家列表。
               const open = folded[shelf.composer] ?? false
               const activeHere = shelf.pieces.some((piece) => piece.id === activeId)
-              const zh = composerZh(shelf.composer)
+              const zh = group === 'composer' ? composerZh(shelf.composer) : ''
               return (
                 <section key={shelf.composer} className={open ? 'composer-shelf is-open' : 'composer-shelf'}>
                   <button

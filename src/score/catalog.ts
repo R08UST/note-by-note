@@ -35,9 +35,21 @@ export interface CatalogQuery {
   level: CatalogPiece['level'] | 'all'
   hands: CatalogPiece['hands'] | 'all'
   text: string
-  /** 'all' 是默认：独奏曲、教材、练习曲混在同一个列表里，靠 type 过滤。 */
-  category?: 'all' | 'graded' | 'etude' | 'method'
+  /** 'all' 是默认：独奏曲、流行、教材、练习曲混在同一个列表里，靠 type 过滤。 */
+  category?: 'all' | 'graded' | 'popular' | 'etude' | 'method'
   sort?: CatalogSort
+  /** 书架按作曲家分还是按程度分。 */
+  group?: CatalogGroup
+}
+
+export type CatalogGroup = 'composer' | 'level'
+
+/**
+ * 流行、影视、动漫、游戏曲目：作曲仍受版权保护的那批。
+ * ponytail: 从 license 文字推出来，以后要细分流派再给 manifest 加 genre 字段。
+ */
+export function isPopular(piece: CatalogPiece): boolean {
+  return piece.license.includes('作曲仍受版权保护')
 }
 
 export function pieceTitle(piece: CatalogPiece): string {
@@ -148,6 +160,12 @@ function tokenHit(text: string, words: readonly string[], token: string): boolea
   return true
 }
 
+/** 词首命中：「ode」算不上「Melodie」的命中，但算「Ode to Joy」的。中文没有词，照旧按包含算。 */
+function wordStartHit(text: string, words: readonly string[], token: string): boolean {
+  if (/\p{Script=Han}/u.test(token)) return tokenHit(text, words, token)
+  return words.some((word) => word.startsWith(token))
+}
+
 /** 每个词都要出现，但可以落在不同字段里，所以「bach minuet」能找到。 */
 export function matchesSearch(piece: CatalogPiece, text: string): boolean {
   const tokens = searchTokens(text)
@@ -156,7 +174,17 @@ export function matchesSearch(piece: CatalogPiece, text: string): boolean {
   return tokens.every((token) => tokenHit(hay.all, hay.words, token))
 }
 
-/** 标题命中的排前面：整名相同 > 标题开头 > 每个词都在标题里 > 只在作曲家或教材里。同档保持原顺序。 */
+/** 给曲库以外的东西（我的曲谱）用同一套规则匹配。 */
+export function matchesText(fields: string, text: string): boolean {
+  const all = foldSearch(fields)
+  const words = all.split(' ')
+  return searchTokens(text).every((token) => tokenHit(all, words, token))
+}
+
+/**
+ * 整名相同 > 标题开头 > 每个词都在标题词首 > 每个词都在标题里 > 每个词都在某个词首（作曲家、教材）
+ * > 只是字母串碰上了。同档保持原顺序。
+ */
 export function rankSearch(pieces: readonly CatalogPiece[], text: string): CatalogPiece[] {
   const folded = foldSearch(text)
   const tokens = searchTokens(text)
@@ -164,8 +192,10 @@ export function rankSearch(pieces: readonly CatalogPiece[], text: string): Catal
     const hay = haystackOf(piece)
     if (foldSearch(pieceTitle(piece)) === folded) return 0
     if (hay.title.startsWith(folded)) return 1
-    if (tokens.every((token) => tokenHit(hay.title, hay.titleWords, token))) return 2
-    return 3
+    if (tokens.every((token) => wordStartHit(hay.title, hay.titleWords, token))) return 2
+    if (tokens.every((token) => tokenHit(hay.title, hay.titleWords, token))) return 3
+    if (tokens.every((token) => wordStartHit(hay.all, hay.words, token))) return 4
+    return 5
   }
   return pieces
     .map((piece, index) => ({ piece, index, rank: rank(piece) }))
@@ -178,7 +208,8 @@ export function filterCatalog(pieces: readonly CatalogPiece[], query: CatalogQue
   return pieces.filter((piece) => {
     if (category === 'etude' && piece.category !== 'etude') return false
     if (category === 'method' && piece.category !== 'method') return false
-    if (category === 'graded' && (piece.category === 'etude' || piece.category === 'method')) return false
+    if (category === 'popular' && !isPopular(piece)) return false
+    if (category === 'graded' && (piece.category != null || isPopular(piece))) return false
     if (query.level !== 'all' && piece.level !== query.level) return false
     if (query.hands !== 'all' && piece.hands !== query.hands) return false
     return matchesSearch(piece, query.text)
@@ -221,9 +252,12 @@ export function sortPieces(pieces: readonly CatalogPiece[], sort: CatalogSort): 
   return ordered
 }
 
+export const OTHER_POPULAR = '其他流行与影视游戏'
+
 /**
  * 按作曲家分组成可折叠的书架。少于 SHELF_MIN_PIECES 首的作曲家并进「其他作曲家」，
- * 否则会有几十个只有一首曲子的分组。
+ * 否则会有几十个只有一首曲子的分组。流行、影视、游戏的作曲家排在古典之后，
+ * 零散的那些并进「其他流行与影视游戏」，不和古典的小作曲家混在一起。
  */
 export function groupByComposer(pieces: readonly CatalogPiece[], sort: CatalogSort = 'level'): ComposerShelf[] {
   const buckets = new Map<string, CatalogPiece[]>()
@@ -234,20 +268,47 @@ export function groupByComposer(pieces: readonly CatalogPiece[], sort: CatalogSo
     else buckets.set(name, [piece])
   }
 
-  const shelves: ComposerShelf[] = []
+  // tier：0 古典作曲家，1 流行作曲家，2 其他作曲家，3 其他流行。
+  const shelves: { shelf: ComposerShelf; tier: number }[] = []
   const minor: CatalogPiece[] = []
+  const minorPopular: CatalogPiece[] = []
   for (const [name, bucket] of buckets) {
-    if (bucket.length < SHELF_MIN_PIECES) minor.push(...bucket)
-    else shelves.push({ name, composer: name, pieces: sortPieces(bucket, sort) })
+    const popular = bucket.every(isPopular)
+    if (bucket.length >= SHELF_MIN_PIECES) shelves.push({ shelf: { name, composer: name, pieces: sortPieces(bucket, sort) }, tier: popular ? 1 : 0 })
+    else (popular ? minorPopular : minor).push(...bucket)
   }
-  if (minor.length > 0) {
-    shelves.push({ name: OTHER_COMPOSERS, composer: OTHER_COMPOSERS, pieces: sortPieces(minor, sort) })
+  for (const [name, bucket, tier] of [
+    [OTHER_COMPOSERS, minor, 2],
+    [OTHER_POPULAR, minorPopular, 3],
+  ] as const) {
+    if (bucket.length > 0) shelves.push({ shelf: { name, composer: name, pieces: sortPieces(bucket, sort) }, tier })
   }
 
-  shelves.sort((a, b) => {
-    if (a.name === OTHER_COMPOSERS) return 1
-    if (b.name === OTHER_COMPOSERS) return -1
-    return composerSortKey(a.name).localeCompare(composerSortKey(b.name)) || a.name.localeCompare(b.name)
-  })
-  return shelves
+  shelves.sort(
+    (a, b) =>
+      a.tier - b.tier ||
+      composerSortKey(a.shelf.name).localeCompare(composerSortKey(b.shelf.name)) ||
+      a.shelf.name.localeCompare(b.shelf.name),
+  )
+  return shelves.map((item) => item.shelf)
+}
+
+export const LEVEL_NAMES: Record<CatalogPiece['level'], string> = {
+  L1: 'L1 入门',
+  L2: 'L2 初级',
+  L3: 'L3 中级',
+  L4: 'L4 中高级',
+  L5: 'L5 高级',
+}
+
+/** 按程度分书架，L1 到 L5，给只想找「我现在能弹什么」的时候用。 */
+export function groupByLevel(pieces: readonly CatalogPiece[], sort: CatalogSort = 'level'): ComposerShelf[] {
+  return LEVEL_ORDER.map((level) => ({
+    name: LEVEL_NAMES[level],
+    composer: level,
+    pieces: sortPieces(
+      pieces.filter((piece) => piece.level === level),
+      sort,
+    ),
+  })).filter((shelf) => shelf.pieces.length > 0)
 }

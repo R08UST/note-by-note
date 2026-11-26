@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   filterCatalog,
   groupByComposer,
+  groupByLevel,
   needsAttribution,
   nowPlayingLine,
   pieceTitle,
@@ -127,6 +128,28 @@ describe('composer shelves', () => {
     expect(groups.map((group) => group.name)).toEqual(['Johann Sebastian Bach', '其他作曲家'])
     // Anonymous 和 Traditional 归并成同一个人，两首还不够三首，一起进「其他」。
     expect(groups[1]!.pieces.map((piece) => piece.id).sort()).toEqual(['x', 'y', 'z'])
+  })
+
+  it('puts popular composers after classical ones and keeps one-off popular pieces in their own shelf', () => {
+    const pop = (id: string, composer: string) => ({ ...make(id, composer, 'L3', 10), license: '编配 CC0-1.0，作曲仍受版权保护' })
+    const groups = groupByComposer([
+      pop('p1', 'Joe Hisaishi'),
+      pop('p2', 'Joe Hisaishi'),
+      pop('p3', 'Joe Hisaishi'),
+      pop('p4', 'Coldplay'),
+      make('a', 'Muzio Clementi', 'L3', 10),
+      make('b', 'Muzio Clementi', 'L3', 10),
+      make('c', 'Muzio Clementi', 'L3', 10),
+      make('z', 'Dora Pejačević', 'L3', 10),
+    ])
+    expect(groups.map((group) => group.name)).toEqual(['Muzio Clementi', 'Joe Hisaishi', '其他作曲家', '其他流行与影视游戏'])
+    expect(filterCatalog(groups.flatMap((group) => group.pieces), { level: 'all', hands: 'all', text: '', category: 'popular' }).map((piece) => piece.id)).toEqual(['p1', 'p2', 'p3', 'p4'])
+    expect(filterCatalog([pop('p', 'Coldplay')], { level: 'all', hands: 'all', text: '', category: 'graded' })).toEqual([])
+  })
+
+  it('groups by level from L1 to L5 and skips empty levels', () => {
+    const groups = groupByLevel([make('x', 'Bach', 'L4', 10), make('y', 'Bach', 'L1', 10)])
+    expect(groups.map((group) => group.composer)).toEqual(['L1', 'L4'])
   })
 
   it('orders by length or alphabetically when asked', () => {
